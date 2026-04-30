@@ -1,0 +1,11 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.venv/
+.cursor/
+app.db
+data/artifacts/

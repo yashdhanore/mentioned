@@ -1,0 +1,29 @@
+{
+  "schema_version": "visual_eval_manifest.v1",
+  "jobs": [
+    {
+      "job_id": "71c452b8-801a-461a-a9e0-9f8da4ce586b",
+      "source_url": "https://www.instagram.com/reel/DVqsAbKjOcX/",
+      "source_kind": "instagram_reel",
+      "expected_visible_lines": [
+        "Five classics that changed the way I think",
+        "The Picture of Dorian Gray - Oscar Wilde",
+        "It reminded me of the brutal consequences of being vain and morally corrupt",
+        "Song of Solomon - Toni Morrison",
+        "It showed me the importance of understanding one's own origins",
+        "Letters from a Stoic - Seneca",
+        "It taught me important lessons about managing emotions and setbacks",
+        "The Idiot - Fyodor Dostoevsky",
+        "It warned me of what naive goodness looks like in the real world",
+        "Nineteen Eighty-Four - George Orwell",
+        "It reminded me that 2+2=4, no matter what"
+      ],
+      "known_noise_terms": [
+        "barcode",
+        "UK. GBP",
+        "CAN, $",
+        "USA $"
+      ]
+    }
+  ]
+}
