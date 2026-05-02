@@ -31,6 +31,17 @@ class ExtractedBookCandidate:
 
 
 @dataclass(slots=True)
+class ExtractedMentionCandidate:
+    label: str
+    author_or_creator: str | None
+    category: str
+    confidence: float | None
+    evidence: dict[str, Any] = field(default_factory=dict)
+    description: str | None = None
+    evidence_text: str | None = None
+
+
+@dataclass(slots=True)
 class TextExtractionResult:
     caption_text: str | None
     spoken_text: str | None
@@ -50,3 +61,4 @@ class PipelineResult:
     stage_runs: list[StageOutcome]
     artifacts: list[ArtifactRecord]
     text_result: TextExtractionResult
+    candidate_mentions: list[ExtractedMentionCandidate] = field(default_factory=list)

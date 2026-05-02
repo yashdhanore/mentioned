@@ -7,57 +7,44 @@ from sqlmodel import Session
 
 from app.config import get_settings
 from app.db import create_db_and_tables, engine
-from app.services.job_service import (
-    append_stage_run,
-    claim_next_queued_job,
-    get_job,
-    mark_job_completed,
-    mark_job_failed,
-    record_artifact,
-    replace_text_result,
-    update_job_stage,
-)
+from app.services.job_coordinator import JobCoordinator, JobFailure
 from extractor.pipeline import run_pipeline
+from extractor.stages.normalize_url import SourceUrlError
 
 
-def process_job(job_id: str) -> None:
+def process_job(job_id: str, source_url: str, worker_id: str) -> None:
     with Session(engine) as session:
-        job = get_job(session, job_id)
-        if job is None:
-            return
-        update_job_stage(session, job, current_stage="pipeline", progress=0.1)
+        JobCoordinator(session).heartbeat(job_id, worker_id, current_stage="pipeline", progress=0.1)
 
     try:
-        result = run_pipeline(job_id, job.source_url)
+        result = run_pipeline(job_id, source_url)
+    except SourceUrlError as exc:
+        with Session(engine) as session:
+            JobCoordinator(session).fail_claimed_job(
+                job_id,
+                JobFailure(
+                    error_code=exc.error_code,
+                    error_message=str(exc),
+                    internal_error=str(exc),
+                    retryable=False,
+                ),
+            )
+        return
     except Exception as exc:
         with Session(engine) as session:
-            job = get_job(session, job_id)
-            if job is not None:
-                mark_job_failed(
-                    session,
-                    job,
+            JobCoordinator(session).fail_claimed_job(
+                job_id,
+                JobFailure(
                     error_code="pipeline_error",
-                    error_message=str(exc),
-                )
+                    error_message="The extraction failed.",
+                    internal_error=str(exc),
+                    retryable=True,
+                ),
+            )
         return
 
     with Session(engine) as session:
-        job = get_job(session, job_id)
-        if job is None:
-            return
-        for stage_run in result.stage_runs:
-            append_stage_run(session, job_id, stage_run)
-        for artifact in result.artifacts:
-            record_artifact(session, job_id, artifact)
-        replace_text_result(session, job_id, result.text_result)
-        mark_job_completed(
-            session,
-            job,
-            source_kind=result.source_kind,
-            status=result.final_status,
-            error_code=result.error_code,
-            error_message=result.error_message,
-        )
+        JobCoordinator(session).record_pipeline_result(job_id, result)
 
 
 def run_worker(*, once: bool) -> None:
@@ -65,13 +52,15 @@ def run_worker(*, once: bool) -> None:
     create_db_and_tables()
     while True:
         with Session(engine) as session:
-            job = claim_next_queued_job(session)
+            coordinator = JobCoordinator(session)
+            coordinator.recover_stale_jobs()
+            job = coordinator.claim_next_job(settings.worker_id)
         if job is None:
             if once:
                 return
             time.sleep(settings.worker_poll_interval_seconds)
             continue
-        process_job(job.id)
+        process_job(job.id, job.source_url, settings.worker_id)
         if once:
             return
 

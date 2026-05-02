@@ -1,12 +1,21 @@
+from __future__ import annotations
+
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel
 
 
+JsonValue = dict[str, Any] | list[Any] | str | int | float | bool | None
+
+
 class ArtifactResponse(BaseModel):
+    artifact_id: str
     kind: str
-    path: str
-    metadata: dict | list | str | int | float | bool | None = None
+    storage_backend: str
+    media_type: str | None
+    byte_size: int | None
+    metadata: JsonValue = None
     created_at: datetime
 
 
@@ -14,8 +23,9 @@ class StageRunResponse(BaseModel):
     stage: str
     success: bool
     duration_ms: int
-    payload: dict | list | str | int | float | bool | None = None
-    error_text: str | None
+    payload: JsonValue = None
+    error_code: str | None = None
+    error_text: str | None = None
     created_at: datetime
 
 
@@ -26,7 +36,7 @@ class TextResultResponse(BaseModel):
     image_text: str | None
     merged_text: str
     warnings: list[str]
-    debug: dict | list | str | int | float | bool | None = None
+    debug: JsonValue = None
 
 
 class JobResultResponse(BaseModel):

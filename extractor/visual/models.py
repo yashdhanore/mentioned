@@ -33,7 +33,7 @@ class VisibleTextBlock(StrictModel):
 class CandidateMention(StrictModel):
     label: str
     author_or_creator: str | None
-    category: Literal["book", "product", "newsletter", "person", "unknown"]
+    category: Literal["book", "product", "place", "newsletter", "person", "unknown"]
     evidence_basis: Literal["direct_visible_text", "partial_cover_inference", "caption_context", "mixed"]
     creator_supplied_context: str | None
     visible_evidence: str
