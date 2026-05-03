@@ -15,7 +15,7 @@ from app.config import Settings
 from app.db import get_session
 from app.deps import get_current_caller
 from app.main import app
-from app.models import Job, utc_now
+from app.models import Job, SavedMention, utc_now
 
 
 @pytest.fixture()
@@ -200,6 +200,50 @@ def test_user_cannot_read_another_users_job(client: TestClient) -> None:
     )
     assert other_list_response.status_code == 200
     assert other_list_response.json()["items"] == []
+
+
+def test_mentions_endpoint_returns_minimal_public_shape(client: TestClient, api_engine: Engine) -> None:
+    user_id = "00000000-0000-4000-8000-000000000111"
+    created = _create_job(client, "mention-shape", user_id=user_id)
+    with Session(api_engine) as session:
+        session.add(
+            SavedMention(
+                owner_id=user_id,
+                source_job_id=created["job_id"],
+                category="book",
+                display_label="The Visible Book",
+                display_author_or_creator="A. Writer",
+                display_description="A clean public description.",
+                extracted_label="The Visible Book",
+                extracted_author_or_creator="A. Writer",
+                source_url="https://www.instagram.com/reel/mention-shape/",
+                source_platform="instagram",
+                source_context_snippet="Short clean context",
+                evidence_text="raw evidence should stay private",
+                evidence_json={"source": "openai"},
+                confidence=0.91,
+                candidate_fingerprint="shape-test",
+                save_state="active",
+                review_status="unreviewed",
+            )
+        )
+        session.commit()
+
+    response = client.get("/v1/mentions", headers=_auth(user_id))
+
+    assert response.status_code == 200
+    item = response.json()["items"][0]
+    assert item["label"] == "The Visible Book"
+    assert item["author_or_creator"] == "A. Writer"
+    assert item["description"] == "A clean public description."
+    assert item["source_context_snippet"] == "Short clean context"
+    assert item["confidence"] == 0.91
+    assert "display_label" not in item
+    assert "extracted_label" not in item
+    assert "evidence" not in item
+    assert "evidence_text" not in item
+    assert "save_state" not in item
+    assert "review_status" not in item
 
 
 def test_create_job_burst_limit_returns_public_rate_limited(

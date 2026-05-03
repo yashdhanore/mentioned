@@ -53,7 +53,7 @@ def _make_image(path: Path) -> Path:
     return path
 
 
-def test_provider_none_uses_ocr_without_partial_status_signal(tmp_path: Path, monkeypatch) -> None:
+def test_provider_none_does_not_expose_ocr_as_product_text(tmp_path: Path, monkeypatch) -> None:
     source = _make_image(tmp_path / "frame.png")
 
     def fake_ocr(path: Path, *, psm: int = 11) -> str:
@@ -76,12 +76,13 @@ def test_provider_none_uses_ocr_without_partial_status_signal(tmp_path: Path, mo
         settings=_settings(tmp_path),
     )
 
+    assert result.visual_text is None
+    assert result.image_text is None
+    assert result.candidate_mentions == []
     assert result.nonfatal_errors == []
     assert "Multimodal LLM provider is not configured" in " ".join(result.warnings)
-    assert "Overlay line" in (result.visual_text or "")
-    assert "Book title" in (result.visual_text or "")
-    assert "Instagram" not in (result.visual_text or "")
-    assert result.debug["ocr_openai_comparison"]["frame_text_source"] == "ocr"
+    assert result.debug["ocr_openai_comparison"]["ocr_visual_text_length"] > 0
+    assert result.debug["ocr_openai_comparison"]["frame_text_source"] == "none"
     assert result.debug["ocr_openai_comparison"]["post_image_text_source"] == "none"
 
 
@@ -146,10 +147,101 @@ def test_openai_success_prefers_structured_text_and_artifacts_candidates(tmp_pat
     assert result.visual_text == "Clean frame text"
     assert result.nonfatal_errors == []
     assert result.debug["ocr_openai_comparison"]["frame_text_source"] == "openai"
-    assert result.debug["candidate_mentions"][0]["label"] == "The Visible Book"
+    assert result.candidate_mentions[0].label == "The Visible Book"
+    assert result.candidate_mentions[0].author_or_creator == "A. Writer"
     assert {"llm_output", "llm_usage", "visual_reconstruction"}.issubset(
         {artifact.kind for artifact in result.artifacts}
     )
+
+
+def test_openai_unknown_source_ids_are_pruned_without_losing_valid_candidates(
+    tmp_path: Path, monkeypatch
+) -> None:
+    source = _make_image(tmp_path / "frame.png")
+    monkeypatch.setattr(visual_extraction, "ocr_image", lambda path, *, psm=11: "OCR noise")
+
+    def fake_openai(**kwargs) -> OpenAIVisualResponse:
+        reconstruction = VisualReconstruction(
+            schema_version="visual_reconstruction.v1",
+            cleaned_frame_text="Known clean text",
+            cleaned_post_image_text="",
+            confidence=0.86,
+            visible_text_blocks=[
+                VisibleTextBlock(
+                    text="Known clean text",
+                    kind="overlay",
+                    source_surface="frame",
+                    source_image_ids=["frame_001_full"],
+                    source_crop_ids=[],
+                    confidence=0.9,
+                    include_in_merged_text=True,
+                    ignored_reason=None,
+                ),
+                VisibleTextBlock(
+                    text="Unknown citation text",
+                    kind="overlay",
+                    source_surface="frame",
+                    source_image_ids=["frame_009_full"],
+                    source_crop_ids=[],
+                    confidence=0.9,
+                    include_in_merged_text=True,
+                    ignored_reason=None,
+                ),
+            ],
+            candidate_mentions=[
+                CandidateMention(
+                    label="The Visible Book",
+                    author_or_creator="A. Writer",
+                    category="book",
+                    evidence_basis="direct_visible_text",
+                    creator_supplied_context=None,
+                    visible_evidence="The Visible Book - A. Writer",
+                    normalization_notes=None,
+                    source_image_ids=["frame_001_full"],
+                    source_crop_ids=["frame_001_object"],
+                    confidence=0.91,
+                ),
+                CandidateMention(
+                    label="Bad Citation",
+                    author_or_creator=None,
+                    category="book",
+                    evidence_basis="direct_visible_text",
+                    creator_supplied_context=None,
+                    visible_evidence="Bad Citation",
+                    normalization_notes=None,
+                    source_image_ids=["frame_009_full"],
+                    source_crop_ids=[],
+                    confidence=0.91,
+                ),
+            ],
+            ignored_text_summary=None,
+            uncertainty_notes=[],
+        )
+        return OpenAIVisualResponse(
+            reconstruction=reconstruction,
+            raw_response={"id": "resp_test", "output": []},
+            usage={"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
+        )
+
+    monkeypatch.setattr(visual_extraction, "run_openai_visual_reconstruction", fake_openai)
+
+    result = visual_extraction.extract_visual_text(
+        job_id="job-source-prune",
+        artifact_dir=tmp_path / "artifacts",
+        source_url="https://www.instagram.com/reel/test/",
+        source_kind="instagram_reel",
+        selected_frames=[source],
+        selected_post_images=[],
+        caption_text="caption",
+        settings=_settings(tmp_path, multimodal_llm_provider="openai", openai_api_key="test"),
+    )
+
+    assert result.visual_text == "Known clean text"
+    assert result.nonfatal_errors == []
+    assert [candidate.label for candidate in result.candidate_mentions] == ["The Visible Book"]
+    assert "frame_009_full" in " ".join(result.warnings)
+    assert "Dropped 1 OpenAI text block" in " ".join(result.warnings)
+    assert "Dropped 1 OpenAI candidate mention" in " ".join(result.warnings)
 
 
 def test_openai_failure_falls_back_to_ocr_and_marks_nonfatal_error(tmp_path: Path, monkeypatch) -> None:
@@ -172,10 +264,12 @@ def test_openai_failure_falls_back_to_ocr_and_marks_nonfatal_error(tmp_path: Pat
         settings=_settings(tmp_path, multimodal_llm_provider="openai", openai_api_key="test"),
     )
 
-    assert result.visual_text == "OCR fallback"
+    assert result.visual_text is None
+    assert result.candidate_mentions == []
     assert result.nonfatal_errors == ["multimodal_llm_extract"]
     assert "OpenAI visual reconstruction failed" in " ".join(result.warnings)
-    assert result.debug["ocr_openai_comparison"]["frame_text_source"] == "ocr"
+    assert result.debug["ocr_openai_comparison"]["ocr_visual_text_length"] > 0
+    assert result.debug["ocr_openai_comparison"]["frame_text_source"] == "none"
     llm_stage = next(stage for stage in result.stage_runs if stage.stage == "multimodal_llm_extract")
     assert llm_stage.success is False
     assert llm_stage.error_text == "bad schema"
@@ -206,7 +300,8 @@ def test_openai_is_skipped_when_llm_call_limit_is_zero(tmp_path: Path, monkeypat
         ),
     )
 
-    assert result.visual_text == "OCR fallback"
+    assert result.visual_text is None
+    assert result.candidate_mentions == []
     assert result.nonfatal_errors == ["multimodal_llm_extract"]
     assert result.warnings == []
     assert "llm_output" not in {artifact.kind for artifact in result.artifacts}

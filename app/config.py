@@ -37,7 +37,7 @@ class Settings:
     max_jobs_created_per_day: int = 25
     max_active_jobs_per_user: int = 5
     asr_provider: str = "none"
-    ocr_provider: str = "tesseract"
+    ocr_provider: str = "none"
     multimodal_llm_provider: str = "none"
     openai_api_key: str | None = None
     openai_base_url: str | None = None
@@ -138,7 +138,7 @@ def get_settings() -> Settings:
         max_jobs_created_per_day=_env_int("MAX_JOBS_CREATED_PER_DAY", 25),
         max_active_jobs_per_user=_env_int("MAX_ACTIVE_JOBS_PER_USER", 5),
         asr_provider=os.getenv("ASR_PROVIDER", "none").strip().casefold(),
-        ocr_provider=os.getenv("OCR_PROVIDER", "tesseract").strip().casefold(),
+        ocr_provider=os.getenv("OCR_PROVIDER", "none").strip().casefold(),
         multimodal_llm_provider=os.getenv("MULTIMODAL_LLM_PROVIDER", "none").strip().casefold(),
         openai_api_key=_env_optional("OPENAI_API_KEY"),
         openai_base_url=_env_optional("OPENAI_BASE_URL"),

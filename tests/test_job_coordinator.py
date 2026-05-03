@@ -252,11 +252,13 @@ def test_saved_mention_update_confirm_and_soft_delete(tmp_path: Path) -> None:
         updated = coordinator.update_mention(
             _caller(),
             mention.mention_id,
-            display_label="Corrected Book",
+            label="Corrected Book",
             category="book",
         )
-        assert updated.review_status == "reviewed"
-        assert updated.display_label == "Corrected Book"
+        assert updated.label == "Corrected Book"
+        updated_row = session.get(SavedMention, mention.mention_id)
+        assert updated_row is not None
+        assert updated_row.review_status == "reviewed"
         assert coordinator.list_mentions(_caller(), limit=20, cursor=None, q="Corrected").items[0].mention_id == mention.mention_id
         with pytest.raises(NotFoundError):
             coordinator.get_mention(_caller("00000000-0000-4000-8000-000000000222"), mention.mention_id)
@@ -264,7 +266,7 @@ def test_saved_mention_update_confirm_and_soft_delete(tmp_path: Path) -> None:
             coordinator.update_mention(
                 _caller("00000000-0000-4000-8000-000000000222"),
                 mention.mention_id,
-                display_label="Other User Edit",
+                label="Other User Edit",
             )
         with pytest.raises(NotFoundError):
             coordinator.confirm_mention(_caller("00000000-0000-4000-8000-000000000222"), mention.mention_id)
@@ -272,9 +274,74 @@ def test_saved_mention_update_confirm_and_soft_delete(tmp_path: Path) -> None:
             coordinator.delete_mention(_caller("00000000-0000-4000-8000-000000000222"), mention.mention_id)
 
         confirmed = coordinator.confirm_mention(_caller(), mention.mention_id)
-        assert confirmed.review_status == "reviewed"
+        assert confirmed.label == "Corrected Book"
+        confirmed_row = session.get(SavedMention, mention.mention_id)
+        assert confirmed_row is not None
+        assert confirmed_row.review_status == "reviewed"
 
         deleted = coordinator.delete_mention(_caller(), mention.mention_id)
-        assert deleted.save_state == "deleted"
+        assert deleted.label == "Corrected Book"
+        deleted_row = session.get(SavedMention, mention.mention_id)
+        assert deleted_row is not None
+        assert deleted_row.save_state == "deleted"
         assert coordinator.list_mentions(_caller(), limit=20, cursor=None).items == []
+        assert created.job_id == claimed.id
+
+
+def test_low_confidence_unreviewed_extraction_mentions_are_hidden_by_default(tmp_path: Path) -> None:
+    engine = _engine()
+    with Session(engine) as session:
+        coordinator = JobCoordinator(session, _settings(tmp_path))
+        created = coordinator.create_job(_caller(), "https://www.instagram.com/reel/abc/", None)
+        low_confidence = SavedMention(
+            owner_id=_caller().subject_id,
+            source_job_id=created.job_id,
+            category="book",
+            display_label="SSS",
+            extracted_label="SSS",
+            source_url="https://www.instagram.com/reel/abc/",
+            source_platform="instagram",
+            evidence_json={"pattern": "title_case_line"},
+            confidence=0.35,
+            candidate_fingerprint="low-confidence",
+            save_state="active",
+            review_status="unreviewed",
+            created_by="extraction",
+        )
+        session.add(low_confidence)
+        session.commit()
+
+        assert coordinator.list_mentions(_caller(), limit=20, cursor=None).items == []
+
+        low_confidence.review_status = "reviewed"
+        session.add(low_confidence)
+        session.commit()
+
+        items = coordinator.list_mentions(_caller(), limit=20, cursor=None).items
+        assert len(items) == 1
+        assert items[0].label == "SSS"
+
+
+def test_low_confidence_pipeline_candidates_are_not_auto_saved(tmp_path: Path) -> None:
+    engine = _engine()
+    with Session(engine) as session:
+        coordinator = JobCoordinator(session, _settings(tmp_path))
+        created = coordinator.create_job(_caller(), "https://www.instagram.com/reel/abc/", None)
+        claimed = coordinator.claim_next_job("worker-a")
+        assert claimed is not None
+        result = _pipeline_result(tmp_path)
+        result.candidate_mentions = [
+            ExtractedMentionCandidate(
+                label="SSS",
+                author_or_creator=None,
+                category="book",
+                confidence=0.35,
+                evidence={"source": "test"},
+                evidence_text="SSS",
+            )
+        ]
+
+        coordinator.record_pipeline_result(claimed.id, result)
+
+        assert session.exec(select(SavedMention).where(SavedMention.source_job_id == claimed.id)).all() == []
         assert created.job_id == claimed.id

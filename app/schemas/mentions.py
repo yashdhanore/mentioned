@@ -12,22 +12,15 @@ class StrictModel(BaseModel):
 class SavedMentionResponse(BaseModel):
     mention_id: str
     category: str
-    display_label: str
-    display_author_or_creator: str | None
-    display_description: str | None
-    extracted_label: str
-    extracted_author_or_creator: str | None
-    extracted_description: str | None
+    label: str
+    author_or_creator: str | None
+    description: str | None
     source_job_id: str
     source_url: str
     source_platform: str
     source_creator: str | None
     source_context_snippet: str | None
-    evidence_text: str | None
-    evidence: dict
     confidence: float | None
-    save_state: str
-    review_status: str
     created_at: datetime
     updated_at: datetime
 
@@ -38,7 +31,7 @@ class SavedMentionListResponse(BaseModel):
 
 
 class UpdateSavedMentionRequest(StrictModel):
-    display_label: str | None = Field(default=None, min_length=1, max_length=300)
-    display_author_or_creator: str | None = Field(default=None, max_length=300)
-    display_description: str | None = Field(default=None, max_length=2000)
+    label: str | None = Field(default=None, min_length=1, max_length=300)
+    author_or_creator: str | None = Field(default=None, max_length=300)
+    description: str | None = Field(default=None, max_length=2000)
     category: str | None = None

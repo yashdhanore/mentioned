@@ -34,6 +34,7 @@ TERMINAL_STATUSES = {"succeeded", "partial", "failed", "canceled", "expired"}
 ACTIVE_STATUSES = {"queued", "running"}
 USABLE_RESULT_STATUSES = {"succeeded", "partial"}
 PIPELINE_TERMINAL_STATUSES = {"succeeded", "partial", "failed"}
+MIN_AUTO_SAVE_CONFIDENCE = 0.6
 RETRYABLE_ERROR_CODES = {
     "pipeline_error",
     "source_fetch_failed",
@@ -657,6 +658,9 @@ class JobCoordinator:
             label = candidate.label.strip()
             if not label:
                 continue
+            confidence = _clamp_confidence(candidate.confidence)
+            if confidence is None or confidence < MIN_AUTO_SAVE_CONFIDENCE:
+                continue
             category = candidate.category if candidate.category in MENTION_CATEGORIES else "unknown"
             fingerprint = _fingerprint(candidate)
             existing = self.session.exec(
@@ -685,7 +689,7 @@ class JobCoordinator:
                     source_context_snippet=source_context_snippet,
                     evidence_text=candidate.evidence_text,
                     evidence_json=evidence,
-                    confidence=_clamp_confidence(candidate.confidence),
+                    confidence=confidence,
                     candidate_fingerprint=fingerprint,
                     save_state="active",
                     review_status="unreviewed",
@@ -702,7 +706,7 @@ class JobCoordinator:
             existing.source_context_snippet = source_context_snippet
             existing.evidence_text = candidate.evidence_text
             existing.evidence_json = evidence
-            existing.confidence = _clamp_confidence(candidate.confidence)
+            existing.confidence = confidence
             if existing.review_status == "unreviewed":
                 existing.category = category
                 existing.display_label = label
@@ -789,22 +793,15 @@ class JobCoordinator:
         return SavedMentionResponse(
             mention_id=mention.id,
             category=mention.category,
-            display_label=mention.display_label,
-            display_author_or_creator=mention.display_author_or_creator,
-            display_description=mention.display_description,
-            extracted_label=mention.extracted_label,
-            extracted_author_or_creator=mention.extracted_author_or_creator,
-            extracted_description=mention.extracted_description,
+            label=mention.display_label,
+            author_or_creator=mention.display_author_or_creator,
+            description=mention.display_description,
             source_job_id=mention.source_job_id,
             source_url=mention.source_url,
             source_platform=mention.source_platform,
             source_creator=mention.source_creator,
             source_context_snippet=mention.source_context_snippet,
-            evidence_text=mention.evidence_text,
-            evidence=_json_value(mention.evidence_json) or {},
             confidence=mention.confidence,
-            save_state=mention.save_state,
-            review_status=mention.review_status,
             created_at=mention.created_at,
             updated_at=mention.updated_at,
         )
@@ -836,6 +833,14 @@ class JobCoordinator:
             statement = statement.where(SavedMention.review_status == review_status)
         if save_state:
             statement = statement.where(SavedMention.save_state == save_state)
+        if review_status is None:
+            statement = statement.where(
+                or_(
+                    SavedMention.review_status == "reviewed",
+                    SavedMention.confidence.is_(None),
+                    SavedMention.confidence >= MIN_AUTO_SAVE_CONFIDENCE,
+                )
+            )
         if source_creator:
             statement = statement.where(SavedMention.source_creator == source_creator)
         if q:
@@ -897,20 +902,20 @@ class JobCoordinator:
         caller: Caller,
         mention_id: str,
         *,
-        display_label: str | None = None,
-        display_author_or_creator: str | None = None,
-        display_description: str | None = None,
+        label: str | None = None,
+        author_or_creator: str | None = None,
+        description: str | None = None,
         category: str | None = None,
     ) -> SavedMentionResponse:
         mention = self._get_owned_mention(caller, mention_id)
         if category is not None and category not in MENTION_CATEGORIES:
             raise InvalidSourceError("invalid_category", "Category is not valid")
-        if display_label is not None:
-            mention.display_label = display_label
-        if display_author_or_creator is not None:
-            mention.display_author_or_creator = display_author_or_creator or None
-        if display_description is not None:
-            mention.display_description = display_description or None
+        if label is not None:
+            mention.display_label = label
+        if author_or_creator is not None:
+            mention.display_author_or_creator = author_or_creator or None
+        if description is not None:
+            mention.display_description = description or None
         if category is not None:
             mention.category = category
         mention.review_status = "reviewed"

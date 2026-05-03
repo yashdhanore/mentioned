@@ -66,9 +66,9 @@ def update_mention_endpoint(
         return JobCoordinator(session).update_mention(
             caller,
             mention_id,
-            display_label=payload.display_label,
-            display_author_or_creator=payload.display_author_or_creator,
-            display_description=payload.display_description,
+            label=payload.label,
+            author_or_creator=payload.author_or_creator,
+            description=payload.description,
             category=payload.category,
         )
     except CoordinatorError as exc:

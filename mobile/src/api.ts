@@ -43,22 +43,15 @@ export type JobListResponse = {
 export type SavedMentionResponse = {
   mention_id: string;
   category: string;
-  display_label: string;
-  display_author_or_creator: string | null;
-  display_description: string | null;
-  extracted_label: string;
-  extracted_author_or_creator: string | null;
-  extracted_description: string | null;
+  label: string;
+  author_or_creator: string | null;
+  description: string | null;
   source_job_id: string;
   source_url: string;
   source_platform: string;
   source_creator: string | null;
   source_context_snippet: string | null;
-  evidence_text: string | null;
-  evidence: Record<string, unknown>;
   confidence: number | null;
-  save_state: string;
-  review_status: string;
   created_at: string;
   updated_at: string;
 };
@@ -206,9 +199,7 @@ export async function rerunJob(jobId: string): Promise<JobResponse> {
 }
 
 export async function listMentions(cursor?: string): Promise<SavedMentionListResponse> {
-  return requestJson<SavedMentionListResponse>(
-    pathWithQuery('/v1/mentions', { limit: 100, cursor, save_state: 'active' }),
-  );
+  return requestJson<SavedMentionListResponse>(pathWithQuery('/v1/mentions', { limit: 100, cursor }));
 }
 
 export async function listAllMentions(): Promise<SavedMentionResponse[]> {

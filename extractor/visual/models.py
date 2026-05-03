@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from extractor.types import ArtifactRecord, StageOutcome
+from extractor.types import ArtifactRecord, ExtractedMentionCandidate, StageOutcome
 
 
 SCHEMA_VERSION = "visual_reconstruction.v1"
@@ -103,6 +103,7 @@ class OpenAIVisualResponse:
 class VisualExtractionResult:
     visual_text: str | None
     image_text: str | None
+    candidate_mentions: list[ExtractedMentionCandidate] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     nonfatal_errors: list[str] = field(default_factory=list)
     artifacts: list[ArtifactRecord] = field(default_factory=list)

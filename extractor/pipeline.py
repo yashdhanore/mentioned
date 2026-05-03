@@ -9,13 +9,11 @@ from urllib.parse import urlsplit
 from app.config import get_settings
 from extractor.stages.download_media import download_assets
 from extractor.stages.extract_audio import extract_audio
-from extractor.stages.extract_entities import extract_book_candidates
 from extractor.stages.fetch_html import fetch_html
 from extractor.stages.normalize_url import detect_source_kind, normalize_input_url
 from extractor.stages.parse_page import combine_text_fields, parse_page_metadata
 from extractor.stages.probe_media import probe_media
 from extractor.stages.sample_frames import sample_frames
-from extractor.stages.score_candidates import score_candidates
 from extractor.stages.transcribe_audio import transcribe_audio
 from extractor.types import ArtifactRecord, ExtractedMentionCandidate, PipelineResult, StageOutcome, TextExtractionResult
 from extractor.visual import extract_visual_text
@@ -116,54 +114,6 @@ def _source_context_snippet(*values: str | None, max_length: int = 280) -> str |
     if text is None:
         return None
     return text[:max_length].rstrip()
-
-
-def _candidate_mentions_from_visual_debug(debug: dict) -> list[ExtractedMentionCandidate]:
-    raw_candidates = debug.get("candidate_mentions")
-    if not isinstance(raw_candidates, list):
-        return []
-    candidates: list[ExtractedMentionCandidate] = []
-    for raw_candidate in raw_candidates:
-        if not isinstance(raw_candidate, dict):
-            continue
-        label = raw_candidate.get("label")
-        if not isinstance(label, str) or not label.strip():
-            continue
-        category = raw_candidate.get("category")
-        if not isinstance(category, str):
-            category = "unknown"
-        candidates.append(
-            ExtractedMentionCandidate(
-                label=label.strip(),
-                author_or_creator=raw_candidate.get("author_or_creator")
-                if isinstance(raw_candidate.get("author_or_creator"), str)
-                else None,
-                category=category,
-                confidence=raw_candidate.get("confidence")
-                if isinstance(raw_candidate.get("confidence"), int | float)
-                else None,
-                evidence=raw_candidate,
-                evidence_text=raw_candidate.get("visible_evidence")
-                if isinstance(raw_candidate.get("visible_evidence"), str)
-                else None,
-            )
-        )
-    return candidates
-
-
-def _candidate_mentions_from_text(raw_text: str, *, has_probe: bool) -> list[ExtractedMentionCandidate]:
-    book_candidates = score_candidates(extract_book_candidates(raw_text), has_probe=has_probe)
-    return [
-        ExtractedMentionCandidate(
-            label=candidate.title,
-            author_or_creator=candidate.author,
-            category="book",
-            confidence=candidate.confidence,
-            evidence=candidate.evidence,
-            evidence_text=candidate.evidence.get("text") if isinstance(candidate.evidence.get("text"), str) else None,
-        )
-        for candidate in book_candidates
-    ]
 
 
 def _dedupe_candidate_mentions(candidates: list[ExtractedMentionCandidate]) -> list[ExtractedMentionCandidate]:
@@ -688,12 +638,7 @@ def run_pipeline(job_id: str, source_url: str) -> PipelineResult:
         error_code = "no_text"
         error_message = "No useful text could be extracted from the source."
 
-    candidate_mentions = _dedupe_candidate_mentions(
-        [
-            *_candidate_mentions_from_visual_debug(visual_result.debug),
-            *_candidate_mentions_from_text(merged_text, has_probe=probe_payload is not None),
-        ]
-    )
+    candidate_mentions = _dedupe_candidate_mentions(visual_result.candidate_mentions)
 
     return PipelineResult(
         source_kind=source_kind,

@@ -7,7 +7,7 @@ from typing import Any
 
 from app.config import Settings
 from extractor.clients.tesseract import ocr_image
-from extractor.types import ArtifactRecord, StageOutcome
+from extractor.types import ArtifactRecord, ExtractedMentionCandidate, StageOutcome
 from extractor.visual.crops import generate_visual_inputs
 from extractor.visual.models import (
     OpenAIVisualResponse,
@@ -112,33 +112,82 @@ def _ocr_visual_inputs(
     )
 
 
-def _validate_reconstruction_sources(
+def _sanitize_reconstruction_sources(
     reconstruction: VisualReconstruction,
     *,
     selected_images: list[VisualImage],
     crops: list[VisualImage],
-) -> None:
+) -> list[str]:
     selected_ids = {entry.id for entry in selected_images}
     crop_ids = {entry.id for entry in crops}
+    pruned_source_ids: set[str] = set()
+    dropped_block_count = 0
+    dropped_candidate_count = 0
+    valid_blocks = []
     for block in reconstruction.visible_text_blocks:
-        if not block.source_image_ids and not block.source_crop_ids:
-            raise ValueError("visible_text_blocks entries must cite at least one source image or crop")
         unknown_images = [source_id for source_id in block.source_image_ids if source_id not in selected_ids]
         unknown_crops = [source_id for source_id in block.source_crop_ids if source_id not in crop_ids]
         if unknown_images or unknown_crops:
-            raise ValueError(f"OpenAI output cited unknown source IDs: {unknown_images + unknown_crops}")
+            pruned_source_ids.update(unknown_images + unknown_crops)
+            block.source_image_ids = [source_id for source_id in block.source_image_ids if source_id in selected_ids]
+            block.source_crop_ids = [source_id for source_id in block.source_crop_ids if source_id in crop_ids]
+        if not block.source_image_ids and not block.source_crop_ids:
+            dropped_block_count += 1
+            continue
+        valid_blocks.append(block)
+    reconstruction.visible_text_blocks = valid_blocks
 
+    valid_candidates = []
     for candidate in reconstruction.candidate_mentions:
         unknown_images = [source_id for source_id in candidate.source_image_ids if source_id not in selected_ids]
         unknown_crops = [source_id for source_id in candidate.source_crop_ids if source_id not in crop_ids]
         if unknown_images or unknown_crops:
-            raise ValueError(f"candidate_mentions entries cited unknown source IDs: {unknown_images + unknown_crops}")
-        if (
-            candidate.evidence_basis == "partial_cover_inference"
-            and not candidate.source_image_ids
-            and not candidate.source_crop_ids
-        ):
-            raise ValueError("partial-cover inferred candidates must cite source image or crop IDs")
+            pruned_source_ids.update(unknown_images + unknown_crops)
+            candidate.source_image_ids = [
+                source_id for source_id in candidate.source_image_ids if source_id in selected_ids
+            ]
+            candidate.source_crop_ids = [source_id for source_id in candidate.source_crop_ids if source_id in crop_ids]
+        if not candidate.source_image_ids and not candidate.source_crop_ids:
+            dropped_candidate_count += 1
+            continue
+        valid_candidates.append(candidate)
+    reconstruction.candidate_mentions = valid_candidates
+
+    source_warnings = []
+    if pruned_source_ids:
+        source_warnings.append(
+            "OpenAI visual reconstruction cited unknown source IDs; pruned invalid citations: "
+            + ", ".join(sorted(pruned_source_ids))
+        )
+    if dropped_block_count:
+        source_warnings.append(f"Dropped {dropped_block_count} OpenAI text block(s) without known source citations.")
+    if dropped_candidate_count:
+        source_warnings.append(
+            f"Dropped {dropped_candidate_count} OpenAI candidate mention(s) without known source citations."
+        )
+    return source_warnings
+
+
+def _candidate_from_reconstruction(raw_candidate: dict[str, Any]) -> ExtractedMentionCandidate | None:
+    label = raw_candidate.get("label")
+    if not isinstance(label, str) or not label.strip():
+        return None
+    category = raw_candidate.get("category")
+    if not isinstance(category, str):
+        category = "unknown"
+    author_or_creator = raw_candidate.get("author_or_creator")
+    visible_evidence = raw_candidate.get("visible_evidence")
+    confidence = raw_candidate.get("confidence")
+    return ExtractedMentionCandidate(
+        label=label.strip(),
+        author_or_creator=author_or_creator.strip()
+        if isinstance(author_or_creator, str) and author_or_creator.strip()
+        else None,
+        category=category,
+        confidence=float(confidence) if isinstance(confidence, int | float) else None,
+        evidence=raw_candidate,
+        evidence_text=visible_evidence if isinstance(visible_evidence, str) and visible_evidence.strip() else None,
+    )
 
 
 def _llm_input_manifest(
@@ -166,6 +215,7 @@ def _llm_input_manifest(
             "post_image_text": ocr_image_text,
             "frame_entry_count": len(frame_ocr_entries),
             "post_image_entry_count": len(image_ocr_entries),
+            "used_for_model": bool(ocr_visual_text or ocr_image_text),
         },
         "selected_images": [entry.manifest_record() for entry in selected_images],
         "crops": [entry.manifest_record() for entry in crops],
@@ -331,6 +381,7 @@ def extract_visual_text(
         return VisualExtractionResult(
             visual_text=None,
             image_text=None,
+            candidate_mentions=[],
             warnings=warnings,
             nonfatal_errors=nonfatal_errors,
             artifacts=artifacts,
@@ -448,10 +499,10 @@ def extract_visual_text(
         selected_images=bundle.selected_images,
         crops=bundle.crops,
         llm_images=bundle.llm_images,
-        ocr_visual_text=ocr_visual_text,
-        ocr_image_text=ocr_image_text,
-        frame_ocr_entries=frame_ocr_entries,
-        image_ocr_entries=image_ocr_entries,
+        ocr_visual_text=None,
+        ocr_image_text=None,
+        frame_ocr_entries=[],
+        image_ocr_entries=[],
         settings=settings,
     )
     llm_manifest_path = artifact_dir / "llm_input_manifest.json"
@@ -484,7 +535,7 @@ def extract_visual_text(
             )
         )
     elif provider == "none":
-        warnings.append("Multimodal LLM provider is not configured; visual reconstruction used OCR only.")
+        warnings.append("Multimodal LLM provider is not configured; no visual reconstruction was produced.")
         stage_runs.append(
             _stage_outcome(
                 stage="multimodal_llm_extract",
@@ -520,10 +571,12 @@ def extract_visual_text(
                 llm_images=bundle.llm_images,
                 settings=settings,
             )
-            _validate_reconstruction_sources(
-                llm_response.reconstruction,
-                selected_images=bundle.selected_images,
-                crops=bundle.crops,
+            warnings.extend(
+                _sanitize_reconstruction_sources(
+                    llm_response.reconstruction,
+                    selected_images=bundle.selected_images,
+                    crops=bundle.crops,
+                )
             )
             llm_output_path, _, _ = _write_success_llm_artifacts(
                 artifact_dir=artifact_dir,
@@ -549,7 +602,7 @@ def extract_visual_text(
             )
         except Exception as exc:
             error_text = str(exc)
-            warnings.append(f"OpenAI visual reconstruction failed; OCR fallback was used: {error_text}")
+            warnings.append(f"OpenAI visual reconstruction failed; no visual reconstruction was produced: {error_text}")
             nonfatal_errors.append("multimodal_llm_extract")
             llm_output_path = _write_failed_llm_artifact(
                 artifact_dir=artifact_dir,
@@ -573,7 +626,7 @@ def extract_visual_text(
             )
     else:
         error_text = f"Unsupported multimodal LLM provider: {provider}"
-        warnings.append(f"{error_text}; OCR fallback was used.")
+        warnings.append(f"{error_text}; no visual reconstruction was produced.")
         nonfatal_errors.append("multimodal_llm_extract")
         llm_output_path = _write_failed_llm_artifact(
             artifact_dir=artifact_dir,
@@ -592,23 +645,27 @@ def extract_visual_text(
             )
         )
 
-    visual_text = openai_visual_text or ocr_visual_text
-    image_text = openai_image_text or ocr_image_text
-    frame_text_source = "openai" if openai_visual_text else "ocr" if ocr_visual_text else "none"
-    post_image_text_source = "openai" if openai_image_text else "ocr" if ocr_image_text else "none"
-    candidate_mentions = (
+    visual_text = openai_visual_text
+    image_text = openai_image_text
+    frame_text_source = "openai" if openai_visual_text else "none"
+    post_image_text_source = "openai" if openai_image_text else "none"
+    raw_candidate_mentions = (
         [candidate.model_dump(mode="json") for candidate in reconstruction.candidate_mentions]
         if reconstruction is not None
         else []
     )
+    candidate_mentions = [
+        candidate
+        for raw_candidate in raw_candidate_mentions
+        if (candidate := _candidate_from_reconstruction(raw_candidate)) is not None
+    ]
     partial_cover_count = sum(
-        1 for candidate in candidate_mentions if candidate.get("evidence_basis") == "partial_cover_inference"
+        1 for candidate in raw_candidate_mentions if candidate.get("evidence_basis") == "partial_cover_inference"
     )
     debug = {
         "visual_reconstruction_provider": provider,
         "visual_reconstruction_model": settings.openai_multimodal_model,
         "visual_reconstruction_confidence": reconstruction.confidence if reconstruction is not None else None,
-        "candidate_mentions": candidate_mentions,
         "ocr_openai_comparison": {
             "frame_text_source": frame_text_source,
             "post_image_text_source": post_image_text_source,
@@ -625,6 +682,7 @@ def extract_visual_text(
     return VisualExtractionResult(
         visual_text=visual_text,
         image_text=image_text,
+        candidate_mentions=candidate_mentions,
         warnings=warnings,
         nonfatal_errors=nonfatal_errors,
         artifacts=artifacts,

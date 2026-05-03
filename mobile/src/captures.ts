@@ -23,6 +23,7 @@ export type Capture = {
 };
 
 const MIN_VISIBLE_CONFIDENCE = 0.6;
+const EMPTY_TERMINAL_SETTLE_MS = 30_000;
 const BOOK_COLORS = ['#345D8C', '#0E6F68', '#53615B', '#8A5E00', '#4B6378'];
 
 function compact(value: string | null | undefined): string | null {
@@ -67,24 +68,31 @@ function placeholderThumbnail(jobId: string) {
 function visibleBookMentions(mentions: SavedMentionResponse[]): BookMention[] {
   return mentions
     .filter((mention) => mention.category === 'book')
-    .filter((mention) => mention.save_state === 'active')
     .filter((mention) => mention.confidence === null || mention.confidence >= MIN_VISIBLE_CONFIDENCE)
-    .filter((mention) => compact(mention.display_label))
+    .filter((mention) => compact(mention.label))
     .map((mention) => ({
       id: mention.mention_id,
-      title: mention.display_label.trim(),
-      author: compact(mention.display_author_or_creator),
-      synopsis: snippet(mention.display_description) || snippet(mention.evidence_text),
-      initials: initialsFor(mention.display_label),
+      title: mention.label.trim(),
+      author: compact(mention.author_or_creator),
+      synopsis: snippet(mention.description),
+      initials: initialsFor(mention.label),
       color: colorFor(mention.mention_id),
     }));
 }
 
-function statusFor(job: JobResponse, books: BookMention[]): CaptureStatus {
+function recentlyUpdated(job: JobResponse, now: number) {
+  const updatedAt = Date.parse(job.updated_at);
+  return Number.isFinite(updatedAt) && now - updatedAt < EMPTY_TERMINAL_SETTLE_MS;
+}
+
+function statusFor(job: JobResponse, books: BookMention[], now: number): CaptureStatus {
   if (job.status === 'queued' || job.status === 'running') {
     return 'processing';
   }
   if (job.status === 'succeeded' || job.status === 'partial') {
+    if (books.length === 0 && recentlyUpdated(job, now)) {
+      return 'processing';
+    }
     return books.length > 0 ? 'ready' : 'no_books';
   }
   return 'failed';
@@ -99,6 +107,7 @@ function sourceContextFor(mentions: SavedMentionResponse[]) {
 }
 
 export function buildCaptures(jobs: JobResponse[], mentions: SavedMentionResponse[]): Capture[] {
+  const now = Date.now();
   const mentionsByJob = mentions.reduce<Map<string, SavedMentionResponse[]>>((groups, mention) => {
     const current = groups.get(mention.source_job_id) || [];
     current.push(mention);
@@ -112,7 +121,7 @@ export function buildCaptures(jobs: JobResponse[], mentions: SavedMentionRespons
     return {
       id: job.job_id,
       creator: creatorFor(job, jobMentions),
-      status: statusFor(job, books),
+      status: statusFor(job, books, now),
       thumbnailUrl: placeholderThumbnail(job.job_id),
       sourceUrl: job.source_url,
       sourceContextSnippet: sourceContextFor(jobMentions),

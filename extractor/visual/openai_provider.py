@@ -24,7 +24,9 @@ Preserve meaningful line breaks and visible title/author relationships.
 Return empty strings and arrays when text is not readable.
 Do not use web lookup or external knowledge to fill missing titles or authors.
 Ignore UI chrome, barcode fragments, prices, publisher blurbs, repeated partial words, and background noise unless it is the main subject.
-Candidate mentions are extraction evidence, not canonical recommendations.
+Candidate mentions are user-facing saved mention candidates, not loose OCR hints.
+Only include a candidate mention when a specific title/entity is confidently readable or strongly supported by the supplied images and caption.
+Omit repeated partial words, malformed OCR fragments, generic headings, UI text, and uncertain guesses instead of returning low-quality candidates.
 When a title or author is inferred from partial cover evidence, mark evidence_basis as partial_cover_inference and cite source IDs."""
 
 
