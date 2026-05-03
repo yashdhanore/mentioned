@@ -290,13 +290,15 @@ class JobCoordinator:
         if day_count >= self.settings.max_jobs_created_per_day:
             raise QuotaExceededError("Daily job quota has been reached")
 
-        active_count = self.session.exec(
+        if self._active_job_count(owner_id) >= self.settings.max_active_jobs_per_user:
+            raise QuotaExceededError("Too many jobs are already queued or running")
+
+    def _active_job_count(self, owner_id: str) -> int:
+        return self.session.exec(
             select(func.count())
             .select_from(Job)
-            .where(Job.owner_id == owner_id, Job.status.in_(["queued", "running"]))
+            .where(Job.owner_id == owner_id, Job.status.in_(ACTIVE_STATUSES))
         ).one()
-        if active_count >= self.settings.max_active_jobs_per_user:
-            raise QuotaExceededError("Too many jobs are already queued or running")
 
     def get_job(self, caller: Caller, job_id: str) -> JobResponse:
         return self.to_job_response(self._get_owned_job(caller, job_id))
@@ -342,6 +344,8 @@ class JobCoordinator:
         job = self._get_owned_job(caller, job_id)
         if job.status not in TERMINAL_STATUSES:
             raise InvalidTransitionError("Only terminal jobs can be rerun")
+        if self._active_job_count(caller.subject_id) >= self.settings.max_active_jobs_per_user:
+            raise QuotaExceededError("Too many jobs are already queued or running")
         now = utc_now()
         job.status = "queued"
         job.current_stage = None
@@ -544,6 +548,8 @@ class JobCoordinator:
 
     def _record_provider_call_from_stage(self, owner_id: str, job_id: str, attempt_number: int, stage_run: StageOutcome) -> None:
         payload = stage_run.payload if isinstance(stage_run.payload, dict) else {}
+        if payload.get("skipped") is True:
+            return
         provider = payload.get("provider")
         if stage_run.stage not in {"transcribe_audio", "multimodal_llm_extract"}:
             return

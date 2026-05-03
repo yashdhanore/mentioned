@@ -186,6 +186,59 @@ def test_get_result_filters_child_rows_by_owner_id(tmp_path: Path) -> None:
         assert result.artifacts == []
 
 
+def test_skipped_multimodal_stage_does_not_record_provider_call(tmp_path: Path) -> None:
+    engine = _engine()
+    with Session(engine) as session:
+        coordinator = JobCoordinator(session, _settings(tmp_path))
+        created = coordinator.create_job(_caller(), "https://www.instagram.com/reel/abc/", None)
+        claimed = coordinator.claim_next_job("worker-a")
+        assert claimed is not None
+
+        artifact = tmp_path / "result.json"
+        artifact.write_text("{}", encoding="utf-8")
+        coordinator.record_pipeline_result(
+            claimed.id,
+            PipelineResult(
+                source_kind="instagram_reel",
+                final_status="partial",
+                error_code=None,
+                error_message=None,
+                stage_runs=[
+                    StageOutcome(
+                        stage="multimodal_llm_extract",
+                        success=True,
+                        duration_ms=1,
+                        payload={
+                            "skipped": True,
+                            "skip_reason": "llm_call_limit_exhausted",
+                            "provider": "openai",
+                            "model": "gpt-5.4-nano",
+                            "selected_image_count": 3,
+                        },
+                    )
+                ],
+                artifacts=[
+                    ArtifactRecord(kind="text_result", path=str(artifact), metadata={"warning_count": 0}),
+                ],
+                text_result=TextExtractionResult(
+                    caption_text="caption",
+                    spoken_text=None,
+                    visual_text="OCR fallback",
+                    image_text=None,
+                    merged_text="Visible text:\nOCR fallback",
+                    warnings=[],
+                    debug={"nonfatal_errors": ["multimodal_llm_extract"]},
+                ),
+                candidate_mentions=[],
+            ),
+        )
+
+        assert session.exec(select(ProviderCall).where(ProviderCall.job_id == claimed.id)).all() == []
+        stage_run = session.exec(select(StageRun).where(StageRun.job_id == claimed.id)).one()
+        assert stage_run.success is True
+        assert stage_run.payload_json["skip_reason"] == "llm_call_limit_exhausted"
+
+
 def test_saved_mention_update_confirm_and_soft_delete(tmp_path: Path) -> None:
     engine = _engine()
     with Session(engine) as session:

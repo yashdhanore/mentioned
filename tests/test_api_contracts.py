@@ -5,6 +5,7 @@ from collections.abc import Iterator
 import pytest
 from fastapi import Header
 from fastapi.testclient import TestClient
+from sqlalchemy.engine import Engine
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine
 
@@ -13,19 +14,24 @@ from app.config import Settings
 from app.db import get_session
 from app.deps import get_current_caller
 from app.main import app
+from app.models import Job, utc_now
 
 
 @pytest.fixture()
-def client() -> Iterator[TestClient]:
+def api_engine() -> Engine:
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
     SQLModel.metadata.create_all(engine)
+    return engine
 
+
+@pytest.fixture()
+def client(api_engine: Engine) -> Iterator[TestClient]:
     def override_session() -> Iterator[Session]:
-        with Session(engine) as session:
+        with Session(api_engine) as session:
             yield session
 
     def override_caller(authorization: str | None = Header(default=None)) -> Caller:
@@ -40,6 +46,50 @@ def client() -> Iterator[TestClient]:
             yield test_client
     finally:
         app.dependency_overrides.clear()
+
+
+def _settings(**overrides: object) -> Settings:
+    values = {
+        "database_url": "sqlite://",
+        "max_job_create_burst_per_minute": 100,
+        "max_jobs_created_per_day": 100,
+        "max_active_jobs_per_user": 100,
+    }
+    values.update(overrides)
+    return Settings(**values)
+
+
+def _auth(user_id: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer dev:{user_id}"}
+
+
+def _create_job(
+    client: TestClient,
+    shortcode: str,
+    *,
+    user_id: str = "00000000-0000-4000-8000-000000000111",
+    idempotency_key: str | None = None,
+) -> dict:
+    payload = {"url": f"https://www.instagram.com/reel/{shortcode}/"}
+    if idempotency_key is not None:
+        payload["idempotency_key"] = idempotency_key
+    response = client.post("/v1/jobs", json=payload, headers=_auth(user_id))
+    assert response.status_code == 202
+    return response.json()
+
+
+def _mark_job_terminal(api_engine: Engine, job_id: str, status: str = "succeeded") -> None:
+    with Session(api_engine) as session:
+        job = session.get(Job, job_id)
+        assert job is not None
+        now = utc_now()
+        job.status = status
+        job.current_stage = "completed"
+        job.progress = 1.0
+        job.finished_at = now
+        job.updated_at = now
+        session.add(job)
+        session.commit()
 
 
 @pytest.fixture()
@@ -147,3 +197,166 @@ def test_user_cannot_read_another_users_job(client: TestClient) -> None:
     )
     assert other_list_response.status_code == 200
     assert other_list_response.json()["items"] == []
+
+
+def test_create_job_burst_limit_returns_public_rate_limited(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.services.job_coordinator.get_settings",
+        lambda: _settings(max_job_create_burst_per_minute=1),
+    )
+    _create_job(client, "burst1")
+
+    response = client.post(
+        "/v1/jobs",
+        json={"url": "https://www.instagram.com/reel/burst2/"},
+        headers=_auth("00000000-0000-4000-8000-000000000111"),
+    )
+
+    assert response.status_code == 429
+    assert response.json()["detail"]["error_code"] == "rate_limited"
+
+
+def test_create_job_daily_limit_returns_public_quota_exceeded(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.services.job_coordinator.get_settings",
+        lambda: _settings(max_jobs_created_per_day=1),
+    )
+    _create_job(client, "daily1")
+
+    response = client.post(
+        "/v1/jobs",
+        json={"url": "https://www.instagram.com/reel/daily2/"},
+        headers=_auth("00000000-0000-4000-8000-000000000111"),
+    )
+
+    assert response.status_code == 429
+    assert response.json()["detail"]["error_code"] == "quota_exceeded"
+
+
+def test_create_job_active_limit_returns_public_quota_exceeded(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.services.job_coordinator.get_settings",
+        lambda: _settings(max_active_jobs_per_user=1),
+    )
+    _create_job(client, "active1")
+
+    response = client.post(
+        "/v1/jobs",
+        json={"url": "https://www.instagram.com/reel/active2/"},
+        headers=_auth("00000000-0000-4000-8000-000000000111"),
+    )
+
+    assert response.status_code == 429
+    assert response.json()["detail"]["error_code"] == "quota_exceeded"
+
+
+def test_create_job_quotas_are_owner_scoped(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.services.job_coordinator.get_settings",
+        lambda: _settings(max_job_create_burst_per_minute=1),
+    )
+    _create_job(client, "owner1", user_id="00000000-0000-4000-8000-000000000111")
+
+    response = client.post(
+        "/v1/jobs",
+        json={"url": "https://www.instagram.com/reel/owner2/"},
+        headers=_auth("00000000-0000-4000-8000-000000000222"),
+    )
+
+    assert response.status_code == 202
+
+
+def test_terminal_jobs_do_not_count_against_active_quota(
+    client: TestClient,
+    api_engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.services.job_coordinator.get_settings",
+        lambda: _settings(max_active_jobs_per_user=1),
+    )
+    created = _create_job(client, "terminal1")
+    _mark_job_terminal(api_engine, created["job_id"])
+
+    response = client.post(
+        "/v1/jobs",
+        json={"url": "https://www.instagram.com/reel/terminal2/"},
+        headers=_auth("00000000-0000-4000-8000-000000000111"),
+    )
+
+    assert response.status_code == 202
+
+
+def test_idempotent_replay_returns_existing_job_without_consuming_quota(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.services.job_coordinator.get_settings",
+        lambda: _settings(
+            max_job_create_burst_per_minute=1,
+            max_jobs_created_per_day=1,
+            max_active_jobs_per_user=1,
+        ),
+    )
+    first = _create_job(client, "idem1", idempotency_key="idem-0001")
+
+    replay_response = client.post(
+        "/v1/jobs",
+        json={"url": "https://www.instagram.com/reel/idem1/", "idempotency_key": "idem-0001"},
+        headers=_auth("00000000-0000-4000-8000-000000000111"),
+    )
+    conflict_response = client.post(
+        "/v1/jobs",
+        json={"url": "https://www.instagram.com/reel/idem2/", "idempotency_key": "idem-0001"},
+        headers=_auth("00000000-0000-4000-8000-000000000111"),
+    )
+
+    assert replay_response.status_code == 202
+    assert replay_response.json()["job_id"] == first["job_id"]
+    assert conflict_response.status_code == 409
+    assert conflict_response.json()["detail"]["error_code"] == "idempotency_conflict"
+
+
+def test_rerun_terminal_job_obeys_active_quota_without_counting_itself(
+    client: TestClient,
+    api_engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings_box = {
+        "settings": _settings(max_active_jobs_per_user=100),
+    }
+    monkeypatch.setattr("app.services.job_coordinator.get_settings", lambda: settings_box["settings"])
+    terminal = _create_job(client, "rerun1")
+    _mark_job_terminal(api_engine, terminal["job_id"])
+
+    settings_box["settings"] = _settings(max_active_jobs_per_user=1)
+    allowed_response = client.post(
+        f"/v1/jobs/{terminal['job_id']}/rerun",
+        headers=_auth("00000000-0000-4000-8000-000000000111"),
+    )
+    assert allowed_response.status_code == 200
+    assert allowed_response.json()["status"] == "queued"
+
+    _mark_job_terminal(api_engine, terminal["job_id"])
+    _create_job(client, "rerun2")
+
+    blocked_response = client.post(
+        f"/v1/jobs/{terminal['job_id']}/rerun",
+        headers=_auth("00000000-0000-4000-8000-000000000111"),
+    )
+
+    assert blocked_response.status_code == 429
+    assert blocked_response.json()["detail"]["error_code"] == "quota_exceeded"

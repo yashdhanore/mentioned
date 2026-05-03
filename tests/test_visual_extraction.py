@@ -179,3 +179,43 @@ def test_openai_failure_falls_back_to_ocr_and_marks_nonfatal_error(tmp_path: Pat
     llm_stage = next(stage for stage in result.stage_runs if stage.stage == "multimodal_llm_extract")
     assert llm_stage.success is False
     assert llm_stage.error_text == "bad schema"
+
+
+def test_openai_is_skipped_when_llm_call_limit_is_zero(tmp_path: Path, monkeypatch) -> None:
+    source = _make_image(tmp_path / "frame.png")
+    monkeypatch.setattr(visual_extraction, "ocr_image", lambda path, *, psm=11: "OCR fallback")
+
+    def fail_if_called(**kwargs) -> OpenAIVisualResponse:
+        raise AssertionError("OpenAI visual reconstruction should not be invoked")
+
+    monkeypatch.setattr(visual_extraction, "run_openai_visual_reconstruction", fail_if_called)
+
+    result = visual_extraction.extract_visual_text(
+        job_id="job-4",
+        artifact_dir=tmp_path / "artifacts",
+        source_url="https://www.instagram.com/reel/test/",
+        source_kind="instagram_reel",
+        selected_frames=[source],
+        selected_post_images=[],
+        caption_text="caption",
+        settings=_settings(
+            tmp_path,
+            multimodal_llm_provider="openai",
+            openai_api_key="test",
+            max_llm_calls_per_job=0,
+        ),
+    )
+
+    assert result.visual_text == "OCR fallback"
+    assert result.nonfatal_errors == ["multimodal_llm_extract"]
+    assert result.warnings == []
+    assert "llm_output" not in {artifact.kind for artifact in result.artifacts}
+    llm_stage = next(stage for stage in result.stage_runs if stage.stage == "multimodal_llm_extract")
+    assert llm_stage.success is True
+    assert llm_stage.payload == {
+        "skipped": True,
+        "skip_reason": "llm_call_limit_exhausted",
+        "provider": "openai",
+        "model": "gpt-5.4-nano",
+        "selected_image_count": 3,
+    }

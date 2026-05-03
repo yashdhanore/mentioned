@@ -24,6 +24,18 @@ Postgres/Supabase with migrations applied before startup.
 python -m worker.run
 ```
 
+## Run tests
+
+```bash
+python -m pytest
+```
+
+The Postgres worker-claiming proof is skipped unless a disposable Postgres database URL is provided:
+
+```bash
+POSTGRES_TEST_DATABASE_URL=postgresql://... python -m pytest tests/test_postgres_worker_claiming.py
+```
+
 ## Smoke test the full job flow
 
 With the API and worker running, submit a real job, poll until terminal, fetch the result, and list

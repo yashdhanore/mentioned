@@ -497,6 +497,22 @@ def extract_visual_text(
                 },
             )
         )
+    elif provider == "openai" and settings.max_llm_calls_per_job <= 0:
+        nonfatal_errors.append("multimodal_llm_extract")
+        stage_runs.append(
+            _stage_outcome(
+                stage="multimodal_llm_extract",
+                start=llm_start,
+                success=True,
+                payload={
+                    "skipped": True,
+                    "skip_reason": "llm_call_limit_exhausted",
+                    "provider": "openai",
+                    "model": settings.openai_multimodal_model,
+                    "selected_image_count": len(bundle.llm_images),
+                },
+            )
+        )
     elif provider == "openai":
         try:
             llm_response = run_openai_visual_reconstruction(
