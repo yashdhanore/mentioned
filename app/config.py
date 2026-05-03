@@ -17,6 +17,7 @@ class Settings:
     app_name: str = "Mentioned Backend"
     app_env: str = "local"
     database_url: str = "sqlite:///app.db"
+    worker_database_url: str | None = None
     data_dir: Path = Path("data")
     auto_create_tables: bool = True
     docs_enabled: bool = True
@@ -117,6 +118,7 @@ def get_settings() -> Settings:
         app_name="Mentioned Backend",
         app_env=app_env,
         database_url=database_url,
+        worker_database_url=_env_optional("WORKER_DATABASE_URL"),
         data_dir=data_dir,
         auto_create_tables=_env_bool("AUTO_CREATE_TABLES", auto_create_default),
         docs_enabled=_env_bool("DOCS_ENABLED", app_env != "production"),

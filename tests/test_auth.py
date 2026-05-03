@@ -8,12 +8,35 @@ from sqlmodel import Session, create_engine
 
 from app.auth import _verify_supabase_token
 from app.config import Settings, validate_settings
+from app import db
 from app.db import set_rls_user_context
+from worker.run import _worker_database_url
 
 
 def test_validate_settings_rejects_dev_auth_in_production() -> None:
     with pytest.raises(RuntimeError, match="Production requires AUTH_MODE=supabase"):
         validate_settings(Settings(app_env="production", auth_mode="dev"))
+
+
+def test_production_worker_requires_dedicated_database_url() -> None:
+    settings = Settings(app_env="production", auth_mode="supabase", worker_database_url=None)
+
+    with pytest.raises(RuntimeError, match="Production worker requires WORKER_DATABASE_URL"):
+        _worker_database_url(settings)
+
+
+def test_local_worker_defaults_to_api_database_url() -> None:
+    settings = Settings(database_url="sqlite:///local.db", worker_database_url=None)
+
+    assert _worker_database_url(settings) == "sqlite:///local.db"
+
+
+def test_production_api_role_check_requires_postgres(monkeypatch: pytest.MonkeyPatch) -> None:
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    monkeypatch.setattr(db, "settings", Settings(app_env="production", auth_mode="supabase"))
+
+    with pytest.raises(RuntimeError, match="Production API database must be PostgreSQL"):
+        db.check_api_database_role(engine)
 
 
 def test_supabase_token_verification_validates_authenticated_audience(monkeypatch) -> None:

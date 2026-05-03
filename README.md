@@ -24,6 +24,16 @@ Postgres/Supabase with migrations applied before startup.
 python -m worker.run
 ```
 
+In production, the API and worker must use separate database roles:
+
+- `DATABASE_URL` is the FastAPI role and must be non-superuser and non-`BYPASSRLS`.
+- `WORKER_DATABASE_URL` is the internal worker role and is required by `mentioned-worker` in
+  production.
+
+See [docs/beta-rls-option-b.md](docs/beta-rls-option-b.md) for the beta role setup and release
+proof commands. For v1 beta, frontend clients may use Supabase Auth only; direct Supabase table
+reads are forbidden.
+
 ## Run tests
 
 ```bash
@@ -36,6 +46,15 @@ The Postgres worker-claiming proof is skipped unless a disposable Postgres datab
 POSTGRES_TEST_DATABASE_URL=postgresql://... python -m pytest tests/test_postgres_worker_claiming.py
 ```
 
+The Postgres API-role RLS proof is skipped unless both an admin/setup URL and the real API-role URL
+are provided:
+
+```bash
+POSTGRES_TEST_DATABASE_URL=postgresql://admin-or-owner-url \
+POSTGRES_TEST_API_DATABASE_URL=postgresql://mentioned_api-url \
+python -m pytest tests/test_postgres_rls_role_enforcement.py
+```
+
 ## Smoke test the full job flow
 
 With the API and worker running, submit a real job, poll until terminal, fetch the result, and list
@@ -43,6 +62,7 @@ saved mentions for that job:
 
 ```bash
 TOKEN='paste-supabase-access-token'
+SECOND_TOKEN='paste-second-user-supabase-access-token'
 SOURCE_URL='https://www.instagram.com/reel/SHORTCODE/'
 python scripts/smoke_job_flow.py
 ```

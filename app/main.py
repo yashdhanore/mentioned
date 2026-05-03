@@ -9,7 +9,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import get_settings
-from app.db import create_db_and_tables
+from app.db import check_api_database_role, create_db_and_tables
 from app.routers.health import router as health_router
 from app.routers.jobs import router as jobs_router
 from app.routers.mentions import router as mentions_router
@@ -21,6 +21,7 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    check_api_database_role()
     create_db_and_tables()
     yield
 

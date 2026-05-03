@@ -9,6 +9,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine
 
+from app import db
 from app.auth import Caller
 from app.config import Settings
 from app.db import get_session
@@ -29,7 +30,7 @@ def api_engine() -> Engine:
 
 
 @pytest.fixture()
-def client(api_engine: Engine) -> Iterator[TestClient]:
+def client(api_engine: Engine, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     def override_session() -> Iterator[Session]:
         with Session(api_engine) as session:
             yield session
@@ -41,6 +42,7 @@ def client(api_engine: Engine) -> Iterator[TestClient]:
 
     app.dependency_overrides[get_session] = override_session
     app.dependency_overrides[get_current_caller] = override_caller
+    monkeypatch.setattr(db, "settings", Settings(database_url="sqlite://"))
     try:
         with TestClient(app) as test_client:
             yield test_client
@@ -113,6 +115,7 @@ def supabase_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
             supabase_jwt_secret="secret",
         ),
     )
+    monkeypatch.setattr(db, "settings", Settings(database_url="sqlite://"))
     app.dependency_overrides[get_session] = override_session
     try:
         with TestClient(app) as test_client:
