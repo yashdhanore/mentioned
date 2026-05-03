@@ -1067,6 +1067,16 @@ Before public frontend launch:
 - Expensive provider calls MUST have per-user quotas.
 - Failed jobs SHOULD count toward abuse controls when they still consume network/provider cost.
 
+Beta per-IP decision:
+
+- The beta implementation SHOULD use edge-level per-IP throttling for `POST /v1/jobs` instead of
+  app-level IP throttling, unless the chosen hosting platform cannot enforce route-specific limits.
+- The beta threshold MUST be no more than 10 job-create requests per IP per minute.
+- The exact edge platform, rule location, and staging verification command are unresolved until beta
+  hosting is chosen.
+- This unresolved edge-rate-limit configuration is a beta blocker. The backend gate MUST NOT be
+  considered complete until the chosen edge rule is documented and verified in staging.
+
 Initial configurable v1 defaults:
 
 - Maximum job creation burst: 3 jobs per user per minute.
@@ -1261,6 +1271,8 @@ The backend is ready for frontend implementation when:
 - Successful jobs auto-save valid candidate mentions into the user's library.
 - Users can list, correct, and delete auto-saved mentions.
 - V1 quotas/rate limits are enforced and configurable.
+- The chosen beta edge enforces `POST /v1/jobs` per-IP throttling at no more than 10 requests per
+  minute, with the exact rule and staging verification command documented.
 - Worker claiming is safe with multiple workers.
 - Stale jobs recover predictably.
 - Public result/error payloads are stable.
