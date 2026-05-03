@@ -13,7 +13,6 @@ from sqlmodel import Session, delete, select
 from app.auth import Caller
 from app.config import Settings, get_settings
 from app.models import (
-    JOB_STATUSES,
     MENTION_CATEGORIES,
     Artifact,
     Job,
@@ -32,6 +31,9 @@ from extractor.types import ExtractedMentionCandidate, PipelineResult, StageOutc
 
 
 TERMINAL_STATUSES = {"succeeded", "partial", "failed", "canceled", "expired"}
+ACTIVE_STATUSES = {"queued", "running"}
+USABLE_RESULT_STATUSES = {"succeeded", "partial"}
+PIPELINE_TERMINAL_STATUSES = {"succeeded", "partial", "failed"}
 RETRYABLE_ERROR_CODES = {
     "pipeline_error",
     "source_fetch_failed",
@@ -51,6 +53,14 @@ PUBLIC_ERROR_MESSAGES = {
     "job_expired": "The job expired before it could finish.",
     "quota_exceeded": "The job quota has been reached.",
     "rate_limited": "Too many jobs were created recently.",
+}
+PUBLIC_JOB_ERROR_CODES = {
+    "invalid_source_url",
+    "unsupported_source_kind",
+    "no_text_extracted",
+    "pipeline_error",
+    "job_canceled",
+    "job_expired",
 }
 
 
@@ -104,6 +114,26 @@ def public_error_message(error_code: str | None, fallback: str | None = None) ->
     if error_code is None:
         return None
     return PUBLIC_ERROR_MESSAGES.get(error_code, fallback or PUBLIC_ERROR_MESSAGES["pipeline_error"])
+
+
+def _public_job_error_code(error_code: str | None) -> str | None:
+    if error_code is None:
+        return None
+    if error_code == "no_text":
+        return "no_text_extracted"
+    if error_code in PUBLIC_JOB_ERROR_CODES:
+        return error_code
+    return "pipeline_error"
+
+
+def _job_response_error_code(status: str, error_code: str | None) -> str | None:
+    if status in ACTIVE_STATUSES or status in USABLE_RESULT_STATUSES:
+        return None
+    if status == "canceled":
+        return "job_canceled"
+    if status == "expired":
+        return "job_expired"
+    return _public_job_error_code(error_code) or "pipeline_error"
 
 
 def _encode_cursor(payload: dict[str, Any]) -> str:
@@ -190,6 +220,7 @@ class JobCoordinator:
         return job
 
     def to_job_response(self, job: Job) -> JobResponse:
+        error_code = _job_response_error_code(job.status, job.error_code)
         return JobResponse(
             job_id=job.id,
             source_url=job.source_url,
@@ -198,8 +229,8 @@ class JobCoordinator:
             current_stage=job.current_stage,
             progress=job.progress,
             attempt_count=job.attempt_count,
-            error_code=job.error_code,
-            error_message=public_error_message(job.error_code, job.error_message),
+            error_code=error_code,
+            error_message=public_error_message(error_code, job.error_message),
             created_at=job.created_at,
             updated_at=job.updated_at,
             links=_job_links(job.id),
@@ -426,6 +457,9 @@ class JobCoordinator:
                 job.locked_at = None
                 job.heartbeat_at = None
                 job.next_run_at = now
+                job.error_code = None
+                job.error_message = None
+                job.internal_error = None
             else:
                 job.status = "expired"
                 job.current_stage = "expired"
@@ -469,11 +503,14 @@ class JobCoordinator:
         self.session.add(self._text_result_row(job.owner_id, job.id, attempt_number, result.text_result))
 
         now = utc_now()
-        final_status = result.final_status if result.final_status in JOB_STATUSES else "failed"
-        error_code = "no_text_extracted" if result.error_code == "no_text" else result.error_code
+        final_status = result.final_status if result.final_status in PIPELINE_TERMINAL_STATUSES else "failed"
+        if final_status in USABLE_RESULT_STATUSES:
+            error_code = None
+        else:
+            error_code = _public_job_error_code(result.error_code) or "pipeline_error"
         job.status = final_status
         job.source_kind = result.source_kind
-        job.current_stage = "completed" if final_status in {"succeeded", "partial"} else "failed"
+        job.current_stage = "completed" if final_status in USABLE_RESULT_STATUSES else "failed"
         job.progress = 1.0
         job.finished_at = now
         job.locked_by = None
@@ -485,7 +522,7 @@ class JobCoordinator:
         job.updated_at = now
         self.session.add(job)
 
-        if final_status in {"succeeded", "partial"}:
+        if final_status in USABLE_RESULT_STATUSES:
             self._auto_save_mentions(job, result.candidate_mentions, result.text_result)
 
         self.session.commit()
@@ -559,20 +596,44 @@ class JobCoordinator:
             job.current_stage = "retry_scheduled"
             job.progress = 0.0
             job.next_run_at = now + timedelta(seconds=delay)
+            error_code = None
+            error_message = None
         else:
             job.status = "failed"
             job.current_stage = "failed"
             job.progress = 1.0
             job.finished_at = now
+            error_code = _public_job_error_code(failure.error_code) or "pipeline_error"
+            error_message = public_error_message(error_code, failure.error_message)
         job.locked_by = None
         job.locked_at = None
         job.heartbeat_at = None
-        job.error_code = failure.error_code
-        job.error_message = public_error_message(failure.error_code, failure.error_message)
+        job.error_code = error_code
+        job.error_message = error_message
         job.internal_error = failure.internal_error
         job.updated_at = now
         self.session.add(job)
         self.session.commit()
+
+    def cancel_if_requested(self, job_id: str, worker_id: str) -> bool:
+        job = self.session.get(Job, job_id)
+        if job is None or job.locked_by != worker_id or job.status != "running" or job.cancel_requested_at is None:
+            return False
+        now = utc_now()
+        job.status = "canceled"
+        job.current_stage = "canceled"
+        job.progress = 1.0
+        job.locked_by = None
+        job.locked_at = None
+        job.heartbeat_at = None
+        job.finished_at = now
+        job.error_code = "job_canceled"
+        job.error_message = public_error_message("job_canceled")
+        job.internal_error = None
+        job.updated_at = now
+        self.session.add(job)
+        self.session.commit()
+        return True
 
     def _auto_save_mentions(
         self,

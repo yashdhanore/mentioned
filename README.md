@@ -49,14 +49,25 @@ python scripts/smoke_job_flow.py \
 
 - `POST /v1/jobs` queues an extraction job for a URL.
 - `GET /v1/jobs` lists the authenticated user's jobs with cursor pagination.
-- `GET /v1/jobs/{job_id}` returns job status.
+- `GET /v1/jobs/{job_id}` returns job status and is the required v1 polling endpoint.
 - `GET /v1/jobs/{job_id}/result` returns the text-first result:
 `caption_text`, `spoken_text`, `visual_text`, `image_text`, `merged_text`, and `warnings`.
+Fetch results after polling observes `succeeded` or `partial`; `/result` is not the job-level
+error source.
 - `POST /v1/jobs/{job_id}/rerun` creates a new attempt under the same public job ID.
 - `POST /v1/jobs/{job_id}/cancel` cancels queued jobs or marks running jobs for cancellation.
 - `GET /v1/mentions` lists auto-saved mention evidence for the authenticated user.
 - `PATCH /v1/mentions/{mention_id}`, `POST /v1/mentions/{mention_id}/confirm`, and
   `DELETE /v1/mentions/{mention_id}` support review, correction, and soft delete.
+
+Job polling status values are stable: `queued`, `running`, `succeeded`, `partial`, `failed`,
+`canceled`, and `expired`. Frontend state should branch only on `status` and public
+`JobResponse.error_code`; `current_stage`, `progress`, `attempt_count`, and `error_message` are
+display/advisory fields. Exact polling cadence and backoff are frontend-owned in v1.
+
+Public job polling error codes are: `invalid_source_url`, `unsupported_source_kind`,
+`no_text_extracted`, `pipeline_error`, `job_canceled`, and `job_expired`. Request validation errors
+use `detail.error_code = "validation_error"`.
 
 Public endpoints use Supabase Auth in production (`AUTH_MODE=supabase`). Local development defaults
 to `AUTH_MODE=dev`; omit `Authorization` to use `DEV_USER_ID`, or pass

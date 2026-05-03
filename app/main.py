@@ -3,8 +3,10 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import JSONResponse
 
 from app.config import get_settings
 from app.db import create_db_and_tables
@@ -30,6 +32,14 @@ app = FastAPI(
     redoc_url="/redoc" if settings.docs_enabled else None,
     openapi_url="/openapi.json" if settings.docs_enabled else None,
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(_: object, __: RequestValidationError) -> JSONResponse:
+    return JSONResponse(
+        status_code=422,
+        content={"detail": {"error_code": "validation_error", "message": "The request is not valid."}},
+    )
 
 if settings.cors_allowed_origins:
     app.add_middleware(

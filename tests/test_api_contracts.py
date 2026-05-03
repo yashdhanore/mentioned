@@ -86,6 +86,15 @@ def test_create_job_rejects_unknown_fields_and_bad_hosts(client: TestClient) -> 
         headers={"Authorization": "Bearer dev:00000000-0000-4000-8000-000000000111"},
     )
     assert unknown_field_response.status_code == 422
+    assert unknown_field_response.json()["detail"]["error_code"] == "validation_error"
+    assert unknown_field_response.json()["detail"]["message"] == "The request is not valid."
+
+    invalid_query_response = client.get(
+        "/v1/jobs?limit=0",
+        headers={"Authorization": "Bearer dev:00000000-0000-4000-8000-000000000111"},
+    )
+    assert invalid_query_response.status_code == 422
+    assert invalid_query_response.json()["detail"]["error_code"] == "validation_error"
 
     spoofed_host_response = client.post(
         "/v1/jobs",

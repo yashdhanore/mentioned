@@ -14,13 +14,19 @@ from extractor.stages.normalize_url import SourceUrlError
 
 def process_job(job_id: str, source_url: str, worker_id: str) -> None:
     with Session(engine) as session:
-        JobCoordinator(session).heartbeat(job_id, worker_id, current_stage="pipeline", progress=0.1)
+        coordinator = JobCoordinator(session)
+        coordinator.heartbeat(job_id, worker_id, current_stage="pipeline", progress=0.1)
+        if coordinator.cancel_if_requested(job_id, worker_id):
+            return
 
     try:
         result = run_pipeline(job_id, source_url)
     except SourceUrlError as exc:
         with Session(engine) as session:
-            JobCoordinator(session).fail_claimed_job(
+            coordinator = JobCoordinator(session)
+            if coordinator.cancel_if_requested(job_id, worker_id):
+                return
+            coordinator.fail_claimed_job(
                 job_id,
                 JobFailure(
                     error_code=exc.error_code,
@@ -32,7 +38,10 @@ def process_job(job_id: str, source_url: str, worker_id: str) -> None:
         return
     except Exception as exc:
         with Session(engine) as session:
-            JobCoordinator(session).fail_claimed_job(
+            coordinator = JobCoordinator(session)
+            if coordinator.cancel_if_requested(job_id, worker_id):
+                return
+            coordinator.fail_claimed_job(
                 job_id,
                 JobFailure(
                     error_code="pipeline_error",
@@ -44,7 +53,10 @@ def process_job(job_id: str, source_url: str, worker_id: str) -> None:
         return
 
     with Session(engine) as session:
-        JobCoordinator(session).record_pipeline_result(job_id, result)
+        coordinator = JobCoordinator(session)
+        if coordinator.cancel_if_requested(job_id, worker_id):
+            return
+        coordinator.record_pipeline_result(job_id, result)
 
 
 def run_worker(*, once: bool) -> None:
