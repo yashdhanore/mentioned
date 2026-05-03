@@ -14,6 +14,15 @@ npm run ios
 
 Use `npm start` when you want the Expo QR/dev-server flow instead.
 
+The app talks to the local FastAPI backend by default:
+
+```bash
+EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:8000 npm run ios
+```
+
+For dev auth, every request sends `Authorization: Bearer dev:<user-id>`. Override the user with
+`EXPO_PUBLIC_DEV_USER_ID`; otherwise it uses the backend's default local dev user.
+
 ## Validate
 
 ```bash

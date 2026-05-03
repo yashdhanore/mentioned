@@ -1,8 +1,10 @@
 import { StatusBar } from 'expo-status-bar';
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Image,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -15,7 +17,22 @@ import {
   View,
 } from 'react-native';
 
-import { books, savedReels, type Book, type SavedReel } from './src/mockData';
+import {
+  DEV_USER_ID,
+  createJob,
+  errorMessage,
+  getJobResult,
+  listAllJobs,
+  listAllMentions,
+  rerunJob,
+} from './src/api';
+import {
+  applyResultFallback,
+  buildCaptures,
+  captureFromJob,
+  type BookMention,
+  type Capture,
+} from './src/captures';
 import { colors, radius, spacing, typography } from './src/theme';
 
 type Sheet = 'profile' | 'paste' | 'reelMenu' | null;
@@ -23,20 +40,141 @@ type Sheet = 'profile' | 'paste' | 'reelMenu' | null;
 export default function App() {
   const { width } = useWindowDimensions();
   const [isSignedIn, setIsSignedIn] = useState(false);
-  const [selectedReel, setSelectedReel] = useState<SavedReel | null>(null);
+  const [captures, setCaptures] = useState<Capture[]>([]);
+  const [selectedCaptureId, setSelectedCaptureId] = useState<string | null>(null);
   const [sheet, setSheet] = useState<Sheet>(null);
   const [pasteUrl, setPasteUrl] = useState('');
+  const [isLoadingCaptures, setIsLoadingCaptures] = useState(false);
+  const [isSubmittingUrl, setIsSubmittingUrl] = useState(false);
+  const [retryingCaptureId, setRetryingCaptureId] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [pasteError, setPasteError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const tileWidth = useMemo(() => {
     return (width - spacing.screen * 2 - spacing.md) / 2;
   }, [width]);
 
-  function showProcessingFromPaste() {
-    const processing = savedReels.find((reel) => reel.status === 'processing') ?? savedReels[0];
-    setPasteUrl('');
-    setSheet(null);
-    setSelectedReel(processing);
-  }
+  const selectedCapture = useMemo(() => {
+    return captures.find((capture) => capture.id === selectedCaptureId) ?? null;
+  }, [captures, selectedCaptureId]);
+
+  const refreshCaptures = useCallback(
+    async ({ silent = false }: { silent?: boolean } = {}) => {
+      if (!isSignedIn) {
+        return;
+      }
+
+      if (!silent) {
+        setIsLoadingCaptures(true);
+      }
+      setLoadError(null);
+
+      try {
+        const [jobs, mentions] = await Promise.all([listAllJobs(), listAllMentions()]);
+        setCaptures(buildCaptures(jobs, mentions));
+      } catch (error) {
+        setLoadError(errorMessage(error, 'Could not load saved Reels.'));
+      } finally {
+        if (!silent) {
+          setIsLoadingCaptures(false);
+        }
+      }
+    },
+    [isSignedIn],
+  );
+
+  useEffect(() => {
+    if (!isSignedIn) {
+      setCaptures([]);
+      setSelectedCaptureId(null);
+      return;
+    }
+
+    void refreshCaptures();
+  }, [isSignedIn, refreshCaptures]);
+
+  useEffect(() => {
+    if (!isSignedIn || !captures.some((capture) => capture.status === 'processing')) {
+      return undefined;
+    }
+
+    const intervalId = setInterval(() => {
+      void refreshCaptures({ silent: true });
+    }, 4000);
+
+    return () => clearInterval(intervalId);
+  }, [captures, isSignedIn, refreshCaptures]);
+
+  const openCapture = useCallback((capture: Capture) => {
+    setActionError(null);
+    setSelectedCaptureId(capture.id);
+
+    if (!capture.sourceContextSnippet && capture.status !== 'processing') {
+      void getJobResult(capture.id)
+        .then((result) => {
+          setCaptures((current) =>
+            current.map((item) => (item.id === capture.id ? applyResultFallback(item, result) : item)),
+          );
+        })
+        .catch(() => undefined);
+    }
+  }, []);
+
+  const submitPasteUrl = useCallback(async () => {
+    const url = pasteUrl.trim();
+    if (!url) {
+      setPasteError('Paste an Instagram Reel or post URL.');
+      return;
+    }
+
+    setPasteError(null);
+    setIsSubmittingUrl(true);
+
+    try {
+      const created = await createJob(url);
+      const capture = captureFromJob(created);
+      setCaptures((current) => [capture, ...current.filter((item) => item.id !== capture.id)]);
+      setSelectedCaptureId(capture.id);
+      setPasteUrl('');
+      setSheet(null);
+      void refreshCaptures({ silent: true });
+    } catch (error) {
+      setPasteError(errorMessage(error, 'Could not submit that Reel.'));
+    } finally {
+      setIsSubmittingUrl(false);
+    }
+  }, [pasteUrl, refreshCaptures]);
+
+  const retryCapture = useCallback(
+    async (capture: Capture) => {
+      setActionError(null);
+      setRetryingCaptureId(capture.id);
+
+      try {
+        const rerun = await rerunJob(capture.id);
+        const processingCapture = captureFromJob(rerun);
+        setCaptures((current) =>
+          current.map((item) => (item.id === capture.id ? { ...processingCapture, thumbnailUrl: item.thumbnailUrl } : item)),
+        );
+        void refreshCaptures({ silent: true });
+      } catch (error) {
+        setActionError(errorMessage(error, 'Could not retry this Reel.'));
+      } finally {
+        setRetryingCaptureId(null);
+      }
+    },
+    [refreshCaptures],
+  );
+
+  const openSource = useCallback(async (capture: Capture) => {
+    setActionError(null);
+    try {
+      await Linking.openURL(capture.sourceUrl);
+    } catch (error) {
+      setActionError(errorMessage(error, 'Could not open the source URL.'));
+    }
+  }, []);
 
   if (!isSignedIn) {
     return <SignedOutScreen onContinue={() => setIsSignedIn(true)} />;
@@ -45,31 +183,51 @@ export default function App() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
-      {selectedReel ? (
+      {selectedCapture ? (
         <ReelDetail
-          reel={selectedReel}
+          capture={selectedCapture}
           width={width}
-          onBack={() => setSelectedReel(null)}
+          actionError={actionError}
+          isRetrying={retryingCaptureId === selectedCapture.id}
+          onBack={() => setSelectedCaptureId(null)}
           onOpenMenu={() => setSheet('reelMenu')}
+          onOpenSource={() => void openSource(selectedCapture)}
+          onRetry={() => void retryCapture(selectedCapture)}
         />
       ) : (
         <HomeScreen
+          captures={captures}
+          error={loadError}
+          isLoading={isLoadingCaptures}
           tileWidth={tileWidth}
           onOpenPaste={() => setSheet('paste')}
           onOpenProfile={() => setSheet('profile')}
-          onOpenReel={setSelectedReel}
+          onOpenCapture={openCapture}
+          onRefresh={() => void refreshCaptures()}
         />
       )}
 
       <ProfileSheet visible={sheet === 'profile'} onClose={() => setSheet(null)} />
       <PasteSheet
         visible={sheet === 'paste'}
+        error={pasteError}
+        isSubmitting={isSubmittingUrl}
         value={pasteUrl}
-        onChange={setPasteUrl}
-        onClose={() => setSheet(null)}
-        onSubmit={showProcessingFromPaste}
+        onChange={(value) => {
+          setPasteError(null);
+          setPasteUrl(value);
+        }}
+        onClose={() => {
+          setPasteError(null);
+          setSheet(null);
+        }}
+        onSubmit={submitPasteUrl}
       />
-      <ReelMenuSheet visible={sheet === 'reelMenu'} onClose={() => setSheet(null)} />
+      <ReelMenuSheet
+        visible={sheet === 'reelMenu'}
+        onClose={() => setSheet(null)}
+        onOpenSource={selectedCapture ? () => void openSource(selectedCapture) : undefined}
+      />
     </SafeAreaView>
   );
 }
@@ -100,15 +258,23 @@ function SignedOutScreen({ onContinue }: { onContinue: () => void }) {
 }
 
 function HomeScreen({
+  captures,
+  error,
+  isLoading,
   tileWidth,
   onOpenPaste,
   onOpenProfile,
-  onOpenReel,
+  onOpenCapture,
+  onRefresh,
 }: {
+  captures: Capture[];
+  error: string | null;
+  isLoading: boolean;
   tileWidth: number;
   onOpenPaste: () => void;
   onOpenProfile: () => void;
-  onOpenReel: (reel: SavedReel) => void;
+  onOpenCapture: (capture: Capture) => void;
+  onRefresh: () => void;
 }) {
   return (
     <ScrollView
@@ -143,39 +309,67 @@ function HomeScreen({
         <Text style={styles.screenSubtitle}>Shared sources you want to return to.</Text>
       </View>
 
-      <View style={styles.grid}>
-        {savedReels.map((reel) => (
-          <ReelTile
-            key={reel.id}
-            reel={reel}
-            width={tileWidth}
-            onPress={() => onOpenReel(reel)}
-          />
-        ))}
-      </View>
+      {error ? <InlineMessage tone="error" message={error} actionLabel="Try again" onAction={onRefresh} /> : null}
+
+      {isLoading && captures.length === 0 ? <LoadingState /> : null}
+      {!isLoading && captures.length === 0 ? <EmptyCaptures onOpenPaste={onOpenPaste} /> : null}
+
+      {captures.length > 0 ? (
+        <View style={styles.grid}>
+          {captures.map((capture) => (
+            <ReelTile
+              key={capture.id}
+              capture={capture}
+              width={tileWidth}
+              onPress={() => onOpenCapture(capture)}
+            />
+          ))}
+        </View>
+      ) : null}
     </ScrollView>
   );
 }
 
-function ReelTile({ reel, width, onPress }: { reel: SavedReel; width: number; onPress: () => void }) {
+function LoadingState() {
+  return (
+    <View style={styles.loadingState}>
+      <ActivityIndicator color={colors.primary} />
+      <Text style={styles.loadingText}>Loading saved Reels...</Text>
+    </View>
+  );
+}
+
+function EmptyCaptures({ onOpenPaste }: { onOpenPaste: () => void }) {
+  return (
+    <View style={styles.stateCard}>
+      <Text style={styles.stateTitle}>No saved Reels yet</Text>
+      <Text style={styles.stateBody}>Paste an Instagram Reel or post link to start finding books.</Text>
+      <View style={styles.stateActions}>
+        <PrimaryButton label="Paste link" onPress={onOpenPaste} compact />
+      </View>
+    </View>
+  );
+}
+
+function ReelTile({ capture, width, onPress }: { capture: Capture; width: number; onPress: () => void }) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${reel.creator} saved Reel`}
+      accessibilityLabel={`${capture.creator} saved Reel`}
       style={({ pressed }) => [styles.reelTile, { width }, pressed && styles.pressed]}
       onPress={onPress}
     >
-      <Image source={{ uri: reel.thumbnailUrl }} style={styles.reelTileImage} />
+      <Image source={{ uri: capture.thumbnailUrl }} style={styles.reelTileImage} />
       <View style={styles.reelTileScrim} />
-      {reel.status !== 'ready' ? <TileStatus status={reel.status} /> : null}
+      {capture.status !== 'ready' ? <TileStatus status={capture.status} /> : null}
       <Text numberOfLines={1} style={styles.reelCreator}>
-        {reel.creator}
+        {capture.creator}
       </Text>
     </Pressable>
   );
 }
 
-function TileStatus({ status }: { status: SavedReel['status'] }) {
+function TileStatus({ status }: { status: Capture['status'] }) {
   if (status === 'processing') {
     return <View accessibilityLabel="Processing" style={styles.processingDot} />;
   }
@@ -188,15 +382,23 @@ function TileStatus({ status }: { status: SavedReel['status'] }) {
 }
 
 function ReelDetail({
-  reel,
+  capture,
   width,
+  actionError,
+  isRetrying,
   onBack,
   onOpenMenu,
+  onOpenSource,
+  onRetry,
 }: {
-  reel: SavedReel;
+  capture: Capture;
   width: number;
+  actionError: string | null;
+  isRetrying: boolean;
   onBack: () => void;
   onOpenMenu: () => void;
+  onOpenSource: () => void;
+  onRetry: () => void;
 }) {
   const previewWidth = Math.min(width * 0.74, 318);
 
@@ -216,7 +418,7 @@ function ReelDetail({
           <Text style={styles.backText}>Back</Text>
         </Pressable>
         <Text numberOfLines={1} style={styles.detailNavTitle}>
-          {reel.creator}
+          {capture.creator}
         </Text>
         <Pressable
           accessibilityRole="button"
@@ -230,23 +432,27 @@ function ReelDetail({
 
       <View style={styles.previewWrap}>
         <View style={[styles.reelPreview, { width: previewWidth }]}>
-          <Image source={{ uri: reel.thumbnailUrl }} style={styles.reelPreviewImage} />
+          <Image source={{ uri: capture.thumbnailUrl }} style={styles.reelPreviewImage} />
         </View>
       </View>
 
       <View style={styles.sourceBlock}>
-        <Text style={styles.sourceCreator}>{reel.creator}</Text>
-        {reel.sourceContextSnippet ? (
+        <Text style={styles.sourceCreator}>{capture.creator}</Text>
+        {capture.sourceContextSnippet ? (
           <Text numberOfLines={2} style={styles.sourceSnippet}>
-            {reel.sourceContextSnippet}
+            {capture.sourceContextSnippet}
           </Text>
         ) : null}
       </View>
 
-      {reel.status === 'processing' ? <ProcessingBooks /> : null}
-      {reel.status === 'ready' ? <BooksMentioned books={reel.books} /> : null}
-      {reel.status === 'no_books' ? <NoBooks /> : null}
-      {reel.status === 'failed' ? <FailedState /> : null}
+      {actionError ? <InlineMessage tone="error" message={actionError} /> : null}
+
+      {capture.status === 'processing' ? <ProcessingBooks /> : null}
+      {capture.status === 'ready' ? <BooksMentioned books={capture.books} /> : null}
+      {capture.status === 'no_books' ? <NoBooks onOpenSource={onOpenSource} /> : null}
+      {capture.status === 'failed' ? (
+        <FailedState isRetrying={isRetrying} onOpenSource={onOpenSource} onRetry={onRetry} />
+      ) : null}
     </ScrollView>
   );
 }
@@ -276,7 +482,7 @@ function SkeletonBookRow() {
   );
 }
 
-function BooksMentioned({ books: mentionedBooks }: { books: Book[] }) {
+function BooksMentioned({ books: mentionedBooks }: { books: BookMention[] }) {
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Books mentioned</Text>
@@ -289,7 +495,7 @@ function BooksMentioned({ books: mentionedBooks }: { books: Book[] }) {
   );
 }
 
-function BookRow({ book }: { book: Book }) {
+function BookRow({ book }: { book: BookMention }) {
   return (
     <View style={styles.bookRow}>
       <View style={[styles.bookCover, { backgroundColor: book.color }]}>
@@ -297,14 +503,14 @@ function BookRow({ book }: { book: Book }) {
       </View>
       <View style={styles.bookCopy}>
         <Text style={styles.bookTitle}>{book.title}</Text>
-        <Text style={styles.bookAuthor}>{book.author}</Text>
-        <Text style={styles.bookSynopsis}>{book.synopsis}</Text>
+        {book.author ? <Text style={styles.bookAuthor}>{book.author}</Text> : null}
+        {book.synopsis ? <Text style={styles.bookSynopsis}>{book.synopsis}</Text> : null}
       </View>
     </View>
   );
 }
 
-function NoBooks() {
+function NoBooks({ onOpenSource }: { onOpenSource: () => void }) {
   return (
     <View style={styles.stateCard}>
       <Text style={styles.stateTitle}>No books found in this Reel</Text>
@@ -312,14 +518,21 @@ function NoBooks() {
         We saved the Reel, but did not find a useful book mention to show here.
       </Text>
       <View style={styles.stateActions}>
-        <SecondaryButton label="Open source" onPress={() => undefined} compact />
-        <SecondaryButton label="Remove from saved" onPress={() => undefined} compact />
+        <SecondaryButton label="Open source" onPress={onOpenSource} compact />
       </View>
     </View>
   );
 }
 
-function FailedState() {
+function FailedState({
+  isRetrying,
+  onOpenSource,
+  onRetry,
+}: {
+  isRetrying: boolean;
+  onOpenSource: () => void;
+  onRetry: () => void;
+}) {
   return (
     <View style={styles.stateCard}>
       <Text style={styles.stateTitle}>Could not find books from this Reel</Text>
@@ -327,8 +540,13 @@ function FailedState() {
         The source is still saved. Try again, or open the original Reel.
       </Text>
       <View style={styles.stateActions}>
-        <PrimaryButton label="Retry" onPress={() => undefined} compact />
-        <SecondaryButton label="Open source" onPress={() => undefined} compact />
+        <PrimaryButton
+          label={isRetrying ? 'Retrying...' : 'Retry'}
+          onPress={onRetry}
+          compact
+          disabled={isRetrying}
+        />
+        <SecondaryButton label="Open source" onPress={onOpenSource} compact />
       </View>
     </View>
   );
@@ -338,7 +556,7 @@ function ProfileSheet({ visible, onClose }: { visible: boolean; onClose: () => v
   return (
     <BottomSheet visible={visible} onClose={onClose}>
       <Text style={styles.sheetTitle}>Profile</Text>
-      <Text style={styles.accountEmail}>ydh0rs@example.com</Text>
+      <Text style={styles.accountEmail}>Dev user {DEV_USER_ID}</Text>
       <View style={styles.sheetMenu}>
         <SheetRow label="How sharing works" />
         <SheetRow label="Privacy" />
@@ -351,12 +569,16 @@ function ProfileSheet({ visible, onClose }: { visible: boolean; onClose: () => v
 
 function PasteSheet({
   visible,
+  error,
+  isSubmitting,
   value,
   onChange,
   onClose,
   onSubmit,
 }: {
   visible: boolean;
+  error: string | null;
+  isSubmitting: boolean;
   value: string;
   onChange: (value: string) => void;
   onClose: () => void;
@@ -378,19 +600,37 @@ function PasteSheet({
           style={styles.input}
           value={value}
         />
-        <PrimaryButton label="Find books" onPress={onSubmit} />
+        {error ? <InlineMessage tone="error" message={error} /> : null}
+        <PrimaryButton
+          label={isSubmitting ? 'Finding books...' : 'Find books'}
+          onPress={onSubmit}
+          disabled={isSubmitting}
+        />
       </KeyboardAvoidingView>
     </BottomSheet>
   );
 }
 
-function ReelMenuSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+function ReelMenuSheet({
+  visible,
+  onClose,
+  onOpenSource,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onOpenSource?: () => void;
+}) {
   return (
     <BottomSheet visible={visible} onClose={onClose}>
       <Text style={styles.sheetTitle}>Reel actions</Text>
       <View style={styles.sheetMenu}>
-        <SheetRow label="Open source" />
-        <SheetRow label="Remove from saved" destructive />
+        <SheetRow
+          label="Open source"
+          onPress={() => {
+            onOpenSource?.();
+            onClose();
+          }}
+        />
       </View>
     </BottomSheet>
   );
@@ -417,9 +657,17 @@ function BottomSheet({
   );
 }
 
-function SheetRow({ label, destructive = false }: { label: string; destructive?: boolean }) {
+function SheetRow({
+  label,
+  destructive = false,
+  onPress,
+}: {
+  label: string;
+  destructive?: boolean;
+  onPress?: () => void;
+}) {
   return (
-    <Pressable style={({ pressed }) => [styles.sheetRow, pressed && styles.pressed]}>
+    <Pressable style={({ pressed }) => [styles.sheetRow, pressed && styles.pressed]} onPress={onPress}>
       <Text style={[styles.sheetRowText, destructive && styles.destructiveText]}>{label}</Text>
     </Pressable>
   );
@@ -429,17 +677,21 @@ function PrimaryButton({
   label,
   onPress,
   compact = false,
+  disabled = false,
 }: {
   label: string;
   onPress: () => void;
   compact?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
+      disabled={disabled}
       style={({ pressed }) => [
         styles.primaryButton,
         compact && styles.compactButton,
+        disabled && styles.disabledButton,
         pressed && styles.pressed,
       ]}
       onPress={onPress}
@@ -453,23 +705,56 @@ function SecondaryButton({
   label,
   onPress,
   compact = false,
+  disabled = false,
 }: {
   label: string;
   onPress: () => void;
   compact?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
+      disabled={disabled}
       style={({ pressed }) => [
         styles.secondaryButton,
         compact && styles.compactButton,
+        disabled && styles.disabledButton,
         pressed && styles.pressed,
       ]}
       onPress={onPress}
     >
       <Text style={styles.secondaryButtonText}>{label}</Text>
     </Pressable>
+  );
+}
+
+function InlineMessage({
+  message,
+  tone,
+  actionLabel,
+  onAction,
+}: {
+  message: string;
+  tone: 'error' | 'warning';
+  actionLabel?: string;
+  onAction?: () => void;
+}) {
+  return (
+    <View style={[styles.inlineMessage, tone === 'error' ? styles.inlineError : styles.inlineWarning]}>
+      <Text style={[styles.inlineMessageText, tone === 'error' ? styles.inlineErrorText : styles.inlineWarningText]}>
+        {message}
+      </Text>
+      {actionLabel && onAction ? (
+        <Pressable
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.inlineAction, pressed && styles.pressed]}
+          onPress={onAction}
+        >
+          <Text style={styles.inlineActionText}>{actionLabel}</Text>
+        </Pressable>
+      ) : null}
+    </View>
   );
 }
 
@@ -583,6 +868,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.md,
+  },
+  loadingState: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    gap: spacing.sm,
+    padding: spacing.lg,
+  },
+  loadingText: {
+    ...typography.bodySm,
+    color: colors.onMuted,
   },
   reelTile: {
     aspectRatio: 0.72,
@@ -821,6 +1119,39 @@ const styles = StyleSheet.create({
   compactButton: {
     minHeight: 40,
     paddingHorizontal: spacing.md,
+  },
+  disabledButton: {
+    opacity: 0.55,
+  },
+  inlineMessage: {
+    borderRadius: radius.md,
+    borderWidth: 1,
+    gap: spacing.sm,
+    padding: spacing.md,
+  },
+  inlineError: {
+    backgroundColor: colors.errorSoft,
+    borderColor: colors.error,
+  },
+  inlineWarning: {
+    backgroundColor: colors.warningSoft,
+    borderColor: colors.warning,
+  },
+  inlineMessageText: {
+    ...typography.bodySm,
+  },
+  inlineErrorText: {
+    color: colors.error,
+  },
+  inlineWarningText: {
+    color: colors.warning,
+  },
+  inlineAction: {
+    alignSelf: 'flex-start',
+  },
+  inlineActionText: {
+    ...typography.labelMd,
+    color: colors.primary,
   },
   modalOverlay: {
     backgroundColor: 'rgba(20, 32, 27, 0.18)',
