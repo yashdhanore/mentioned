@@ -18,6 +18,57 @@ def test_validate_settings_rejects_dev_auth_in_production() -> None:
         validate_settings(Settings(app_env="production", auth_mode="dev"))
 
 
+def _production_settings(**overrides: object) -> Settings:
+    values = {
+        "app_env": "production",
+        "auth_mode": "supabase",
+        "database_url": "postgresql://api:password@db.example.com:5432/postgres",
+        "auto_create_tables": False,
+        "docs_enabled": False,
+        "cors_allowed_origins": ("https://app.example.com",),
+        "trusted_hosts": ("api.example.com",),
+        "source_require_https": True,
+        "supabase_project_url": "https://example.supabase.co",
+    }
+    values.update(overrides)
+    return Settings(**values)
+
+
+def test_validate_settings_accepts_hardened_production_auth_config() -> None:
+    validate_settings(_production_settings())
+
+
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"database_url": "sqlite:///app.db"}, "Production requires a PostgreSQL DATABASE_URL"),
+        ({"auto_create_tables": True}, "Production requires AUTO_CREATE_TABLES=false"),
+        ({"docs_enabled": True}, "Production requires DOCS_ENABLED=false"),
+        ({"source_require_https": False}, "Production requires SOURCE_REQUIRE_HTTPS=true"),
+        ({"cors_allowed_origins": ()}, "Production requires at least one CORS_ALLOWED_ORIGINS value"),
+        (
+            {"cors_allowed_origins": ("http://localhost:19006",)},
+            "Production CORS_ALLOWED_ORIGINS must be non-local HTTPS origins",
+        ),
+        (
+            {"cors_allowed_origins": ("https://",)},
+            "Production CORS_ALLOWED_ORIGINS must be non-local HTTPS origins",
+        ),
+        ({"trusted_hosts": ()}, "Production requires at least one TRUSTED_HOSTS value"),
+        ({"trusted_hosts": ("*",)}, "Production TRUSTED_HOSTS must be explicit non-local hosts"),
+        ({"trusted_hosts": ("localhost:8000",)}, "Production TRUSTED_HOSTS must be explicit non-local hosts"),
+        ({"trusted_hosts": ("https://api.example.com",)}, "Production TRUSTED_HOSTS must be explicit non-local hosts"),
+        ({"supabase_project_url": None}, "Production requires SUPABASE_PROJECT_URL"),
+    ],
+)
+def test_validate_settings_rejects_unsafe_production_auth_config(
+    overrides: dict[str, object],
+    message: str,
+) -> None:
+    with pytest.raises(RuntimeError, match=message):
+        validate_settings(_production_settings(**overrides))
+
+
 def test_production_worker_requires_dedicated_database_url() -> None:
     settings = Settings(app_env="production", auth_mode="supabase", worker_database_url=None)
 

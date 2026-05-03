@@ -1,12 +1,52 @@
 const DEFAULT_API_BASE_URL = 'http://127.0.0.1:8000';
-const DEFAULT_DEV_USER_ID = '00000000-0000-4000-8000-000000000001';
 const MAX_PAGES = 5;
 
 export const API_BASE_URL = (
   process.env.EXPO_PUBLIC_API_BASE_URL?.trim() || DEFAULT_API_BASE_URL
 ).replace(/\/+$/, '');
 
-export const DEV_USER_ID = process.env.EXPO_PUBLIC_DEV_USER_ID?.trim() || DEFAULT_DEV_USER_ID;
+type AccessTokenProvider = () => Promise<string | null> | string | null;
+
+let accessTokenProvider: AccessTokenProvider | null = null;
+
+export function setAccessTokenProvider(provider: AccessTokenProvider): void {
+  accessTokenProvider = provider;
+}
+
+export function clearAccessTokenProvider(): void {
+  accessTokenProvider = null;
+}
+
+function isProductionBuild(): boolean {
+  return process.env.EXPO_PUBLIC_APP_ENV?.trim().toLowerCase() === 'production';
+}
+
+function isLocalHost(hostname: string): boolean {
+  return ['localhost', '127.0.0.1', '0.0.0.0', '::1'].includes(hostname);
+}
+
+function validateRuntimeConfig(): void {
+  if (!isProductionBuild()) {
+    return;
+  }
+
+  if (process.env.EXPO_PUBLIC_DEV_USER_ID?.trim()) {
+    throw new Error('Production mobile builds must not define EXPO_PUBLIC_DEV_USER_ID.');
+  }
+
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(API_BASE_URL);
+  } catch {
+    throw new Error('EXPO_PUBLIC_API_BASE_URL must be a valid URL in production builds.');
+  }
+
+  if (parsedUrl.protocol !== 'https:' || isLocalHost(parsedUrl.hostname)) {
+    throw new Error('Production mobile builds require a non-local HTTPS API base URL.');
+  }
+}
+
+validateRuntimeConfig();
 
 export type JobStatus =
   | 'queued'
@@ -99,10 +139,9 @@ export class ApiError extends Error {
   }
 }
 
-function authHeaders(): Record<string, string> {
-  return {
-    Authorization: `Bearer dev:${DEV_USER_ID}`,
-  };
+async function authHeaders(): Promise<Record<string, string>> {
+  const token = accessTokenProvider ? await accessTokenProvider() : null;
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 function pathWithQuery(path: string, params: Record<string, string | number | null | undefined>) {
@@ -128,12 +167,13 @@ function parseApiError(status: number, payload: ApiErrorPayload | null): ApiErro
 }
 
 async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const headers = init.headers as Record<string, string> | undefined;
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: {
       Accept: 'application/json',
-      ...authHeaders(),
-      ...init.headers,
+      ...(await authHeaders()),
+      ...headers,
     },
   });
 

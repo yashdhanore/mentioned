@@ -20,8 +20,21 @@ The app talks to the local FastAPI backend by default:
 EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:8000 npm run ios
 ```
 
-For dev auth, every request sends `Authorization: Bearer dev:<user-id>`. Override the user with
-`EXPO_PUBLIC_DEV_USER_ID`; otherwise it uses the backend's default local dev user.
+Configure Supabase Auth before using the signed-in app flow:
+
+```bash
+EXPO_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co \
+EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<publishable-key> \
+EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:8000 \
+npm run ios
+```
+
+The mobile client persists the Supabase session locally and sends the session access token as
+`Authorization: Bearer <token>` to the FastAPI backend. Production builds should set
+`EXPO_PUBLIC_APP_ENV=production`; startup then fails if the API URL is local/non-HTTPS or Supabase
+auth variables are missing. Add the app callback URL, `mentioned://auth/callback`, to the allowed
+redirect URLs in the Supabase Auth provider configuration. When testing through Expo Go or a tunnel,
+also add the callback URL printed by Expo for that session.
 
 ## Validate
 

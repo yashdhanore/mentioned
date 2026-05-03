@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
@@ -100,11 +101,55 @@ def _env_csv(name: str) -> tuple[str, ...]:
     return tuple(part.strip() for part in value.split(",") if part.strip())
 
 
+def _is_postgres_url(database_url: str) -> bool:
+    return database_url.startswith("postgresql://") or database_url.startswith("postgresql+")
+
+
+def _is_local_hostname(hostname: str | None) -> bool:
+    return hostname is not None and hostname.casefold() in {"localhost", "127.0.0.1", "0.0.0.0", "::1"}
+
+
+def _is_invalid_production_origin(origin: str) -> bool:
+    if origin == "*":
+        return True
+    parsed = urlparse(origin)
+    return parsed.scheme != "https" or not parsed.hostname or _is_local_hostname(parsed.hostname)
+
+
+def _is_invalid_production_host(host: str) -> bool:
+    if host == "*" or "://" in host:
+        return True
+    hostname = host.removeprefix("*.").split(":", 1)[0].strip("[]")
+    return not hostname or _is_local_hostname(hostname)
+
+
 def validate_settings(settings: Settings) -> None:
     if settings.auth_mode not in SUPPORTED_AUTH_MODES:
         raise RuntimeError(f"Unsupported AUTH_MODE: {settings.auth_mode}")
-    if settings.is_production and settings.auth_mode != "supabase":
+    if not settings.is_production:
+        return
+    if settings.auth_mode != "supabase":
         raise RuntimeError("Production requires AUTH_MODE=supabase")
+    if not _is_postgres_url(settings.database_url):
+        raise RuntimeError("Production requires a PostgreSQL DATABASE_URL")
+    if settings.auto_create_tables:
+        raise RuntimeError("Production requires AUTO_CREATE_TABLES=false")
+    if settings.docs_enabled:
+        raise RuntimeError("Production requires DOCS_ENABLED=false")
+    if not settings.source_require_https:
+        raise RuntimeError("Production requires SOURCE_REQUIRE_HTTPS=true")
+    if not settings.cors_allowed_origins:
+        raise RuntimeError("Production requires at least one CORS_ALLOWED_ORIGINS value")
+    if any(_is_invalid_production_origin(origin) for origin in settings.cors_allowed_origins):
+        raise RuntimeError("Production CORS_ALLOWED_ORIGINS must be non-local HTTPS origins")
+    if not settings.trusted_hosts:
+        raise RuntimeError("Production requires at least one TRUSTED_HOSTS value")
+    if any(_is_invalid_production_host(host) for host in settings.trusted_hosts):
+        raise RuntimeError("Production TRUSTED_HOSTS must be explicit non-local hosts")
+    if not settings.supabase_project_url:
+        raise RuntimeError("Production requires SUPABASE_PROJECT_URL")
+    if not settings.supabase_jwt_audience:
+        raise RuntimeError("Production requires SUPABASE_JWT_AUDIENCE")
 
 
 @lru_cache

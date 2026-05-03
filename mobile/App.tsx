@@ -18,13 +18,14 @@ import {
 } from 'react-native';
 
 import {
-  DEV_USER_ID,
+  clearAccessTokenProvider,
   createJob,
   errorMessage,
   getJobResult,
   listAllJobs,
   listAllMentions,
   rerunJob,
+  setAccessTokenProvider,
 } from './src/api';
 import {
   applyResultFallback,
@@ -33,13 +34,16 @@ import {
   type BookMention,
   type Capture,
 } from './src/captures';
+import { type AuthProvider, currentAccessToken, signInWithProvider, supabase } from './src/supabase';
 import { colors, radius, spacing, typography } from './src/theme';
 
 type Sheet = 'profile' | 'paste' | 'reelMenu' | null;
 
 export default function App() {
   const { width } = useWindowDimensions();
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isSignedIn, setIsSignedIn] = useState(false);
+  const [accountLabel, setAccountLabel] = useState('Signed in');
   const [captures, setCaptures] = useState<Capture[]>([]);
   const [selectedCaptureId, setSelectedCaptureId] = useState<string | null>(null);
   const [sheet, setSheet] = useState<Sheet>(null);
@@ -50,6 +54,10 @@ export default function App() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pasteError, setPasteError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authProviderInFlight, setAuthProviderInFlight] = useState<AuthProvider | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   const tileWidth = useMemo(() => {
     return (width - spacing.screen * 2 - spacing.md) / 2;
@@ -58,6 +66,49 @@ export default function App() {
   const selectedCapture = useMemo(() => {
     return captures.find((capture) => capture.id === selectedCaptureId) ?? null;
   }, [captures, selectedCaptureId]);
+
+  useEffect(() => {
+    setAccessTokenProvider(currentAccessToken);
+    let isMounted = true;
+
+    void supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!isMounted) {
+          return;
+        }
+        setIsSignedIn(Boolean(data.session));
+        setAccountLabel(data.session?.user.email || 'Signed in');
+      })
+      .catch(() => {
+        if (!isMounted) {
+          return;
+        }
+        setIsSignedIn(false);
+        setAuthError('Could not restore your sign-in session.');
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsAuthLoading(false);
+        }
+      });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsSignedIn(Boolean(session));
+      setAccountLabel(session?.user.email || 'Signed in');
+      if (session) {
+        setAuthError(null);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+      clearAccessTokenProvider();
+    };
+  }, []);
 
   const refreshCaptures = useCallback(
     async ({ silent = false }: { silent?: boolean } = {}) => {
@@ -83,6 +134,34 @@ export default function App() {
     },
     [isSignedIn],
   );
+
+  const handleSignIn = useCallback(async (provider: AuthProvider) => {
+    setAuthError(null);
+    setAuthProviderInFlight(provider);
+    try {
+      await signInWithProvider(provider);
+    } catch (error) {
+      setAuthError(errorMessage(error, 'Could not complete sign in.'));
+    } finally {
+      setAuthProviderInFlight(null);
+    }
+  }, []);
+
+  const handleSignOut = useCallback(async () => {
+    setProfileError(null);
+    setIsSigningOut(true);
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        throw error;
+      }
+      setSheet(null);
+    } catch (error) {
+      setProfileError(errorMessage(error, 'Could not sign out.'));
+    } finally {
+      setIsSigningOut(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (!isSignedIn) {
@@ -169,6 +248,10 @@ export default function App() {
 
   const openSource = useCallback(async (capture: Capture) => {
     setActionError(null);
+    if (!isAllowedInstagramUrl(capture.sourceUrl)) {
+      setActionError('This source URL cannot be opened from the app.');
+      return;
+    }
     try {
       await Linking.openURL(capture.sourceUrl);
     } catch (error) {
@@ -176,8 +259,21 @@ export default function App() {
     }
   }, []);
 
+  if (isAuthLoading) {
+    return <AuthLoadingScreen />;
+  }
+
   if (!isSignedIn) {
-    return <SignedOutScreen onContinue={() => setIsSignedIn(true)} />;
+    return (
+      <SignedOutScreen
+        error={authError}
+        isAppleLoading={authProviderInFlight === 'apple'}
+        isGoogleLoading={authProviderInFlight === 'google'}
+        isDisabled={authProviderInFlight !== null}
+        onContinueApple={() => void handleSignIn('apple')}
+        onContinueGoogle={() => void handleSignIn('google')}
+      />
+    );
   }
 
   return (
@@ -207,7 +303,14 @@ export default function App() {
         />
       )}
 
-      <ProfileSheet visible={sheet === 'profile'} onClose={() => setSheet(null)} />
+      <ProfileSheet
+        visible={sheet === 'profile'}
+        accountLabel={accountLabel}
+        error={profileError}
+        isSigningOut={isSigningOut}
+        onClose={() => setSheet(null)}
+        onSignOut={() => void handleSignOut()}
+      />
       <PasteSheet
         visible={sheet === 'paste'}
         error={pasteError}
@@ -232,7 +335,41 @@ export default function App() {
   );
 }
 
-function SignedOutScreen({ onContinue }: { onContinue: () => void }) {
+function isAllowedInstagramUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && ['instagram.com', 'www.instagram.com'].includes(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function AuthLoadingScreen() {
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar style="dark" />
+      <View style={styles.authScreen}>
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    </SafeAreaView>
+  );
+}
+
+function SignedOutScreen({
+  error,
+  isAppleLoading,
+  isGoogleLoading,
+  isDisabled,
+  onContinueApple,
+  onContinueGoogle,
+}: {
+  error: string | null;
+  isAppleLoading: boolean;
+  isGoogleLoading: boolean;
+  isDisabled: boolean;
+  onContinueApple: () => void;
+  onContinueGoogle: () => void;
+}) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
@@ -249,8 +386,17 @@ function SignedOutScreen({ onContinue }: { onContinue: () => void }) {
           </Text>
         </View>
         <View style={styles.authActions}>
-          <PrimaryButton label="Continue with Apple" onPress={onContinue} />
-          <SecondaryButton label="Continue with Google" onPress={onContinue} />
+          {error ? <InlineMessage tone="error" message={error} /> : null}
+          <PrimaryButton
+            label={isAppleLoading ? 'Signing in...' : 'Continue with Apple'}
+            onPress={onContinueApple}
+            disabled={isDisabled}
+          />
+          <SecondaryButton
+            label={isGoogleLoading ? 'Signing in...' : 'Continue with Google'}
+            onPress={onContinueGoogle}
+            disabled={isDisabled}
+          />
         </View>
       </View>
     </SafeAreaView>
@@ -552,16 +698,28 @@ function FailedState({
   );
 }
 
-function ProfileSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+function ProfileSheet({
+  visible,
+  accountLabel,
+  error,
+  isSigningOut,
+  onClose,
+  onSignOut,
+}: {
+  visible: boolean;
+  accountLabel: string;
+  error: string | null;
+  isSigningOut: boolean;
+  onClose: () => void;
+  onSignOut: () => void;
+}) {
   return (
     <BottomSheet visible={visible} onClose={onClose}>
       <Text style={styles.sheetTitle}>Profile</Text>
-      <Text style={styles.accountEmail}>Dev user {DEV_USER_ID}</Text>
+      <Text style={styles.accountEmail}>{accountLabel}</Text>
+      {error ? <InlineMessage tone="error" message={error} /> : null}
       <View style={styles.sheetMenu}>
-        <SheetRow label="How sharing works" />
-        <SheetRow label="Privacy" />
-        <SheetRow label="Sign out" />
-        <SheetRow label="Delete account" destructive />
+        <SheetRow label={isSigningOut ? 'Signing out...' : 'Sign out'} onPress={onSignOut} disabled={isSigningOut} />
       </View>
     </BottomSheet>
   );
@@ -660,14 +818,21 @@ function BottomSheet({
 function SheetRow({
   label,
   destructive = false,
+  disabled = false,
   onPress,
 }: {
   label: string;
   destructive?: boolean;
+  disabled?: boolean;
   onPress?: () => void;
 }) {
   return (
-    <Pressable style={({ pressed }) => [styles.sheetRow, pressed && styles.pressed]} onPress={onPress}>
+    <Pressable
+      accessibilityRole="button"
+      disabled={disabled || !onPress}
+      style={({ pressed }) => [styles.sheetRow, disabled && styles.disabledButton, pressed && styles.pressed]}
+      onPress={onPress}
+    >
       <Text style={[styles.sheetRowText, destructive && styles.destructiveText]}>{label}</Text>
     </Pressable>
   );
