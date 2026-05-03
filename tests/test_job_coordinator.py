@@ -8,7 +8,7 @@ from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.auth import Caller
 from app.config import Settings
-from app.models import Artifact, SavedMention, StageRun
+from app.models import Artifact, ProviderCall, SavedMention, StageRun, TextResult
 from app.services.job_coordinator import (
     IdempotencyConflictError,
     JobCoordinator,
@@ -57,7 +57,13 @@ def _pipeline_result(tmp_path: Path) -> PipelineResult:
                 success=True,
                 duration_ms=5,
                 payload={"path": "/private/tmp/result.json", "merged_text_length": 25},
-            )
+            ),
+            StageOutcome(
+                stage="multimodal_llm_extract",
+                success=True,
+                duration_ms=10,
+                payload={"provider": "openai", "model": "gpt-5.4-nano", "selected_image_count": 1},
+            ),
         ],
         artifacts=[ArtifactRecord(kind="text_result", path=str(artifact), metadata={"path": str(artifact), "warning_count": 0})],
         text_result=TextExtractionResult(
@@ -133,9 +139,51 @@ def test_claim_failure_retry_and_rerun_preserve_attempt_history(tmp_path: Path) 
 
         mention_count = len(session.exec(select(SavedMention).where(SavedMention.source_job_id == retried.id)).all())
         assert mention_count == 1
+        owner_id = _caller().subject_id
+        text_row = session.get(TextResult, retried.id)
+        assert text_row is not None
+        assert text_row.owner_id == owner_id
+        assert all(
+            artifact.owner_id == owner_id
+            for artifact in session.exec(select(Artifact).where(Artifact.job_id == retried.id)).all()
+        )
+        assert all(
+            stage.owner_id == owner_id
+            for stage in session.exec(select(StageRun).where(StageRun.job_id == retried.id)).all()
+        )
+        provider_call = session.exec(select(ProviderCall).where(ProviderCall.job_id == retried.id)).one()
+        assert provider_call.owner_id == owner_id
         coordinator.rerun_job(_caller(), retried.id)
         assert len(session.exec(select(Artifact).where(Artifact.job_id == retried.id)).all()) == 1
-        assert len(session.exec(select(StageRun).where(StageRun.job_id == retried.id)).all()) == 1
+        assert len(session.exec(select(StageRun).where(StageRun.job_id == retried.id)).all()) == 2
+
+
+def test_get_result_filters_child_rows_by_owner_id(tmp_path: Path) -> None:
+    engine = _engine()
+    with Session(engine) as session:
+        coordinator = JobCoordinator(session, _settings(tmp_path))
+        created = coordinator.create_job(_caller(), "https://www.instagram.com/reel/abc/", None)
+        claimed = coordinator.claim_next_job("worker-a")
+        assert claimed is not None
+        coordinator.record_pipeline_result(claimed.id, _pipeline_result(tmp_path))
+
+        other_owner = "00000000-0000-4000-8000-000000000222"
+        text_row = session.get(TextResult, created.job_id)
+        assert text_row is not None
+        text_row.owner_id = other_owner
+        for artifact in session.exec(select(Artifact).where(Artifact.job_id == created.job_id)).all():
+            artifact.owner_id = other_owner
+            session.add(artifact)
+        for stage in session.exec(select(StageRun).where(StageRun.job_id == created.job_id)).all():
+            stage.owner_id = other_owner
+            session.add(stage)
+        session.add(text_row)
+        session.commit()
+
+        result = coordinator.get_result(_caller(), created.job_id)
+        assert result.text.merged_text == ""
+        assert result.stage_runs == []
+        assert result.artifacts == []
 
 
 def test_saved_mention_update_confirm_and_soft_delete(tmp_path: Path) -> None:
@@ -157,6 +205,18 @@ def test_saved_mention_update_confirm_and_soft_delete(tmp_path: Path) -> None:
         assert updated.review_status == "reviewed"
         assert updated.display_label == "Corrected Book"
         assert coordinator.list_mentions(_caller(), limit=20, cursor=None, q="Corrected").items[0].mention_id == mention.mention_id
+        with pytest.raises(NotFoundError):
+            coordinator.get_mention(_caller("00000000-0000-4000-8000-000000000222"), mention.mention_id)
+        with pytest.raises(NotFoundError):
+            coordinator.update_mention(
+                _caller("00000000-0000-4000-8000-000000000222"),
+                mention.mention_id,
+                display_label="Other User Edit",
+            )
+        with pytest.raises(NotFoundError):
+            coordinator.confirm_mention(_caller("00000000-0000-4000-8000-000000000222"), mention.mention_id)
+        with pytest.raises(NotFoundError):
+            coordinator.delete_mention(_caller("00000000-0000-4000-8000-000000000222"), mention.mention_id)
 
         confirmed = coordinator.confirm_mention(_caller(), mention.mention_id)
         assert confirmed.review_status == "reviewed"

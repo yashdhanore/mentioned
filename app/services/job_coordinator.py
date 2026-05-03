@@ -448,12 +448,13 @@ class JobCoordinator:
             return
         attempt_number = max(1, job.attempt_count)
         for stage_run in result.stage_runs:
-            self._append_stage_run(job.id, attempt_number, stage_run)
-            self._record_provider_call_from_stage(job.id, attempt_number, stage_run)
+            self._append_stage_run(job.owner_id, job.id, attempt_number, stage_run)
+            self._record_provider_call_from_stage(job.owner_id, job.id, attempt_number, stage_run)
         for artifact in result.artifacts:
             stored = self.artifact_store.describe_existing(artifact)
             self.session.add(
                 Artifact(
+                    owner_id=job.owner_id,
                     job_id=job.id,
                     attempt_number=attempt_number,
                     kind=stored.kind,
@@ -465,7 +466,7 @@ class JobCoordinator:
                 )
             )
         self.session.exec(delete(TextResult).where(TextResult.job_id == job.id))
-        self.session.add(self._text_result_row(job.id, attempt_number, result.text_result))
+        self.session.add(self._text_result_row(job.owner_id, job.id, attempt_number, result.text_result))
 
         now = utc_now()
         final_status = result.final_status if result.final_status in JOB_STATUSES else "failed"
@@ -489,9 +490,10 @@ class JobCoordinator:
 
         self.session.commit()
 
-    def _append_stage_run(self, job_id: str, attempt_number: int, stage_run: StageOutcome) -> None:
+    def _append_stage_run(self, owner_id: str, job_id: str, attempt_number: int, stage_run: StageOutcome) -> None:
         self.session.add(
             StageRun(
+                owner_id=owner_id,
                 job_id=job_id,
                 attempt_number=attempt_number,
                 stage=stage_run.stage,
@@ -503,7 +505,7 @@ class JobCoordinator:
             )
         )
 
-    def _record_provider_call_from_stage(self, job_id: str, attempt_number: int, stage_run: StageOutcome) -> None:
+    def _record_provider_call_from_stage(self, owner_id: str, job_id: str, attempt_number: int, stage_run: StageOutcome) -> None:
         payload = stage_run.payload if isinstance(stage_run.payload, dict) else {}
         provider = payload.get("provider")
         if stage_run.stage not in {"transcribe_audio", "multimodal_llm_extract"}:
@@ -512,6 +514,7 @@ class JobCoordinator:
             return
         self.session.add(
             ProviderCall(
+                owner_id=owner_id,
                 job_id=job_id,
                 attempt_number=attempt_number,
                 stage=stage_run.stage,
@@ -527,10 +530,11 @@ class JobCoordinator:
             )
         )
 
-    def _text_result_row(self, job_id: str, attempt_number: int, text_result: TextExtractionResult) -> TextResult:
+    def _text_result_row(self, owner_id: str, job_id: str, attempt_number: int, text_result: TextExtractionResult) -> TextResult:
         now = utc_now()
         return TextResult(
             job_id=job_id,
+            owner_id=owner_id,
             attempt_number=attempt_number,
             caption_text=text_result.caption_text,
             spoken_text=text_result.spoken_text,
@@ -590,6 +594,7 @@ class JobCoordinator:
             fingerprint = _fingerprint(candidate)
             existing = self.session.exec(
                 select(SavedMention).where(
+                    SavedMention.owner_id == job.owner_id,
                     SavedMention.source_job_id == job.id,
                     SavedMention.candidate_fingerprint == fingerprint,
                 )
@@ -643,12 +648,19 @@ class JobCoordinator:
 
     def get_result(self, caller: Caller, job_id: str, *, include_debug: bool = False) -> JobResultResponse:
         job = self._get_owned_job(caller, job_id)
-        text_row = self.session.exec(select(TextResult).where(TextResult.job_id == job.id)).first()
+        owner_id = job.owner_id
+        text_row = self.session.exec(
+            select(TextResult).where(TextResult.job_id == job.id, TextResult.owner_id == owner_id)
+        ).first()
         artifact_rows = self.session.exec(
-            select(Artifact).where(Artifact.job_id == job.id).order_by(Artifact.attempt_number, Artifact.created_at)
+            select(Artifact)
+            .where(Artifact.job_id == job.id, Artifact.owner_id == owner_id)
+            .order_by(Artifact.attempt_number, Artifact.created_at)
         ).all()
         stage_rows = self.session.exec(
-            select(StageRun).where(StageRun.job_id == job.id).order_by(StageRun.attempt_number, StageRun.created_at)
+            select(StageRun)
+            .where(StageRun.job_id == job.id, StageRun.owner_id == owner_id)
+            .order_by(StageRun.attempt_number, StageRun.created_at)
         ).all()
         return JobResultResponse(
             job_id=job.id,

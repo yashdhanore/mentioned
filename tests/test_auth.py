@@ -1,7 +1,19 @@
 from __future__ import annotations
 
+from fastapi import HTTPException
+import jwt
+import pytest
+from sqlalchemy.pool import StaticPool
+from sqlmodel import Session, create_engine
+
 from app.auth import _verify_supabase_token
-from app.config import Settings
+from app.config import Settings, validate_settings
+from app.db import set_rls_user_context
+
+
+def test_validate_settings_rejects_dev_auth_in_production() -> None:
+    with pytest.raises(RuntimeError, match="Production requires AUTH_MODE=supabase"):
+        validate_settings(Settings(app_env="production", auth_mode="dev"))
 
 
 def test_supabase_token_verification_validates_authenticated_audience(monkeypatch) -> None:
@@ -21,6 +33,63 @@ def test_supabase_token_verification_validates_authenticated_audience(monkeypatc
     assert caller.subject_id == "00000000-0000-4000-8000-000000000111"
     assert captured["issuer"] == "https://example.supabase.co/auth/v1"
     assert captured["audience"] == "authenticated"
+
+
+@pytest.mark.parametrize("role", ["anon", "service_role"])
+def test_supabase_token_verification_rejects_non_user_roles(monkeypatch, role: str) -> None:
+    def fake_decode(*args, **kwargs):
+        return {"sub": "00000000-0000-4000-8000-000000000111", "role": role}
+
+    monkeypatch.setattr("app.auth.jwt.get_unverified_header", lambda token: {"alg": "HS256"})
+    monkeypatch.setattr("app.auth.jwt.decode", fake_decode)
+
+    with pytest.raises(HTTPException) as exc_info:
+        _verify_supabase_token(
+            "token",
+            Settings(supabase_project_url="https://example.supabase.co", supabase_jwt_secret="secret"),
+        )
+
+    assert exc_info.value.status_code == 401
+
+
+def test_supabase_token_verification_rejects_missing_subject(monkeypatch) -> None:
+    def fake_decode(*args, **kwargs):
+        return {"role": "authenticated"}
+
+    monkeypatch.setattr("app.auth.jwt.get_unverified_header", lambda token: {"alg": "HS256"})
+    monkeypatch.setattr("app.auth.jwt.decode", fake_decode)
+
+    with pytest.raises(HTTPException) as exc_info:
+        _verify_supabase_token(
+            "token",
+            Settings(supabase_project_url="https://example.supabase.co", supabase_jwt_secret="secret"),
+        )
+
+    assert exc_info.value.status_code == 401
+
+
+def test_supabase_token_verification_rejects_wrong_project(monkeypatch) -> None:
+    def fake_decode(*args, **kwargs):
+        raise jwt.InvalidIssuerError("wrong issuer")
+
+    monkeypatch.setattr("app.auth.jwt.get_unverified_header", lambda token: {"alg": "HS256"})
+    monkeypatch.setattr("app.auth.jwt.decode", fake_decode)
+
+    with pytest.raises(HTTPException) as exc_info:
+        _verify_supabase_token(
+            "token",
+            Settings(supabase_project_url="https://example.supabase.co", supabase_jwt_secret="secret"),
+        )
+
+    assert exc_info.value.status_code == 401
+
+
+def test_set_rls_user_context_stores_verified_user_on_session() -> None:
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    with Session(engine) as session:
+        set_rls_user_context(session, "00000000-0000-4000-8000-000000000111")
+
+        assert session.info["rls_user_id"] == "00000000-0000-4000-8000-000000000111"
 
 
 def test_supabase_es256_token_uses_jwks_even_when_legacy_secret_exists(monkeypatch) -> None:

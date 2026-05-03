@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+SUPPORTED_AUTH_MODES = {"dev", "supabase"}
 
 
 @dataclass(frozen=True)
@@ -98,6 +99,13 @@ def _env_csv(name: str) -> tuple[str, ...]:
     return tuple(part.strip() for part in value.split(",") if part.strip())
 
 
+def validate_settings(settings: Settings) -> None:
+    if settings.auth_mode not in SUPPORTED_AUTH_MODES:
+        raise RuntimeError(f"Unsupported AUTH_MODE: {settings.auth_mode}")
+    if settings.is_production and settings.auth_mode != "supabase":
+        raise RuntimeError("Production requires AUTH_MODE=supabase")
+
+
 @lru_cache
 def get_settings() -> Settings:
     load_dotenv(BASE_DIR / ".env")
@@ -147,5 +155,6 @@ def get_settings() -> Settings:
         max_image_long_edge_px=_env_int("MAX_IMAGE_LONG_EDGE_PX", 1280),
         llm_timeout_seconds=_env_float("LLM_TIMEOUT_SECONDS", 60.0),
     )
+    validate_settings(settings)
     settings.artifact_dir.mkdir(parents=True, exist_ok=True)
     return settings

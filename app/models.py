@@ -105,9 +105,11 @@ class StageRun(SQLModel, table=True):
         CheckConstraint("attempt_number >= 1", name="job_stage_runs_attempt_number_check"),
         CheckConstraint("duration_ms >= 0", name="job_stage_runs_duration_ms_check"),
         Index("job_stage_runs_job_created_idx", "job_id", "created_at", "id"),
+        Index("job_stage_runs_owner_job_created_idx", "owner_id", "job_id", "created_at", "id"),
     )
 
     id: str = Field(default_factory=new_uuid, sa_column=uuid_column(primary_key=True))
+    owner_id: str = Field(sa_column=uuid_column())
     job_id: str = Field(sa_column=uuid_column(foreign_key="jobs.id", ondelete="CASCADE"))
     attempt_number: int
     stage: str = Field(index=True)
@@ -125,9 +127,11 @@ class Artifact(SQLModel, table=True):
         CheckConstraint("attempt_number >= 1", name="artifacts_attempt_number_check"),
         CheckConstraint("byte_size is null or byte_size >= 0", name="artifacts_byte_size_check"),
         Index("artifacts_job_kind_created_idx", "job_id", "kind", "created_at", "id"),
+        Index("artifacts_owner_job_kind_created_idx", "owner_id", "job_id", "kind", "created_at", "id"),
     )
 
     id: str = Field(default_factory=new_uuid, sa_column=uuid_column(primary_key=True))
+    owner_id: str = Field(sa_column=uuid_column())
     job_id: str = Field(sa_column=uuid_column(foreign_key="jobs.id", ondelete="CASCADE"))
     attempt_number: int
     kind: str = Field(index=True)
@@ -142,9 +146,13 @@ class Artifact(SQLModel, table=True):
 
 class TextResult(SQLModel, table=True):
     __tablename__ = "text_results"
-    __table_args__ = (CheckConstraint("attempt_number >= 1", name="text_results_attempt_number_check"),)
+    __table_args__ = (
+        CheckConstraint("attempt_number >= 1", name="text_results_attempt_number_check"),
+        Index("text_results_owner_job_idx", "owner_id", "job_id"),
+    )
 
     job_id: str = Field(sa_column=uuid_column(primary_key=True, foreign_key="jobs.id", ondelete="CASCADE"))
+    owner_id: str = Field(sa_column=uuid_column())
     attempt_number: int
     caption_text: str | None = None
     spoken_text: str | None = None
@@ -163,9 +171,11 @@ class ProviderCall(SQLModel, table=True):
         CheckConstraint("attempt_number >= 1", name="provider_calls_attempt_number_check"),
         CheckConstraint("duration_ms >= 0", name="provider_calls_duration_ms_check"),
         Index("provider_calls_job_created_idx", "job_id", "created_at", "id"),
+        Index("provider_calls_owner_job_created_idx", "owner_id", "job_id", "created_at", "id"),
     )
 
     id: str = Field(default_factory=new_uuid, sa_column=uuid_column(primary_key=True))
+    owner_id: str = Field(sa_column=uuid_column())
     job_id: str = Field(sa_column=uuid_column(foreign_key="jobs.id", ondelete="CASCADE"))
     attempt_number: int
     stage: str

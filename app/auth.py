@@ -72,6 +72,9 @@ def _verify_supabase_token(token: str, settings: Settings) -> Caller:
     subject = claims.get("sub")
     if not isinstance(subject, str) or not subject:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid bearer token")
+    role = claims.get("role")
+    if role is not None and role != "authenticated":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid bearer token")
     return Caller(subject_id=subject, role="user")
 
 

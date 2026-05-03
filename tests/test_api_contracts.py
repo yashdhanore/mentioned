@@ -9,6 +9,7 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine
 
 from app.auth import Caller
+from app.config import Settings
 from app.db import get_session
 from app.deps import get_current_caller
 from app.main import app
@@ -39,6 +40,43 @@ def client() -> Iterator[TestClient]:
             yield test_client
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest.fixture()
+def supabase_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    SQLModel.metadata.create_all(engine)
+
+    def override_session() -> Iterator[Session]:
+        with Session(engine) as session:
+            yield session
+
+    monkeypatch.setattr(
+        "app.auth.get_settings",
+        lambda: Settings(
+            auth_mode="supabase",
+            supabase_project_url="https://example.supabase.co",
+            supabase_jwt_secret="secret",
+        ),
+    )
+    app.dependency_overrides[get_session] = override_session
+    try:
+        with TestClient(app) as test_client:
+            yield test_client
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_supabase_auth_returns_401_for_missing_or_invalid_tokens(supabase_client: TestClient) -> None:
+    missing_response = supabase_client.get("/v1/jobs")
+    assert missing_response.status_code == 401
+
+    invalid_response = supabase_client.get("/v1/jobs", headers={"Authorization": "Bearer invalid-token"})
+    assert invalid_response.status_code == 401
 
 
 def test_create_job_rejects_unknown_fields_and_bad_hosts(client: TestClient) -> None:
@@ -72,6 +110,21 @@ def test_user_cannot_read_another_users_job(client: TestClient) -> None:
         headers={"Authorization": "Bearer dev:00000000-0000-4000-8000-000000000222"},
     )
     assert forbidden_response.status_code == 404
+    forbidden_result_response = client.get(
+        f"/v1/jobs/{job_id}/result",
+        headers={"Authorization": "Bearer dev:00000000-0000-4000-8000-000000000222"},
+    )
+    assert forbidden_result_response.status_code == 404
+    forbidden_rerun_response = client.post(
+        f"/v1/jobs/{job_id}/rerun",
+        headers={"Authorization": "Bearer dev:00000000-0000-4000-8000-000000000222"},
+    )
+    assert forbidden_rerun_response.status_code == 404
+    forbidden_cancel_response = client.post(
+        f"/v1/jobs/{job_id}/cancel",
+        headers={"Authorization": "Bearer dev:00000000-0000-4000-8000-000000000222"},
+    )
+    assert forbidden_cancel_response.status_code == 404
 
     list_response = client.get(
         "/v1/jobs",
@@ -79,3 +132,9 @@ def test_user_cannot_read_another_users_job(client: TestClient) -> None:
     )
     assert list_response.status_code == 200
     assert list_response.json()["items"][0]["job_id"] == job_id
+    other_list_response = client.get(
+        "/v1/jobs",
+        headers={"Authorization": "Bearer dev:00000000-0000-4000-8000-000000000222"},
+    )
+    assert other_list_response.status_code == 200
+    assert other_list_response.json()["items"] == []
