@@ -4,6 +4,7 @@ import logging
 
 import httpx
 
+from src.config import get_settings
 from src.extraction.schemas import BookEnrichment
 
 logger = logging.getLogger(__name__)
@@ -15,10 +16,14 @@ async def enrich_book(title: str, author: str | None) -> BookEnrichment:
     query = f"intitle:{title}"
     if author:
         query += f"+inauthor:{author}"
+    params: dict[str, str | int] = {"q": query, "maxResults": 1}
+    api_key = get_settings().google_books.api_key
+    if api_key:
+        params["key"] = api_key
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(GOOGLE_BOOKS_API, params={"q": query, "maxResults": 1})
+            resp = await client.get(GOOGLE_BOOKS_API, params=params)
             resp.raise_for_status()
     except httpx.HTTPError as exc:
         logger.warning("Google Books API error: %s", exc)

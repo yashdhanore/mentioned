@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 
 from google import genai
-from google.genai.types import GenerateContentConfig, Part
+from google.genai.types import GenerateContentConfig, HttpOptions, Part
 
 from src.config import get_settings
 
@@ -46,10 +46,21 @@ MENTION_SCHEMA = {
 }
 
 INLINE_SIZE_LIMIT = 20 * 1024 * 1024  # 20 MB
+VERTEX_INLINE_SIZE_LIMIT = 100 * 1024 * 1024  # 100 MB
 
 
 def _get_client() -> genai.Client:
     settings = get_settings()
+    if settings.gemini.use_vertexai:
+        if not settings.gemini.vertex_project:
+            raise RuntimeError("GOOGLE_CLOUD_PROJECT is not configured for Vertex AI")
+        return genai.Client(
+            vertexai=True,
+            project=settings.gemini.vertex_project,
+            location=settings.gemini.vertex_location,
+            http_options=HttpOptions(api_version="v1"),
+        )
+
     api_key = settings.gemini.gemini_api_key
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is not configured")
@@ -70,15 +81,42 @@ def _mime_type_for(path: Path) -> str:
     return mime_map.get(suffix, "application/octet-stream")
 
 
-def upload_to_gemini(client: genai.Client, media_path: Path) -> Part:
+FILE_POLL_INTERVAL = 2  # seconds between status checks
+FILE_POLL_TIMEOUT = 120  # max seconds to wait for ACTIVE state
+
+
+def upload_to_gemini(client: genai.Client, media_path: Path, *, use_vertexai: bool = False) -> Part:
     file_size = media_path.stat().st_size
     mime_type = _mime_type_for(media_path)
+    inline_limit = VERTEX_INLINE_SIZE_LIMIT if use_vertexai else INLINE_SIZE_LIMIT
 
-    if file_size <= INLINE_SIZE_LIMIT:
+    if file_size <= inline_limit:
         data = media_path.read_bytes()
         return Part.from_bytes(data=data, mime_type=mime_type)
 
+    if use_vertexai:
+        size_mb = file_size / 1024 / 1024
+        limit_mb = VERTEX_INLINE_SIZE_LIMIT / 1024 / 1024
+        raise RuntimeError(
+            f"Vertex AI local media is {size_mb:.1f} MB, above the inline limit of "
+            f"{limit_mb:.0f} MB. Upload the media to Google Cloud Storage and pass "
+            "a gs:// URI for larger inputs."
+        )
+
     uploaded = client.files.upload(file=media_path, config={"mime_type": mime_type})
+    logger.info("Uploaded %s to Gemini File API (name=%s), waiting for ACTIVE state...", media_path.name, uploaded.name)
+
+    # Poll until the file transitions to ACTIVE
+    elapsed = 0
+    while uploaded.state.name != "ACTIVE":
+        if elapsed >= FILE_POLL_TIMEOUT:
+            raise RuntimeError(f"Gemini file {uploaded.name} did not become ACTIVE within {FILE_POLL_TIMEOUT}s (state: {uploaded.state.name})")
+        time.sleep(FILE_POLL_INTERVAL)
+        elapsed += FILE_POLL_INTERVAL
+        uploaded = client.files.get(name=uploaded.name)
+        logger.debug("File %s state: %s (waited %ds)", uploaded.name, uploaded.state.name, elapsed)
+
+    logger.info("File %s is ACTIVE, proceeding with extraction", uploaded.name)
     return Part.from_uri(file_uri=uploaded.uri, mime_type=uploaded.mime_type)
 
 
@@ -90,7 +128,7 @@ RETRYABLE_STATUS_CODES = {429, 500, 503}
 def extract_mentions_from_media(media_path: Path) -> dict:
     settings = get_settings()
     client = _get_client()
-    file_part = upload_to_gemini(client, media_path)
+    file_part = upload_to_gemini(client, media_path, use_vertexai=settings.gemini.use_vertexai)
 
     last_exc = None
     for attempt in range(MAX_RETRIES):

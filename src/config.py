@@ -33,6 +33,14 @@ class AuthConfig:
 class GeminiConfig:
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-2.5-flash"
+    use_vertexai: bool = False
+    vertex_project: str | None = None
+    vertex_location: str = "global"
+
+
+@dataclass(frozen=True)
+class GoogleBooksConfig:
+    api_key: str | None = None
 
 
 @dataclass(frozen=True)
@@ -58,6 +66,7 @@ class Settings:
     db: DBConfig = DBConfig()
     auth: AuthConfig = AuthConfig()
     gemini: GeminiConfig = GeminiConfig()
+    google_books: GoogleBooksConfig = GoogleBooksConfig()
 
     @property
     def database_url(self) -> str:
@@ -192,6 +201,19 @@ def get_settings() -> Settings:
         gemini=GeminiConfig(
             gemini_api_key=_env_optional("GEMINI_API_KEY"),
             gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip(),
+            use_vertexai=_env_bool(
+                "GEMINI_USE_VERTEXAI",
+                _env_bool("GOOGLE_GENAI_USE_VERTEXAI", False),
+            ),
+            vertex_project=_env_optional("GEMINI_VERTEX_PROJECT") or _env_optional("GOOGLE_CLOUD_PROJECT"),
+            vertex_location=(
+                os.getenv("GEMINI_VERTEX_LOCATION")
+                or os.getenv("GOOGLE_CLOUD_LOCATION")
+                or "global"
+            ).strip(),
+        ),
+        google_books=GoogleBooksConfig(
+            api_key=_env_optional("GOOGLE_BOOKS_API_KEY"),
         ),
     )
     validate_settings(settings)

@@ -5,9 +5,17 @@ import respx
 from httpx import Response
 
 from src.extraction.google_books import GOOGLE_BOOKS_API, enrich_book
+from src.config import get_settings
 
 
 pytestmark = pytest.mark.asyncio
+
+
+@pytest.fixture(autouse=True)
+def clear_settings_cache():
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 @respx.mock
@@ -37,6 +45,18 @@ async def test_enrich_book_found():
     assert result.google_books_url == "https://books.google.com/books?id=abc123"
     assert result.cover_image_url == "https://books.google.com/thumb.jpg"
     assert result.confidence_boost == 0.05
+
+
+@respx.mock
+async def test_enrich_book_sends_api_key(monkeypatch):
+    monkeypatch.setenv("GOOGLE_BOOKS_API_KEY", "test-books-key")
+    route = respx.get(GOOGLE_BOOKS_API).mock(
+        return_value=Response(200, json={"totalItems": 0, "items": []})
+    )
+
+    await enrich_book("Atomic Habits", "James Clear")
+
+    assert route.calls.last.request.url.params["key"] == "test-books-key"
 
 
 @respx.mock
