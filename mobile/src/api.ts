@@ -1,5 +1,4 @@
 const DEFAULT_API_BASE_URL = 'http://127.0.0.1:8000';
-const MAX_PAGES = 5;
 
 export const API_BASE_URL = (
   process.env.EXPO_PUBLIC_API_BASE_URL?.trim() || DEFAULT_API_BASE_URL
@@ -48,82 +47,38 @@ function validateRuntimeConfig(): void {
 
 validateRuntimeConfig();
 
-export type JobStatus =
-  | 'queued'
-  | 'running'
-  | 'succeeded'
-  | 'partial'
-  | 'failed'
-  | 'canceled'
-  | 'expired';
+export type JobStatus = 'pending' | 'done' | 'failed';
 
 export type JobResponse = {
   job_id: string;
   source_url: string;
-  source_kind: string;
   status: JobStatus;
-  current_stage: string | null;
-  progress: number;
-  attempt_count: number;
-  error_code: string | null;
   error_message: string | null;
   created_at: string;
-  updated_at: string;
-  links: {
-    self: string;
-    result: string;
-  };
+  finished_at: string | null;
+  mentions: MentionInJob[];
 };
 
-export type JobListResponse = {
-  items: JobResponse[];
-  next_cursor: string | null;
-};
-
-export type SavedMentionResponse = {
-  mention_id: string;
+export type MentionInJob = {
+  id: string;
+  title: string;
+  author: string | null;
   category: string;
-  label: string;
-  author_or_creator: string | null;
-  description: string | null;
-  source_job_id: string;
-  source_url: string;
-  source_platform: string;
-  source_creator: string | null;
-  source_context_snippet: string | null;
   confidence: number | null;
-  created_at: string;
-  updated_at: string;
+  google_books_url: string | null;
+  cover_image_url: string | null;
 };
 
-export type SavedMentionListResponse = {
-  items: SavedMentionResponse[];
-  next_cursor: string | null;
-};
-
-export type TextResultResponse = {
-  caption_text: string | null;
-  spoken_text: string | null;
-  visual_text: string | null;
-  image_text: string | null;
-  merged_text: string;
-  warnings: string[];
-  debug: unknown;
-};
-
-export type JobResultResponse = {
+export type JobListItem = {
   job_id: string;
-  source_url: string;
-  source_kind: string;
   status: JobStatus;
-  current_stage: string | null;
-  progress: number;
-  text: TextResultResponse;
-  stage_runs: unknown[];
-  artifacts: unknown[];
+  source_url: string;
+  created_at: string;
 };
 
 type ApiErrorPayload = {
+  error_code?: string;
+  message?: string;
   detail?: string | { error_code?: string; message?: string };
 };
 
@@ -144,19 +99,16 @@ async function authHeaders(): Promise<Record<string, string>> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-function pathWithQuery(path: string, params: Record<string, string | number | null | undefined>) {
-  const query = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== null && value !== undefined && value !== '') {
-      query.set(key, String(value));
-    }
-  });
-  const queryString = query.toString();
-  return queryString ? `${path}?${queryString}` : path;
-}
-
 function parseApiError(status: number, payload: ApiErrorPayload | null): ApiError {
-  const detail = payload?.detail;
+  if (!payload) {
+    return new ApiError(status, 'The request failed.');
+  }
+  // New backend format: {error_code, message}
+  if (payload.error_code || payload.message) {
+    return new ApiError(status, payload.message || 'The request failed.', payload.error_code || null);
+  }
+  // Legacy format: {detail: string | {error_code, message}}
+  const detail = payload.detail;
   if (typeof detail === 'string') {
     return new ApiError(status, detail);
   }
@@ -197,67 +149,24 @@ export function errorMessage(error: unknown, fallback = 'Something went wrong. P
   return fallback;
 }
 
-export async function createJob(url: string): Promise<JobResponse> {
-  return requestJson<JobResponse>('/v1/jobs', {
+// --- Jobs ---
+
+export async function createJob(url: string): Promise<{ job_id: string; status: JobStatus }> {
+  return requestJson<{ job_id: string; status: JobStatus }>('/v1/jobs', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      url,
-      idempotency_key: `mobile-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`,
-    }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
   });
 }
 
-export async function listJobs(cursor?: string): Promise<JobListResponse> {
-  return requestJson<JobListResponse>(pathWithQuery('/v1/jobs', { limit: 100, cursor }));
+export async function listJobs(): Promise<JobListItem[]> {
+  return requestJson<JobListItem[]>('/v1/jobs');
 }
 
-export async function listAllJobs(): Promise<JobResponse[]> {
-  const jobs: JobResponse[] = [];
-  let cursor: string | null = null;
-
-  for (let page = 0; page < MAX_PAGES; page += 1) {
-    const payload = await listJobs(cursor || undefined);
-    jobs.push(...payload.items);
-    cursor = payload.next_cursor;
-    if (!cursor) {
-      break;
-    }
-  }
-
-  return jobs;
+export async function listAllJobs(): Promise<JobListItem[]> {
+  return listJobs();
 }
 
 export async function getJob(jobId: string): Promise<JobResponse> {
   return requestJson<JobResponse>(`/v1/jobs/${jobId}`);
-}
-
-export async function rerunJob(jobId: string): Promise<JobResponse> {
-  return requestJson<JobResponse>(`/v1/jobs/${jobId}/rerun`, { method: 'POST' });
-}
-
-export async function listMentions(cursor?: string): Promise<SavedMentionListResponse> {
-  return requestJson<SavedMentionListResponse>(pathWithQuery('/v1/mentions', { limit: 100, cursor }));
-}
-
-export async function listAllMentions(): Promise<SavedMentionResponse[]> {
-  const mentions: SavedMentionResponse[] = [];
-  let cursor: string | null = null;
-
-  for (let page = 0; page < MAX_PAGES; page += 1) {
-    const payload = await listMentions(cursor || undefined);
-    mentions.push(...payload.items);
-    cursor = payload.next_cursor;
-    if (!cursor) {
-      break;
-    }
-  }
-
-  return mentions;
-}
-
-export async function getJobResult(jobId: string): Promise<JobResultResponse> {
-  return requestJson<JobResultResponse>(`/v1/jobs/${jobId}/result`);
 }

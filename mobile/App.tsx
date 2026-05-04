@@ -21,20 +21,18 @@ import {
   clearAccessTokenProvider,
   createJob,
   errorMessage,
-  getJobResult,
+  getJob,
   listAllJobs,
-  listAllMentions,
-  rerunJob,
   setAccessTokenProvider,
 } from './src/api';
 import {
-  applyResultFallback,
   buildCaptures,
-  captureFromJob,
+  captureFromJobCreated,
+  captureFromJobDetail,
   type BookMention,
   type Capture,
 } from './src/captures';
-import { type AuthProvider, currentAccessToken, signInWithProvider, supabase } from './src/supabase';
+import { type AuthProvider, currentAccessToken, isSupabaseConfigured, signInWithProvider, supabase } from './src/supabase';
 import { colors, radius, spacing, typography } from './src/theme';
 
 type Sheet = 'profile' | 'paste' | 'reelMenu' | null;
@@ -67,7 +65,23 @@ export default function App() {
     return captures.find((capture) => capture.id === selectedCaptureId) ?? null;
   }, [captures, selectedCaptureId]);
 
+  const refreshCaptureById = useCallback(async (jobId: string) => {
+    const job = await getJob(jobId);
+    const updated = captureFromJobDetail(job);
+    setCaptures((current) =>
+      current.map((item) => (item.id === jobId ? { ...updated, thumbnailUrl: item.thumbnailUrl } : item)),
+    );
+  }, []);
+
   useEffect(() => {
+    // Dev mode: skip auth entirely when Supabase is not configured
+    if (!isSupabaseConfigured) {
+      setIsSignedIn(true);
+      setAccountLabel('Dev User');
+      setIsAuthLoading(false);
+      return;
+    }
+
     setAccessTokenProvider(currentAccessToken);
     let isMounted = true;
 
@@ -122,8 +136,9 @@ export default function App() {
       setLoadError(null);
 
       try {
-        const [jobs, mentions] = await Promise.all([listAllJobs(), listAllMentions()]);
-        setCaptures(buildCaptures(jobs, mentions));
+        const jobs = await listAllJobs();
+        const jobDetails = await Promise.all(jobs.map((job) => getJob(job.job_id)));
+        setCaptures(buildCaptures(jobDetails));
       } catch (error) {
         setLoadError(errorMessage(error, 'Could not load saved Reels.'));
       } finally {
@@ -174,31 +189,29 @@ export default function App() {
   }, [isSignedIn, refreshCaptures]);
 
   useEffect(() => {
-    if (!isSignedIn || !captures.some((capture) => capture.status === 'processing')) {
+    const processingIds = captures
+      .filter((capture) => capture.status === 'processing')
+      .map((capture) => capture.id);
+
+    if (!isSignedIn || processingIds.length === 0) {
       return undefined;
     }
 
     const intervalId = setInterval(() => {
-      void refreshCaptures({ silent: true });
+      void Promise.all(processingIds.map(refreshCaptureById)).catch(() => undefined);
     }, 4000);
 
     return () => clearInterval(intervalId);
-  }, [captures, isSignedIn, refreshCaptures]);
+  }, [captures, isSignedIn, refreshCaptureById]);
 
   const openCapture = useCallback((capture: Capture) => {
     setActionError(null);
     setSelectedCaptureId(capture.id);
 
-    if (!capture.sourceContextSnippet && capture.status !== 'processing') {
-      void getJobResult(capture.id)
-        .then((result) => {
-          setCaptures((current) =>
-            current.map((item) => (item.id === capture.id ? applyResultFallback(item, result) : item)),
-          );
-        })
-        .catch(() => undefined);
+    if (capture.status !== 'processing') {
+      void refreshCaptureById(capture.id).catch(() => undefined);
     }
-  }, []);
+  }, [refreshCaptureById]);
 
   const submitPasteUrl = useCallback(async () => {
     const url = pasteUrl.trim();
@@ -212,18 +225,18 @@ export default function App() {
 
     try {
       const created = await createJob(url);
-      const capture = captureFromJob(created);
+      const capture = captureFromJobCreated(created.job_id, url);
       setCaptures((current) => [capture, ...current.filter((item) => item.id !== capture.id)]);
       setSelectedCaptureId(capture.id);
       setPasteUrl('');
       setSheet(null);
-      void refreshCaptures({ silent: true });
+      void refreshCaptureById(created.job_id).catch(() => undefined);
     } catch (error) {
       setPasteError(errorMessage(error, 'Could not submit that Reel.'));
     } finally {
       setIsSubmittingUrl(false);
     }
-  }, [pasteUrl, refreshCaptures]);
+  }, [pasteUrl, refreshCaptureById]);
 
   const retryCapture = useCallback(
     async (capture: Capture) => {
@@ -231,19 +244,21 @@ export default function App() {
       setRetryingCaptureId(capture.id);
 
       try {
-        const rerun = await rerunJob(capture.id);
-        const processingCapture = captureFromJob(rerun);
-        setCaptures((current) =>
-          current.map((item) => (item.id === capture.id ? { ...processingCapture, thumbnailUrl: item.thumbnailUrl } : item)),
-        );
-        void refreshCaptures({ silent: true });
+        const created = await createJob(capture.sourceUrl);
+        const processingCapture = captureFromJobCreated(created.job_id, capture.sourceUrl);
+        setCaptures((current) => [
+          { ...processingCapture, thumbnailUrl: capture.thumbnailUrl },
+          ...current.filter((item) => item.id !== capture.id),
+        ]);
+        setSelectedCaptureId(processingCapture.id);
+        void refreshCaptureById(created.job_id).catch(() => undefined);
       } catch (error) {
         setActionError(errorMessage(error, 'Could not retry this Reel.'));
       } finally {
         setRetryingCaptureId(null);
       }
     },
-    [refreshCaptures],
+    [refreshCaptureById],
   );
 
   const openSource = useCallback(async (capture: Capture) => {
