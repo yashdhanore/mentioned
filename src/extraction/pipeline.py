@@ -1,0 +1,53 @@
+from __future__ import annotations
+
+import logging
+import tempfile
+from pathlib import Path
+
+from src.extraction.download import download_assets
+from src.extraction.gemini import extract_mentions_from_media
+from src.extraction.schemas import ExtractedMention, PipelineResult
+
+logger = logging.getLogger(__name__)
+
+
+def run_pipeline(source_url: str) -> PipelineResult:
+    """Download media, send to Gemini, return structured mentions."""
+    with tempfile.TemporaryDirectory() as tmp:
+        logger.info("Downloading media from %s", source_url)
+        try:
+            paths = download_assets(source_url, Path(tmp))
+        except Exception as exc:
+            logger.warning("Download failed for %s: %s", source_url, exc)
+            return PipelineResult(error=f"Download failed: {exc}")
+
+        if not paths:
+            return PipelineResult(error="No media downloaded")
+
+        media_file = paths[-1]
+        logger.info("Downloaded %s (%.1f MB)", media_file.name, media_file.stat().st_size / 1024 / 1024)
+
+        logger.info("Sending to Gemini for extraction...")
+        try:
+            raw = extract_mentions_from_media(media_file)
+        except Exception as exc:
+            logger.warning("Gemini extraction failed: %s", exc)
+            return PipelineResult(error=f"Extraction failed: {exc}")
+
+        logger.info("Gemini returned %d mentions", len(raw.get("mentions", [])))
+
+        mentions = []
+        for item in raw.get("mentions", []):
+            title = item.get("title")
+            if not title:
+                continue
+            mentions.append(
+                ExtractedMention(
+                    title=title,
+                    author=item.get("author"),
+                    category=item.get("category", "book"),
+                    confidence=float(item.get("confidence", 0.5)),
+                )
+            )
+
+        return PipelineResult(mentions=mentions)

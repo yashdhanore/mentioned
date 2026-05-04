@@ -5,9 +5,11 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from app.config import get_settings
-from app.db import normalize_database_url
-from app.models import SQLModel
+from src.config import get_settings
+from src.database import normalize_database_url
+from src.jobs.models import Job  # noqa: F401 — register models
+from src.mentions.models import Mention  # noqa: F401 — register models
+from sqlmodel import SQLModel
 
 
 config = context.config
