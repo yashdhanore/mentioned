@@ -40,19 +40,14 @@ reads are forbidden.
 python -m pytest
 ```
 
-The Postgres worker-claiming proof is skipped unless a disposable Postgres database URL is provided:
-
-```bash
-POSTGRES_TEST_DATABASE_URL=postgresql://... python -m pytest tests/test_postgres_worker_claiming.py
-```
-
-The Postgres API-role RLS proof is skipped unless both an admin/setup URL and the real API-role URL
+The Postgres dedicated-role RLS proof is skipped unless admin/setup, API-role, and worker-role URLs
 are provided:
 
 ```bash
 POSTGRES_TEST_DATABASE_URL=postgresql://admin-or-owner-url \
 POSTGRES_TEST_API_DATABASE_URL=postgresql://mentioned_api-url \
-python -m pytest tests/test_postgres_rls_role_enforcement.py
+POSTGRES_TEST_WORKER_DATABASE_URL=postgresql://mentioned_worker-url \
+python -m pytest tests/test_postgres_dedicated_worker_rls.py
 ```
 
 ## Smoke test the full job flow

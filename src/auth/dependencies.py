@@ -3,10 +3,12 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, status
+from sqlmodel import Session
 
 from src.auth.schemas import Caller
 from src.auth.supabase import verify_supabase_token
 from src.config import get_settings
+from src.database import get_session, set_rls_user_context
 
 
 def _bearer_token(authorization: str | None) -> str:
@@ -47,3 +49,12 @@ def worker_caller(worker_id: str = "worker") -> Caller:
 
 
 CallerDep = Annotated[Caller, Depends(get_current_caller)]
+RawSessionDep = Annotated[Session, Depends(get_session)]
+
+
+def get_authenticated_session(caller: CallerDep, session: RawSessionDep) -> Session:
+    set_rls_user_context(session, caller.subject_id)
+    return session
+
+
+AuthenticatedSessionDep = Annotated[Session, Depends(get_authenticated_session)]

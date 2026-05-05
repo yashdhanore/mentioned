@@ -1,15 +1,14 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, status
-from sqlmodel import Session, select
+from fastapi import APIRouter, status
+from sqlmodel import select
 
 from src.auth.dependencies import CallerDep
 from src.config import get_settings
-from src.database import get_session
 from src.extraction.url import SourceUrlError, validate_instagram_url
 from src.jobs.dependencies import SessionDep, ValidJobDep
 from src.jobs.exceptions import JobNotFound, RateLimited
-from src.jobs.models import Job, JobStatus
+from src.jobs.models import Job
 from src.jobs.schemas import (
     CreateJobRequest,
     JobCreatedResponse,

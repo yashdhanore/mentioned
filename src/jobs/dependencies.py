@@ -1,17 +1,14 @@
 from __future__ import annotations
 
 from typing import Annotated
-from uuid import UUID
 
 from fastapi import Depends
-from sqlmodel import Session
 
-from src.auth.dependencies import CallerDep
-from src.database import get_session
+from src.auth.dependencies import AuthenticatedSessionDep, CallerDep
 from src.jobs.exceptions import JobNotFound
 from src.jobs.models import Job
 
-SessionDep = Annotated[Session, Depends(get_session)]
+SessionDep = AuthenticatedSessionDep
 
 
 async def valid_job_id(job_id: str, caller: CallerDep, session: SessionDep) -> Job:

@@ -64,24 +64,46 @@ def create_db_and_tables(bind: Engine | None = None) -> None:
     SQLModel.metadata.create_all(bind or engine)
 
 
+def _database_role_flags(bind: Engine) -> dict[str, object]:
+    with bind.connect() as connection:
+        return dict(
+            connection.execute(
+                text(
+                    """
+                    select current_user, rolsuper, rolbypassrls
+                    from pg_roles
+                    where rolname = current_user
+                    """
+                )
+            )
+            .mappings()
+            .one()
+        )
+
+
+def _check_non_privileged_database_role(bind: Engine, *, label: str) -> None:
+    if bind.dialect.name != "postgresql":
+        raise RuntimeError(f"Production {label} database must be PostgreSQL")
+    row = _database_role_flags(bind)
+    if row["rolsuper"] or row["rolbypassrls"]:
+        raise RuntimeError(
+            f"Production {label} database role must be non-superuser and must not BYPASSRLS"
+        )
+
+
 def check_api_database_role(bind: Engine | None = None) -> None:
     if not settings.is_production:
         return
     check_engine = bind or engine
-    if check_engine.dialect.name != "postgresql":
-        raise RuntimeError("Production API database must be PostgreSQL")
-    with check_engine.connect() as connection:
-        row = connection.execute(
-            text(
-                """
-                select rolsuper, rolbypassrls
-                from pg_roles
-                where rolname = current_user
-                """
-            )
-        ).mappings().one()
-    if row["rolsuper"] or row["rolbypassrls"]:
-        raise RuntimeError("Production API database role must be non-superuser and must not BYPASSRLS")
+    _check_non_privileged_database_role(check_engine, label="API")
+
+
+def check_worker_database_role(bind: Engine, *, require_postgres: bool = False) -> None:
+    if bind.dialect.name != "postgresql":
+        if require_postgres:
+            raise RuntimeError("Production worker database must be PostgreSQL")
+        return
+    _check_non_privileged_database_role(bind, label="worker")
 
 
 def check_database_ready() -> None:

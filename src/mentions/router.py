@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
-from sqlmodel import Session
+from fastapi import APIRouter, Query
 
 from src.auth.dependencies import CallerDep
-from src.database import get_session
 from src.mentions.dependencies import SessionDep, ValidMentionDep
 from src.mentions.schemas import (
     DeleteMentionResponse,

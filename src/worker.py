@@ -5,9 +5,10 @@ import logging
 import time
 
 from sqlmodel import Session
+from sqlalchemy.engine import Engine
 
-from src.config import get_settings
-from src.database import create_sql_engine, engine
+from src.config import Settings, get_settings
+from src.database import check_worker_database_role, create_sql_engine, engine
 from src.extraction.google_books import enrich_book
 from src.extraction.pipeline import run_pipeline
 from src.extraction.schemas import BookEnrichment
@@ -67,16 +68,22 @@ def process_job(job: Job, session: Session) -> None:
     complete_job(session, job, mentions)
 
 
+def resolve_worker_engine(settings: Settings) -> Engine:
+    if settings.worker_database_url:
+        return create_sql_engine(settings.worker_database_url)
+    if settings.is_production:
+        raise RuntimeError("Production worker requires WORKER_DATABASE_URL")
+    return engine
+
+
 def run_worker() -> None:
     settings = get_settings()
     worker_id = settings.worker_id
     poll_interval = settings.worker_poll_interval_seconds
     stale_timeout = settings.worker_stale_timeout_seconds
 
-    # Use worker-specific DB URL if configured
-    worker_engine = engine
-    if settings.worker_database_url:
-        worker_engine = create_sql_engine(settings.worker_database_url)
+    worker_engine = resolve_worker_engine(settings)
+    check_worker_database_role(worker_engine, require_postgres=settings.is_production)
 
     logger.info("Worker %s starting (poll=%.1fs)", worker_id, poll_interval)
 
