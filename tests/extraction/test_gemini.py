@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -58,3 +59,33 @@ def test_upload_to_gemini_rejects_oversized_vertex_local_media(monkeypatch, tmp_
 
     with pytest.raises(RuntimeError, match="Google Cloud Storage"):
         gemini.upload_to_gemini(object(), media_file, use_vertexai=True)
+
+
+def test_extract_mentions_from_media_sends_all_media_parts(monkeypatch, tmp_path):
+    first_media_file = tmp_path / "media_001.jpg"
+    second_media_file = tmp_path / "media_002.jpg"
+    first_media_file.write_bytes(b"fake image 1")
+    second_media_file.write_bytes(b"fake image 2")
+    captured = {}
+
+    class Models:
+        def generate_content(self, **kwargs):
+            captured.update(kwargs)
+            return SimpleNamespace(text='{"mentions": []}')
+
+    client = SimpleNamespace(models=Models())
+    monkeypatch.setattr(gemini, "_get_client", lambda: client)
+    monkeypatch.setattr(
+        gemini,
+        "upload_to_gemini",
+        lambda _client, media_path, *, use_vertexai: f"part:{media_path.name}",
+    )
+
+    result = gemini.extract_mentions_from_media([first_media_file, second_media_file])
+
+    assert result == {"mentions": []}
+    assert captured["contents"] == [
+        "part:media_001.jpg",
+        "part:media_002.jpg",
+        gemini.EXTRACTION_PROMPT,
+    ]

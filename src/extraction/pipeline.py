@@ -24,12 +24,12 @@ def run_pipeline(source_url: str) -> PipelineResult:
         if not paths:
             return PipelineResult(error="No media downloaded")
 
-        media_file = paths[-1]
-        logger.info("Downloaded %s (%.1f MB)", media_file.name, media_file.stat().st_size / 1024 / 1024)
+        total_size_mb = sum(path.stat().st_size for path in paths) / 1024 / 1024
+        logger.info("Downloaded %d media file(s) (%.1f MB)", len(paths), total_size_mb)
 
         logger.info("Sending to Gemini for extraction...")
         try:
-            raw = extract_mentions_from_media(media_file)
+            raw = extract_mentions_from_media(paths)
         except Exception as exc:
             logger.warning("Gemini extraction failed: %s", exc)
             return PipelineResult(error=f"Extraction failed: {exc}")

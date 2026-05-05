@@ -24,6 +24,7 @@ def test_pipeline_success(mock_extract, mock_download, tmp_path):
 
     result = run_pipeline("https://instagram.com/reel/ABC123/")
 
+    mock_extract.assert_called_once_with([media_file])
     assert result.error is None
     assert len(result.mentions) == 2
     assert result.mentions[0].title == "Atomic Habits"
@@ -32,6 +33,22 @@ def test_pipeline_success(mock_extract, mock_download, tmp_path):
     assert result.mentions[0].confidence == 0.95
     assert result.mentions[1].title == "Cafe Nero"
     assert result.mentions[1].category == "place"
+
+
+@patch("src.extraction.pipeline.download_assets")
+@patch("src.extraction.pipeline.extract_mentions_from_media")
+def test_pipeline_extracts_from_all_downloaded_media(mock_extract, mock_download, tmp_path):
+    first_media_file = tmp_path / "media_001.jpg"
+    second_media_file = tmp_path / "media_002.jpg"
+    first_media_file.write_bytes(b"fake image 1")
+    second_media_file.write_bytes(b"fake image 2")
+    mock_download.return_value = [first_media_file, second_media_file]
+    mock_extract.return_value = {"mentions": []}
+
+    result = run_pipeline("https://instagram.com/p/ABC123/")
+
+    mock_extract.assert_called_once_with([first_media_file, second_media_file])
+    assert result.error is None
 
 
 @patch("src.extraction.pipeline.download_assets")

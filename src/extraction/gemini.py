@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 import json
 import logging
 import time
@@ -125,17 +126,29 @@ RETRY_DELAYS = [2, 5, 10]  # seconds between retries
 RETRYABLE_STATUS_CODES = {429, 500, 503}
 
 
-def extract_mentions_from_media(media_path: Path) -> dict:
+def _media_path_list(media_paths: Path | Sequence[Path]) -> list[Path]:
+    if isinstance(media_paths, Path):
+        return [media_paths]
+    return list(media_paths)
+
+
+def extract_mentions_from_media(media_paths: Path | Sequence[Path]) -> dict:
     settings = get_settings()
     client = _get_client()
-    file_part = upload_to_gemini(client, media_path, use_vertexai=settings.gemini.use_vertexai)
+    paths = _media_path_list(media_paths)
+    if not paths:
+        return {"mentions": []}
+    file_parts = [
+        upload_to_gemini(client, media_path, use_vertexai=settings.gemini.use_vertexai)
+        for media_path in paths
+    ]
 
     last_exc = None
     for attempt in range(MAX_RETRIES):
         try:
             response = client.models.generate_content(
                 model=settings.gemini.gemini_model,
-                contents=[file_part, EXTRACTION_PROMPT],
+                contents=[*file_parts, EXTRACTION_PROMPT],
                 config=GenerateContentConfig(
                     response_mime_type="application/json",
                     response_schema=MENTION_SCHEMA,
