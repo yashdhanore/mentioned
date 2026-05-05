@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
 import pytest
 from sqlmodel import Session, SQLModel, create_engine
 
@@ -8,6 +10,7 @@ from src.jobs.service import (
     claim_next_job,
     complete_job,
     count_active_jobs,
+    count_jobs_created_since,
     create_job,
     fail_job,
     recover_stale_jobs,
@@ -83,3 +86,15 @@ def test_count_active_jobs(session):
     create_job(session, OWNER, "https://instagram.com/reel/B/")
     assert count_active_jobs(session, OWNER) == 2
     assert count_active_jobs(session, "other-owner") == 0
+
+
+def test_count_jobs_created_since(session):
+    now = datetime.utcnow()
+    create_job(session, OWNER, "https://instagram.com/reel/A/")
+    old = create_job(session, OWNER, "https://instagram.com/reel/B/")
+    old.created_at = now - timedelta(days=2)
+    session.add(old)
+    session.commit()
+
+    assert count_jobs_created_since(session, OWNER, now - timedelta(days=1)) == 1
+    assert count_jobs_created_since(session, "other-owner", now - timedelta(days=1)) == 0

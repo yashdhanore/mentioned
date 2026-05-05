@@ -17,3 +17,9 @@ class RateLimited(JobError):
     status_code = 429
     error_code = "rate_limited"
     message = "Too many requests"
+
+
+class QuotaExceeded(JobError):
+    status_code = 429
+    error_code = "quota_exceeded"
+    message = "Quota exceeded"

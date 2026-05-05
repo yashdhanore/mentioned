@@ -50,10 +50,20 @@ POSTGRES_TEST_WORKER_DATABASE_URL=postgresql://mentioned_worker-url \
 python -m pytest tests/test_postgres_dedicated_worker_rls.py
 ```
 
+## Production release check
+
+Before a beta deploy, validate the production environment shape without printing secrets:
+
+```bash
+python scripts/check_release_env.py --env-file .env --worker-replicas 1
+```
+
+Deploy exactly one worker replica for beta until worker claiming uses atomic `SKIP LOCKED`.
+
 ## Smoke test the full job flow
 
-With the API and worker running, submit a real job, poll until terminal, fetch the result, and list
-saved mentions for that job:
+With the API and worker running, submit a real job, poll until terminal, and list saved mentions
+returned by the job detail endpoint:
 
 ```bash
 TOKEN='paste-supabase-access-token'
@@ -75,45 +85,17 @@ python scripts/smoke_job_flow.py \
 ## API
 
 - `POST /v1/jobs` queues an extraction job for a URL.
-- `GET /v1/jobs` lists the authenticated user's jobs with cursor pagination.
+- `GET /v1/jobs` lists the authenticated user's most recent jobs.
 - `GET /v1/jobs/{job_id}` returns job status and is the required v1 polling endpoint.
-- `GET /v1/jobs/{job_id}/result` returns the text-first result:
-`caption_text`, `spoken_text`, `visual_text`, `image_text`, `merged_text`, and `warnings`.
-Fetch results after polling observes `succeeded` or `partial`; `/result` is not the job-level
-error source.
-- `POST /v1/jobs/{job_id}/rerun` creates a new attempt under the same public job ID.
-- `POST /v1/jobs/{job_id}/cancel` cancels queued jobs or marks running jobs for cancellation.
 - `GET /v1/mentions` lists auto-saved mention evidence for the authenticated user.
-- `PATCH /v1/mentions/{mention_id}`, `POST /v1/mentions/{mention_id}/confirm`, and
-  `DELETE /v1/mentions/{mention_id}` support review, correction, and soft delete.
+- `PATCH /v1/mentions/{mention_id}` and `DELETE /v1/mentions/{mention_id}` support correction
+  and soft delete.
 
-Job polling status values are stable: `queued`, `running`, `succeeded`, `partial`, `failed`,
-`canceled`, and `expired`. Frontend state should branch only on `status` and public
-`JobResponse.error_code`; `current_stage`, `progress`, `attempt_count`, and `error_message` are
-display/advisory fields. Exact polling cadence and backoff are frontend-owned in v1.
-
-Public job polling error codes are: `invalid_source_url`, `unsupported_source_kind`,
-`no_text_extracted`, `pipeline_error`, `job_canceled`, and `job_expired`. Request validation errors
-use `detail.error_code = "validation_error"`.
+Current MVP job polling status values are `pending`, `done`, and `failed`.
 
 Public endpoints use Supabase Auth in production (`AUTH_MODE=supabase`). Local development defaults
 to `AUTH_MODE=dev`; omit `Authorization` to use `DEV_USER_ID`, or pass
 `Authorization: Bearer dev:<uuid>` to simulate a different user.
 
-ASR and multimodal LLM providers are scaffolded as swappable stages. With the default local config,
-audio transcription is skipped and visual reconstruction uses OCR output only.
-
-## Optional OpenAI visual extraction
-
-```bash
-export OPENAI_API_KEY=...
-export MULTIMODAL_LLM_PROVIDER=openai
-export OPENAI_MULTIMODAL_MODEL=gpt-5.4-nano
-export ASR_PROVIDER=openai
-export OPENAI_ASR_MODEL=gpt-4o-mini-transcribe
-```
-
-The OpenAI path uses one Responses API call per job with selected frames/images, deterministic crops,
-OCR text, and caption context. OCR artifacts are still retained and used as fallback.
-When ASR is enabled, the extracted `audio.wav` is sent to OpenAI's audio transcriptions endpoint and
-stored as a `transcript` artifact.
+Extraction uses `yt-dlp` to download Instagram media and Gemini to identify mentioned books,
+products, and places. Configure `GEMINI_API_KEY` or Vertex AI settings before running the worker.

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from uuid import uuid4
 
-from sqlalchemy import text
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from src.jobs.models import Job, JobStatus
@@ -100,5 +100,16 @@ def recover_stale_jobs(session: Session, stale_timeout_seconds: int = 900) -> in
 
 
 def count_active_jobs(session: Session, owner_id: str) -> int:
-    stmt = select(Job).where(Job.owner_id == owner_id, Job.status == JobStatus.PENDING)
-    return len(list(session.exec(stmt).all()))
+    stmt = select(func.count()).select_from(Job).where(
+        Job.owner_id == owner_id,
+        Job.status == JobStatus.PENDING,
+    )
+    return int(session.exec(stmt).one())
+
+
+def count_jobs_created_since(session: Session, owner_id: str, since: datetime) -> int:
+    stmt = select(func.count()).select_from(Job).where(
+        Job.owner_id == owner_id,
+        Job.created_at >= since,
+    )
+    return int(session.exec(stmt).one())

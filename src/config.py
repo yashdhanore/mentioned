@@ -57,6 +57,12 @@ class Settings:
     worker_stale_timeout_seconds: int = 15 * 60
     worker_id: str = "worker-local"
 
+    # Media download limits
+    media_download_timeout_seconds: int = 120
+    max_media_file_bytes: int = 50 * 1024 * 1024
+    max_media_total_bytes: int = 100 * 1024 * 1024
+    max_media_duration_seconds: int = 180
+
     # Rate limits
     max_job_create_burst_per_minute: int = 3
     max_jobs_created_per_day: int = 25
@@ -183,6 +189,10 @@ def get_settings() -> Settings:
         worker_poll_interval_seconds=_env_float("WORKER_POLL_INTERVAL_SECONDS", 2.0),
         worker_stale_timeout_seconds=_env_int("WORKER_STALE_TIMEOUT_SECONDS", 15 * 60),
         worker_id=os.getenv("WORKER_ID", "worker-local").strip(),
+        media_download_timeout_seconds=_env_int("MEDIA_DOWNLOAD_TIMEOUT_SECONDS", 120),
+        max_media_file_bytes=_env_int("MAX_MEDIA_FILE_BYTES", 50 * 1024 * 1024),
+        max_media_total_bytes=_env_int("MAX_MEDIA_TOTAL_BYTES", 100 * 1024 * 1024),
+        max_media_duration_seconds=_env_int("MAX_MEDIA_DURATION_SECONDS", 180),
         max_job_create_burst_per_minute=_env_int("MAX_JOB_CREATE_BURST_PER_MINUTE", 3),
         max_jobs_created_per_day=_env_int("MAX_JOBS_CREATED_PER_DAY", 25),
         max_active_jobs_per_user=_env_int("MAX_ACTIVE_JOBS_PER_USER", 5),
