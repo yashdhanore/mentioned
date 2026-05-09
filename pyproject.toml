@@ -13,6 +13,7 @@ dependencies = [
     "pyjwt[crypto]>=2.8.0",
     "python-dotenv>=1.0.0",
     "sqlmodel>=0.0.22",
+    "yt-dlp>=2026.1.1",
 ]
 
 [project.optional-dependencies]

@@ -1,0 +1,16 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+.git
+.pytest_cache
+.ruff_cache
+.venv
+__pycache__/
+*.py[cod]
+app.db
+data/artifacts/
+mentioned_backend.egg-info/
+mobile/.expo/
+mobile/node_modules/
+mobile/package-lock.json

@@ -36,6 +36,18 @@ auth variables are missing. Add the app callback URL, `mentioned://auth/callback
 redirect URLs in the Supabase Auth provider configuration. When testing through Expo Go or a tunnel,
 also add the callback URL printed by Expo for that session.
 
+For the Render + Supabase backend deployment, set:
+
+```bash
+EXPO_PUBLIC_APP_ENV=production
+EXPO_PUBLIC_API_BASE_URL=https://mentioned-api.onrender.com
+EXPO_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
+EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<publishable-or-anon-key>
+```
+
+Native iOS and Android builds work with the deployed backend over HTTPS. CORS only affects browser
+clients such as Expo web.
+
 ## Validate
 
 ```bash
