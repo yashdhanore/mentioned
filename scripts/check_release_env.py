@@ -65,12 +65,17 @@ def _check_release_env(worker_replicas: str | None) -> list[str]:
 
     database_url = _env("DATABASE_URL")
     worker_database_url = _env("WORKER_DATABASE_URL")
+    migration_database_url = _env("MIGRATION_DATABASE_URL")
     if not _is_postgres_url(database_url):
         errors.append("DATABASE_URL must be a PostgreSQL URL")
     if not _is_postgres_url(worker_database_url):
         errors.append("WORKER_DATABASE_URL must be a PostgreSQL URL")
+    if not _is_postgres_url(migration_database_url):
+        errors.append("MIGRATION_DATABASE_URL must be a PostgreSQL URL")
     if database_url and worker_database_url and database_url == worker_database_url:
         errors.append("DATABASE_URL and WORKER_DATABASE_URL must be distinct")
+    if migration_database_url and migration_database_url in {database_url, worker_database_url}:
+        errors.append("MIGRATION_DATABASE_URL must be distinct from runtime database URLs")
 
     origins = _csv("CORS_ALLOWED_ORIGINS")
     if not origins:
