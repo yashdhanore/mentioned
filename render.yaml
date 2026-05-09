@@ -28,8 +28,6 @@ services:
         sync: false
       - key: SUPABASE_PROJECT_URL
         sync: false
-      - key: SUPABASE_JWT_SECRET
-        sync: false
       - key: CORS_ALLOWED_ORIGINS
         sync: false
       - key: TRUSTED_HOSTS
@@ -71,8 +69,6 @@ services:
       - key: MIGRATION_DATABASE_URL
         sync: false
       - key: SUPABASE_PROJECT_URL
-        sync: false
-      - key: SUPABASE_JWT_SECRET
         sync: false
       - key: CORS_ALLOWED_ORIGINS
         sync: false

@@ -60,12 +60,16 @@ DATABASE_URL=postgresql://mentioned_api.../postgres
 WORKER_DATABASE_URL=postgresql://mentioned_worker.../postgres
 MIGRATION_DATABASE_URL=postgresql://postgres.../postgres
 SUPABASE_PROJECT_URL=https://<project-ref>.supabase.co
-SUPABASE_JWT_SECRET=<Supabase JWT secret>
 CORS_ALLOWED_ORIGINS=https://<your-web-origin>
 TRUSTED_HOSTS=mentioned-api.onrender.com,<your-custom-api-domain>
 GEMINI_API_KEY=<Gemini API key>
 GOOGLE_BOOKS_API_KEY=<optional Google Books API key>
 ```
+
+For Supabase projects using JWT Signing Keys, no `SUPABASE_JWT_SECRET` is needed. The API verifies
+RS256/ES256 access tokens with Supabase's JWKS endpoint at
+`https://<project-ref>.supabase.co/auth/v1/.well-known/jwks.json`. If a project still uses legacy
+HS256 JWTs, set `SUPABASE_JWT_SECRET` manually on the API service.
 
 The blueprint sets the required non-secret production flags:
 
