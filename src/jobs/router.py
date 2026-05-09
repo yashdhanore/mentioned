@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, status
 from sqlmodel import select
@@ -26,14 +26,16 @@ router = APIRouter(tags=["jobs"])
 
 
 @router.post("/v1/jobs", status_code=status.HTTP_202_ACCEPTED)
-async def create_job_endpoint(
+async def create_job(
     body: CreateJobRequest,
     caller: CallerDep,
     session: SessionDep,
 ) -> JobCreatedResponse:
     settings = get_settings()
     try:
-        source_url = validate_instagram_url(body.url, require_https=settings.source_require_https)
+        source_url = validate_instagram_url(
+            body.url, require_https=settings.source_require_https
+        )
     except SourceUrlError as exc:
         raise JobNotFound() from exc  # reuse 400-level error
 
@@ -41,12 +43,16 @@ async def create_job_endpoint(
     if active >= settings.max_active_jobs_per_user:
         raise QuotaExceeded()
 
-    now = datetime.utcnow()
-    burst_count = count_jobs_created_since(session, caller.subject_id, now - timedelta(minutes=1))
+    now = datetime.now(timezone.utc)
+    burst_count = count_jobs_created_since(
+        session, caller.subject_id, now - timedelta(minutes=1)
+    )
     if burst_count >= settings.max_job_create_burst_per_minute:
         raise RateLimited()
 
-    daily_count = count_jobs_created_since(session, caller.subject_id, now - timedelta(days=1))
+    daily_count = count_jobs_created_since(
+        session, caller.subject_id, now - timedelta(days=1)
+    )
     if daily_count >= settings.max_jobs_created_per_day:
         raise QuotaExceeded()
 
@@ -55,7 +61,7 @@ async def create_job_endpoint(
 
 
 @router.get("/v1/jobs")
-async def list_jobs_endpoint(
+async def list_jobs(
     caller: CallerDep,
     session: SessionDep,
 ) -> list[JobListItem]:
@@ -78,7 +84,7 @@ async def list_jobs_endpoint(
 
 
 @router.get("/v1/jobs/{job_id}")
-async def get_job_endpoint(
+async def get_job(
     job: ValidJobDep,
     session: SessionDep,
 ) -> JobResponse:
