@@ -19,7 +19,7 @@ from src.jobs.schemas import (
     JobResponse,
     MentionInJob,
 )
-from src.jobs.service import count_active_jobs, count_jobs_created_since, create_job
+from src.jobs import service as job_service
 from src.mentions.models import Mention
 
 router = APIRouter(tags=["jobs"])
@@ -39,24 +39,24 @@ async def create_job(
     except SourceUrlError as exc:
         raise JobNotFound() from exc  # reuse 400-level error
 
-    active = count_active_jobs(session, caller.subject_id)
+    active = job_service.count_active_jobs(session, caller.subject_id)
     if active >= settings.max_active_jobs_per_user:
         raise QuotaExceeded()
 
     now = datetime.now(timezone.utc)
-    burst_count = count_jobs_created_since(
+    burst_count = job_service.count_jobs_created_since(
         session, caller.subject_id, now - timedelta(minutes=1)
     )
     if burst_count >= settings.max_job_create_burst_per_minute:
         raise RateLimited()
 
-    daily_count = count_jobs_created_since(
+    daily_count = job_service.count_jobs_created_since(
         session, caller.subject_id, now - timedelta(days=1)
     )
     if daily_count >= settings.max_jobs_created_per_day:
         raise QuotaExceeded()
 
-    job = create_job(session, caller.subject_id, source_url)
+    job = job_service.create_job(session, caller.subject_id, source_url)
     return JobCreatedResponse(job_id=str(job.id), status=job.status)
 
 
