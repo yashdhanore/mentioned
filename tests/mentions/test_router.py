@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from uuid import UUID
+
 import pytest
 from sqlmodel import Session, SQLModel, create_engine
 
@@ -10,6 +12,7 @@ from src.mentions.models import Mention
 pytestmark = pytest.mark.asyncio
 
 OWNER = "00000000-0000-4000-8000-000000000001"
+OWNER_UUID = UUID(OWNER)
 
 
 async def test_list_mentions_empty(client):
@@ -23,7 +26,7 @@ async def test_list_mentions_empty(client):
 async def test_patch_mention(client, session):
     job = create_job(session, OWNER, "https://instagram.com/reel/X/")
     m = Mention(
-        owner_id=OWNER,
+        owner_id=OWNER_UUID,
         job_id=job.id,
         title="Original",
         category="book",
@@ -41,7 +44,7 @@ async def test_patch_mention(client, session):
 async def test_delete_mention(client, session):
     job = create_job(session, OWNER, "https://instagram.com/reel/X/")
     m = Mention(
-        owner_id=OWNER,
+        owner_id=OWNER_UUID,
         job_id=job.id,
         title="To Delete",
         category="book",

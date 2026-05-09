@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime
+from uuid import UUID
 
 from sqlmodel import Session, select
 
+from src.ids import parse_uuid
 from src.mentions.models import Mention
 
 
@@ -13,19 +15,20 @@ def list_mentions(
     limit: int = 50,
     cursor: str | None = None,
 ) -> list[Mention]:
+    owner_uuid = parse_uuid(owner_id)
     stmt = (
         select(Mention)
-        .where(Mention.owner_id == owner_id, Mention.is_deleted == False)
+        .where(Mention.owner_id == owner_uuid, Mention.is_deleted == False)
         .order_by(Mention.created_at.desc())
         .limit(limit)
     )
     if cursor:
-        stmt = stmt.where(Mention.id < cursor)
+        stmt = stmt.where(Mention.id < parse_uuid(cursor))
     return list(session.exec(stmt).all())
 
 
-def get_mention(session: Session, mention_id: str) -> Mention | None:
-    return session.get(Mention, mention_id)
+def get_mention(session: Session, mention_id: str | UUID) -> Mention | None:
+    return session.get(Mention, parse_uuid(mention_id))
 
 
 def update_mention(session: Session, mention: Mention, **fields) -> Mention:

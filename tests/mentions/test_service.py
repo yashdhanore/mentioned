@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from uuid import UUID
+
 import pytest
 from sqlmodel import Session, SQLModel, create_engine
 
@@ -23,12 +25,13 @@ def session(engine):
         yield s
 
 
-OWNER = "owner-1"
+OWNER = "00000000-0000-4000-8000-000000000001"
+OWNER_UUID = UUID(OWNER)
 
 
 def _create_mention(session, job_id: str, title: str = "Test Book") -> Mention:
     m = Mention(
-        owner_id=OWNER,
+        owner_id=OWNER_UUID,
         job_id=job_id,
         title=title,
         category="book",

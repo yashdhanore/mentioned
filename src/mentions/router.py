@@ -25,7 +25,7 @@ async def list_mentions_endpoint(
     mentions = list_mentions(session, caller.subject_id, limit=limit, cursor=cursor)
     items = [
         MentionResponse(
-            id=m.id,
+            id=str(m.id),
             title=m.title,
             author=m.author,
             category=m.category,
@@ -50,7 +50,7 @@ async def update_mention_endpoint(
     fields = body.model_dump(exclude_unset=True)
     updated = update_mention(session, mention, **fields)
     return MentionResponse(
-        id=updated.id,
+        id=str(updated.id),
         title=updated.title,
         author=updated.author,
         category=updated.category,
@@ -68,4 +68,4 @@ async def delete_mention_endpoint(
     session: SessionDep,
 ) -> DeleteMentionResponse:
     delete_mention(session, mention)
-    return DeleteMentionResponse(id=mention.id)
+    return DeleteMentionResponse(id=str(mention.id))

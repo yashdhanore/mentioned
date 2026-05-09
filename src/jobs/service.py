@@ -1,19 +1,20 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from sqlalchemy import func
 from sqlmodel import Session, select
 
 from src.jobs.models import Job, JobStatus
+from src.ids import parse_uuid
 from src.mentions.models import Mention
 
 
 def create_job(session: Session, owner_id: str, source_url: str) -> Job:
     job = Job(
-        id=str(uuid4()),
-        owner_id=owner_id,
+        id=uuid4(),
+        owner_id=parse_uuid(owner_id),
         source_url=source_url,
         status=JobStatus.PENDING,
         created_at=datetime.utcnow(),
@@ -24,14 +25,15 @@ def create_job(session: Session, owner_id: str, source_url: str) -> Job:
     return job
 
 
-def get_job(session: Session, job_id: str) -> Job | None:
-    return session.get(Job, job_id)
+def get_job(session: Session, job_id: str | UUID) -> Job | None:
+    return session.get(Job, parse_uuid(job_id))
 
 
 def list_jobs(session: Session, owner_id: str, limit: int = 50) -> list[Job]:
+    owner_uuid = parse_uuid(owner_id)
     stmt = (
         select(Job)
-        .where(Job.owner_id == owner_id)
+        .where(Job.owner_id == owner_uuid)
         .order_by(Job.created_at.desc())
         .limit(limit)
     )
@@ -100,16 +102,18 @@ def recover_stale_jobs(session: Session, stale_timeout_seconds: int = 900) -> in
 
 
 def count_active_jobs(session: Session, owner_id: str) -> int:
+    owner_uuid = parse_uuid(owner_id)
     stmt = select(func.count()).select_from(Job).where(
-        Job.owner_id == owner_id,
+        Job.owner_id == owner_uuid,
         Job.status == JobStatus.PENDING,
     )
     return int(session.exec(stmt).one())
 
 
 def count_jobs_created_since(session: Session, owner_id: str, since: datetime) -> int:
+    owner_uuid = parse_uuid(owner_id)
     stmt = select(func.count()).select_from(Job).where(
-        Job.owner_id == owner_id,
+        Job.owner_id == owner_uuid,
         Job.created_at >= since,
     )
     return int(session.exec(stmt).one())

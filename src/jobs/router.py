@@ -8,6 +8,7 @@ from sqlmodel import select
 from src.auth.dependencies import CallerDep
 from src.config import get_settings
 from src.extraction.url import SourceUrlError, validate_instagram_url
+from src.ids import parse_uuid
 from src.jobs.dependencies import SessionDep, ValidJobDep
 from src.jobs.exceptions import JobNotFound, QuotaExceeded, RateLimited
 from src.jobs.models import Job
@@ -50,7 +51,7 @@ async def create_job_endpoint(
         raise QuotaExceeded()
 
     job = create_job(session, caller.subject_id, source_url)
-    return JobCreatedResponse(job_id=job.id, status=job.status)
+    return JobCreatedResponse(job_id=str(job.id), status=job.status)
 
 
 @router.get("/v1/jobs")
@@ -60,14 +61,14 @@ async def list_jobs_endpoint(
 ) -> list[JobListItem]:
     stmt = (
         select(Job)
-        .where(Job.owner_id == caller.subject_id)
+        .where(Job.owner_id == parse_uuid(caller.subject_id))
         .order_by(Job.created_at.desc())
         .limit(50)
     )
     jobs = list(session.exec(stmt).all())
     return [
         JobListItem(
-            job_id=j.id,
+            job_id=str(j.id),
             status=j.status,
             source_url=j.source_url,
             created_at=j.created_at,
@@ -87,7 +88,7 @@ async def get_job_endpoint(
         ).all()
     )
     return JobResponse(
-        job_id=job.id,
+        job_id=str(job.id),
         status=job.status,
         source_url=job.source_url,
         error_message=job.error_message,
@@ -95,7 +96,7 @@ async def get_job_endpoint(
         finished_at=job.finished_at,
         mentions=[
             MentionInJob(
-                id=m.id,
+                id=str(m.id),
                 title=m.title,
                 author=m.author,
                 category=m.category,

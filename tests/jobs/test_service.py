@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from uuid import UUID
 
 import pytest
 from sqlmodel import Session, SQLModel, create_engine
@@ -32,13 +33,15 @@ def session(engine):
         yield s
 
 
-OWNER = "owner-1"
+OWNER = "00000000-0000-4000-8000-000000000001"
+OTHER_OWNER = "00000000-0000-4000-8000-000000000002"
+OWNER_UUID = UUID(OWNER)
 
 
 def test_create_job(session):
     job = create_job(session, OWNER, "https://instagram.com/reel/ABC123/")
     assert job.id
-    assert job.owner_id == OWNER
+    assert str(job.owner_id) == OWNER
     assert job.status == JobStatus.PENDING
     assert job.source_url == "https://instagram.com/reel/ABC123/"
 
@@ -59,7 +62,7 @@ def test_complete_job(session):
     job = create_job(session, OWNER, "https://instagram.com/reel/ABC123/")
     job = claim_next_job(session, "worker-1")
     mention = Mention(
-        owner_id=OWNER,
+        owner_id=OWNER_UUID,
         job_id=job.id,
         title="Atomic Habits",
         category="book",
@@ -85,7 +88,7 @@ def test_count_active_jobs(session):
     create_job(session, OWNER, "https://instagram.com/reel/A/")
     create_job(session, OWNER, "https://instagram.com/reel/B/")
     assert count_active_jobs(session, OWNER) == 2
-    assert count_active_jobs(session, "other-owner") == 0
+    assert count_active_jobs(session, OTHER_OWNER) == 0
 
 
 def test_count_jobs_created_since(session):
@@ -97,4 +100,4 @@ def test_count_jobs_created_since(session):
     session.commit()
 
     assert count_jobs_created_since(session, OWNER, now - timedelta(days=1)) == 1
-    assert count_jobs_created_since(session, "other-owner", now - timedelta(days=1)) == 0
+    assert count_jobs_created_since(session, OTHER_OWNER, now - timedelta(days=1)) == 0

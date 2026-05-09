@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from uuid import UUID
 
 import pytest
 
@@ -10,6 +11,7 @@ from src.jobs.models import Job, JobStatus
 
 pytestmark = pytest.mark.asyncio
 TEST_USER_ID = "00000000-0000-4000-8000-000000000001"
+TEST_USER_UUID = UUID(TEST_USER_ID)
 
 
 def _quota_settings() -> Settings:
@@ -34,7 +36,7 @@ async def test_create_job_burst_limit(client, session, monkeypatch):
     for index in range(3):
         session.add(
             Job(
-                owner_id=TEST_USER_ID,
+                owner_id=TEST_USER_UUID,
                 source_url=f"https://www.instagram.com/reel/BURST{index}/",
                 status=JobStatus.DONE,
                 created_at=now - timedelta(seconds=index),
@@ -54,7 +56,7 @@ async def test_create_job_daily_quota(client, session, monkeypatch):
     for index in range(25):
         session.add(
             Job(
-                owner_id=TEST_USER_ID,
+                owner_id=TEST_USER_UUID,
                 source_url=f"https://www.instagram.com/reel/DAILY{index}/",
                 status=JobStatus.DONE,
                 created_at=now - timedelta(hours=2, minutes=index),
@@ -74,7 +76,7 @@ async def test_create_job_active_quota(client, session, monkeypatch):
     for index in range(5):
         session.add(
             Job(
-                owner_id=TEST_USER_ID,
+                owner_id=TEST_USER_UUID,
                 source_url=f"https://www.instagram.com/reel/ACTIVE{index}/",
                 status=JobStatus.PENDING,
                 created_at=now - timedelta(minutes=index),

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from enum import StrEnum
 from typing import Optional
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from sqlmodel import Field, SQLModel
 
@@ -17,8 +17,8 @@ class JobStatus(StrEnum):
 class Job(SQLModel, table=True):
     __tablename__ = "jobs"
 
-    id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
-    owner_id: str = Field(nullable=False, index=True)
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    owner_id: UUID = Field(nullable=False, index=True)
     source_url: str = Field(nullable=False)
     status: str = Field(default=JobStatus.PENDING, nullable=False)
     error_message: Optional[str] = Field(default=None)
