@@ -8,7 +8,6 @@ services:
     dockerfilePath: ./Dockerfile
     dockerContext: .
     dockerCommand: sh scripts/render-start-api.sh
-    maxShutdownDelaySeconds: 60
     autoDeployTrigger: commit
     envVars:
       - key: APP_ENV
