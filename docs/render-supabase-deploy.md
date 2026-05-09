@@ -2,11 +2,12 @@
 
 This backend deploys as two Render services backed by one Supabase project:
 
-- `mentioned-api`: public FastAPI web service.
-- `mentioned-worker`: private background worker that processes queued jobs.
+- `mentioned-api`: public FastAPI web service on Render Free.
+- `mentioned-worker`: private background worker on Render Starter that processes queued jobs.
 - Supabase: Postgres, Supabase Auth, and the production user database.
 
 For beta, keep the worker at exactly one instance until worker claiming uses atomic `SKIP LOCKED`.
+This keeps Render compute to the worker cost only, currently about $7/month.
 
 ## 1. Create Supabase roles
 
@@ -30,8 +31,8 @@ Use separate connection strings for the two roles:
 
 - `DATABASE_URL`: connects as `mentioned_api`.
 - `WORKER_DATABASE_URL`: connects as `mentioned_worker`.
-- `MIGRATION_DATABASE_URL`: connects as a Supabase owner/admin role, used only by Render predeploy
-  to run Alembic migrations.
+- `MIGRATION_DATABASE_URL`: connects as a Supabase owner/admin role, used only by the Render worker
+  predeploy command to run Alembic migrations.
 
 Use Supabase Direct connection if your host supports IPv6, otherwise use Supabase Session Pooler.
 Avoid Transaction Pooler for this app because SQLAlchemy keeps pooled connections and transaction
@@ -44,13 +45,15 @@ For Supabase pooler URLs, the user name usually includes the project reference s
 
 Use the root `render.yaml` file to create the Blueprint in Render. It defines:
 
-- one Docker web service named `mentioned-api`;
-- one Docker background worker named `mentioned-worker`;
-- `alembic upgrade head` as the API predeploy migration command;
+- one Docker web service named `mentioned-api` on Render Free;
+- one Docker background worker named `mentioned-worker` on Render Starter;
+- Render region `frankfurt` for both services;
+- `alembic upgrade head` as the worker predeploy migration command;
 - `/health` as the API health check;
 - one worker instance.
 
-Render will prompt for `sync: false` environment variables. Set these on both services:
+Render will prompt for `sync: false` environment variables. Set the runtime variables on both
+services, and set `MIGRATION_DATABASE_URL` on the worker service:
 
 ```text
 DATABASE_URL=postgresql://mentioned_api.../postgres

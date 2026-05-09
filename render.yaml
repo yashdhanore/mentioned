@@ -2,13 +2,12 @@ services:
   - type: web
     name: mentioned-api
     runtime: docker
-    plan: starter
-    region: oregon
+    plan: free
+    region: frankfurt
     healthCheckPath: /health
     dockerfilePath: ./Dockerfile
     dockerContext: .
     dockerCommand: sh scripts/render-start-api.sh
-    preDeployCommand: sh scripts/render-predeploy.sh
     maxShutdownDelaySeconds: 60
     autoDeployTrigger: commit
     envVars:
@@ -28,10 +27,6 @@ services:
         value: authenticated
       - key: DATABASE_URL
         sync: false
-      - key: WORKER_DATABASE_URL
-        sync: false
-      - key: MIGRATION_DATABASE_URL
-        sync: false
       - key: SUPABASE_PROJECT_URL
         sync: false
       - key: SUPABASE_JWT_SECRET
@@ -40,19 +35,16 @@ services:
         sync: false
       - key: TRUSTED_HOSTS
         sync: false
-      - key: GEMINI_API_KEY
-        sync: false
-      - key: GOOGLE_BOOKS_API_KEY
-        sync: false
 
   - type: worker
     name: mentioned-worker
     runtime: docker
     plan: starter
-    region: oregon
+    region: frankfurt
     dockerfilePath: ./Dockerfile
     dockerContext: .
     dockerCommand: sh scripts/render-start-worker.sh
+    preDeployCommand: sh scripts/render-predeploy.sh
     numInstances: 1
     maxShutdownDelaySeconds: 300
     autoDeployTrigger: commit
@@ -76,6 +68,8 @@ services:
       - key: DATABASE_URL
         sync: false
       - key: WORKER_DATABASE_URL
+        sync: false
+      - key: MIGRATION_DATABASE_URL
         sync: false
       - key: SUPABASE_PROJECT_URL
         sync: false
