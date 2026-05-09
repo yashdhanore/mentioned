@@ -61,6 +61,7 @@ export type JobResponse = {
 
 export type MentionInJob = {
   id: string;
+  book_id: string | null;
   title: string;
   author: string | null;
   category: string;

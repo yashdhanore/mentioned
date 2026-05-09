@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import os
+
+# Keep local .env host restrictions from blocking ASGITransport requests.
+os.environ["TRUSTED_HOSTS"] = ""
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlmodel import Session, SQLModel, create_engine

@@ -7,11 +7,12 @@ import time
 from sqlmodel import Session
 from sqlalchemy.engine import Engine
 
+from src.books.service import upsert_google_book
 from src.config import Settings, get_settings
 from src.database import check_worker_database_role, create_sql_engine, engine
-from src.extraction.google_books import enrich_book
+from src.extraction.google_books import find_google_book
 from src.extraction.pipeline import run_pipeline
-from src.extraction.schemas import BookEnrichment
+from src.extraction.schemas import GoogleBook
 from src.jobs.models import Job
 from src.jobs.service import claim_next_job, complete_job, fail_job, recover_stale_jobs
 from src.mentions.models import Mention
@@ -23,13 +24,13 @@ def _clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
     return max(low, min(high, value))
 
 
-def _enrich_book_sync(title: str, author: str | None) -> BookEnrichment:
+def _find_google_book_sync(title: str, author: str | None) -> GoogleBook | None:
     """Run async Google Books enrichment synchronously."""
     try:
-        return asyncio.run(enrich_book(title, author))
+        return asyncio.run(find_google_book(title, author))
     except Exception as exc:
         logger.warning("Google Books enrichment failed: %s", exc)
-        return BookEnrichment(confidence_boost=0.0)
+        return None
 
 
 def process_job(job: Job, session: Session) -> None:
@@ -54,14 +55,15 @@ def process_job(job: Job, session: Session) -> None:
         )
 
         if m.category == "book":
-            enrichment = _enrich_book_sync(m.title, m.author)
-            if enrichment.canonical_title:
-                mention.title = enrichment.canonical_title
-            if enrichment.canonical_author:
-                mention.author = enrichment.canonical_author
-            mention.google_books_url = enrichment.google_books_url
-            mention.cover_image_url = enrichment.cover_image_url
-            mention.confidence = _clamp(m.confidence + enrichment.confidence_boost)
+            google_book = _find_google_book_sync(m.title, m.author)
+            if google_book:
+                book = upsert_google_book(session, google_book)
+                mention.book_id = book.id
+                mention.title = book.title
+                mention.author = ", ".join(book.authors) or m.author
+                mention.google_books_url = book.info_link
+                mention.cover_image_url = book.cover_image_url
+                mention.confidence = _clamp(m.confidence + 0.05)
 
         mentions.append(mention)
 

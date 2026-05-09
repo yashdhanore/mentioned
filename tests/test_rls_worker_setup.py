@@ -145,3 +145,19 @@ def test_dedicated_worker_rls_migration_contains_role_scoped_grants_and_policies
     assert "current_setting('app.current_user_id', true)::uuid" in migration
     assert "USING (true)" in migration
     assert "WITH CHECK (true)" in migration
+
+
+def test_book_migration_adds_books_table_and_nullable_mention_link() -> None:
+    migration = (
+        Path(__file__).resolve().parents[1]
+        / "migrations"
+        / "versions"
+        / "20260509_0005_books.py"
+    ).read_text()
+
+    assert 'op.create_table(\n        "books"' in migration
+    assert 'sa.Column("book_id", UUID, nullable=True)' in migration
+    assert 'op.create_foreign_key(\n        "mentions_book_id_fkey"' in migration
+    assert "books_provider_volume_unique_idx" in migration
+    assert "GRANT SELECT ON TABLE public.books TO mentioned_api" in migration
+    assert "GRANT SELECT, INSERT, UPDATE ON TABLE public.books TO mentioned_worker" in migration

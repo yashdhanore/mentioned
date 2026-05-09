@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class MentionResponse(BaseModel):
     id: str
+    book_id: Optional[str] = None
     title: str
     author: Optional[str] = None
     category: str

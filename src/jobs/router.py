@@ -103,6 +103,7 @@ async def get_job(
         mentions=[
             MentionInJob(
                 id=str(m.id),
+                book_id=str(m.book_id) if m.book_id else None,
                 title=m.title,
                 author=m.author,
                 category=m.category,

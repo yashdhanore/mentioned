@@ -19,6 +19,7 @@ class JobCreatedResponse(BaseModel):
 
 class MentionInJob(BaseModel):
     id: str
+    book_id: Optional[str] = None
     title: str
     author: Optional[str] = None
     category: str

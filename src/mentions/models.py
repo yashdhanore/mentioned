@@ -7,6 +7,8 @@ from uuid import UUID, uuid4
 
 from sqlmodel import Field, SQLModel
 
+from src.books.models import Book  # noqa: F401 - register foreign key target
+
 
 class MentionCategory(StrEnum):
     BOOK = "book"
@@ -20,6 +22,7 @@ class Mention(SQLModel, table=True):
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     owner_id: UUID = Field(nullable=False, index=True)
     job_id: UUID = Field(nullable=False, foreign_key="jobs.id", index=True)
+    book_id: Optional[UUID] = Field(default=None, foreign_key="books.id", index=True)
     title: str = Field(nullable=False)
     author: Optional[str] = Field(default=None)
     category: str = Field(default=MentionCategory.BOOK, nullable=False)
