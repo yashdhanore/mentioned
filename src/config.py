@@ -134,7 +134,11 @@ def _is_invalid_production_origin(origin: str) -> bool:
     if origin == "*":
         return True
     parsed = urlparse(origin)
-    return parsed.scheme != "https" or not parsed.hostname or _is_local_hostname(parsed.hostname)
+    if not parsed.scheme or not parsed.hostname:
+        return True
+    if _is_local_hostname(parsed.hostname):
+        return parsed.scheme != "http"
+    return parsed.scheme != "https"
 
 
 def _is_invalid_production_host(host: str) -> bool:
@@ -162,7 +166,9 @@ def validate_settings(settings: Settings) -> None:
     if not settings.cors_allowed_origins:
         raise RuntimeError("Production requires at least one CORS_ALLOWED_ORIGINS value")
     if any(_is_invalid_production_origin(origin) for origin in settings.cors_allowed_origins):
-        raise RuntimeError("Production CORS_ALLOWED_ORIGINS must be non-local HTTPS origins")
+        raise RuntimeError(
+            "Production CORS_ALLOWED_ORIGINS must be HTTPS origins, except explicit localhost HTTP origins for development"
+        )
     if not settings.trusted_hosts:
         raise RuntimeError("Production requires at least one TRUSTED_HOSTS value")
     if any(_is_invalid_production_host(host) for host in settings.trusted_hosts):
