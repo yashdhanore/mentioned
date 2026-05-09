@@ -60,6 +60,13 @@ python scripts/check_release_env.py --env-file .env --worker-replicas 1
 
 Deploy exactly one worker replica for beta until worker claiming uses atomic `SKIP LOCKED`.
 
+## Deploy to Render + Supabase
+
+This repo includes a Dockerfile and `render.yaml` Blueprint for a Render web service plus a Render
+background worker backed by Supabase Postgres/Auth. See
+[`docs/render-supabase-deploy.md`](docs/render-supabase-deploy.md) for the production setup,
+required environment variables, role setup, and mobile app configuration.
+
 ## Smoke test the full job flow
 
 With the API and worker running, submit a real job, poll until terminal, and list saved mentions
