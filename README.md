@@ -62,8 +62,9 @@ Deploy exactly one worker replica for beta until worker claiming uses atomic `SK
 
 ## Deploy to Render + Supabase
 
-This repo includes a Dockerfile and `render.yaml` Blueprint for a Render web service plus a Render
-background worker backed by Supabase Postgres/Auth. See
+This repo includes a Dockerfile and `render.yaml` Blueprint for a zero-cost Render web service
+backed by Supabase Postgres/Auth. The background worker must run separately unless you add a paid
+Render worker. See
 [`docs/render-supabase-deploy.md`](docs/render-supabase-deploy.md) for the production setup,
 required environment variables, role setup, and mobile app configuration.
 

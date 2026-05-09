@@ -1,12 +1,14 @@
 # Render + Supabase Deployment
 
-This backend deploys as two Render services backed by one Supabase project:
+This zero-cost Render Blueprint deploys one free Render service backed by one Supabase project:
 
 - `mentioned-api`: public FastAPI web service.
-- `mentioned-worker`: private background worker that processes queued jobs.
 - Supabase: Postgres, Supabase Auth, and the production user database.
 
-For beta, keep the worker at exactly one instance until worker claiming uses atomic `SKIP LOCKED`.
+This keeps Render compute at $0, but it does not run the extraction worker on Render. Jobs can be
+created and listed, but they remain pending until `mentioned-worker` runs somewhere else. To process
+jobs continuously on Render, add a Render background worker; Render does not offer free background
+worker instances, so that starts at the paid worker instance price.
 
 ## 1. Create Supabase roles
 
@@ -30,8 +32,8 @@ Use separate connection strings for the two roles:
 
 - `DATABASE_URL`: connects as `mentioned_api`.
 - `WORKER_DATABASE_URL`: connects as `mentioned_worker`.
-- `MIGRATION_DATABASE_URL`: connects as a Supabase owner/admin role, used by the Render worker
-  predeploy command to run Alembic migrations.
+- `MIGRATION_DATABASE_URL`: connects as a Supabase owner/admin role, used locally to run Alembic
+  migrations before deploying the free Render API.
 
 Use Supabase Direct connection if your host supports IPv6, otherwise use Supabase Session Pooler.
 Avoid Transaction Pooler for this app because SQLAlchemy keeps pooled connections and transaction
@@ -45,24 +47,17 @@ For Supabase pooler URLs, the user name usually includes the project reference s
 Use the root `render.yaml` file to create the Blueprint in Render. It defines:
 
 - one Docker web service named `mentioned-api` on Render Free;
-- one Docker background worker named `mentioned-worker` on Render Starter;
-- `alembic upgrade head` as the worker predeploy migration command;
+- Render region `frankfurt`;
 - `/health` as the API health check;
-- one worker instance.
 
-Render will prompt for `sync: false` environment variables. Set the runtime variables on both
-services, and set `MIGRATION_DATABASE_URL` on the worker service:
+Render will prompt for `sync: false` environment variables. Set these on the API service:
 
 ```text
 DATABASE_URL=postgresql://mentioned_api.../postgres
-WORKER_DATABASE_URL=postgresql://mentioned_worker.../postgres
-MIGRATION_DATABASE_URL=postgresql://postgres.../postgres
 SUPABASE_PROJECT_URL=https://<project-ref>.supabase.co
 SUPABASE_JWT_SECRET=<Supabase JWT secret>
 CORS_ALLOWED_ORIGINS=https://<your-web-origin>
 TRUSTED_HOSTS=mentioned-api.onrender.com,<your-custom-api-domain>
-GEMINI_API_KEY=<Gemini API key>
-GOOGLE_BOOKS_API_KEY=<optional Google Books API key>
 ```
 
 The blueprint sets the required non-secret production flags:
@@ -79,13 +74,13 @@ SUPABASE_JWT_AUDIENCE=authenticated
 
 If you rename the Render API service, update `TRUSTED_HOSTS` to match the actual Render hostname.
 
-## 3. Verify release shape
+## 3. Run migrations
 
-Before shipping beta traffic, run the production release check against the same values used on
-Render:
+Free Render web services do not support predeploy commands, so run migrations outside Render before
+deploying the API. From a local shell with dependencies installed:
 
 ```bash
-python scripts/check_release_env.py --env-file .env.production --worker-replicas 1
+DATABASE_URL='postgresql://postgres-owner-url' alembic upgrade head
 ```
 
 Then run the Postgres RLS proof with admin, API-role, and worker-role connection strings:
@@ -97,6 +92,24 @@ POSTGRES_TEST_WORKER_DATABASE_URL=postgresql://mentioned_worker-url \
 python -m pytest tests/test_postgres_dedicated_worker_rls.py
 ```
 
+## 4. Run a worker
+
+The free Render Blueprint does not include a worker. To process jobs, run the worker from a machine
+or service that can stay online:
+
+```bash
+APP_ENV=production \
+AUTH_MODE=supabase \
+DATABASE_URL='postgresql://mentioned_api-url' \
+WORKER_DATABASE_URL='postgresql://mentioned_worker-url' \
+GEMINI_API_KEY='<Gemini API key>' \
+mentioned-worker
+```
+
+If you later choose to run the worker on Render, create a Render background worker with the same
+Dockerfile and `sh scripts/render-start-worker.sh` command, set `numInstances` to `1`, and add
+`sh scripts/render-predeploy.sh` as the predeploy command.
+
 After Render deploys, run the full job smoke test:
 
 ```bash
@@ -106,7 +119,7 @@ SOURCE_URL='https://www.instagram.com/reel/SHORTCODE/' \
 python scripts/smoke_job_flow.py --api-base-url https://mentioned-api.onrender.com
 ```
 
-## 4. Mobile app configuration
+## 5. Mobile app configuration
 
 Native iOS and Android apps can use this backend. CORS is a browser concern, not a native mobile
 HTTP concern, but the API still enforces Supabase bearer tokens in production.
