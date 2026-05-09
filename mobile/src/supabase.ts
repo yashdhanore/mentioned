@@ -9,6 +9,8 @@ WebBrowser.maybeCompleteAuthSession();
 
 export type AuthProvider = Extract<Provider, 'apple' | 'google'>;
 
+const AUTH_CALLBACK_PATH = 'auth/callback';
+const authRedirectUrlOverride = process.env.EXPO_PUBLIC_AUTH_REDIRECT_URL?.trim() || '';
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() || '';
 const supabasePublishableKey =
   process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() ||
@@ -53,7 +55,11 @@ function assertSupabaseConfigured(): void {
 }
 
 function authRedirectUrl(): string {
-  return Linking.createURL('auth/callback');
+  if (authRedirectUrlOverride) {
+    return authRedirectUrlOverride;
+  }
+
+  return Linking.createURL(AUTH_CALLBACK_PATH, { scheme: 'mentioned' });
 }
 
 function authErrorFromCallback(callbackUrl: string): string | null {
@@ -65,6 +71,9 @@ export async function signInWithProvider(provider: AuthProvider): Promise<void> 
   assertSupabaseConfigured();
 
   const redirectTo = authRedirectUrl();
+  if (__DEV__) {
+    console.info(`[auth] OAuth redirect URL: ${redirectTo}`);
+  }
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider,
     options: {

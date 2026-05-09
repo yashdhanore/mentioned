@@ -33,8 +33,20 @@ The mobile client persists the Supabase session locally and sends the session ac
 `Authorization: Bearer <token>` to the FastAPI backend. Production builds should set
 `EXPO_PUBLIC_APP_ENV=production`; startup then fails if the API URL is local/non-HTTPS or Supabase
 auth variables are missing. Add the app callback URL, `mentioned://auth/callback`, to the allowed
-redirect URLs in the Supabase Auth provider configuration. When testing through Expo Go or a tunnel,
-also add the callback URL printed by Expo for that session.
+redirect URLs in the Supabase Auth provider configuration.
+
+Native iOS builds and development builds use `mentioned://auth/callback` for Supabase OAuth. Expo Go
+uses an `exp://.../--/auth/callback` URL instead; if Safari says it cannot connect to the server
+after provider sign-in, run Expo with a reachable host such as `npx expo start --tunnel` and add the
+exact `[auth] OAuth redirect URL: ...` value printed in the Metro logs to Supabase Auth's allowed
+redirect URLs. You can also force a callback URL for a dev session:
+
+```bash
+EXPO_PUBLIC_AUTH_REDIRECT_URL=exp://<reachable-host>:8081/--/auth/callback npm run ios
+```
+
+When testing on a physical iPhone against a local backend, set `EXPO_PUBLIC_API_BASE_URL` to your
+Mac's LAN URL instead of `127.0.0.1`, for example `http://192.168.1.25:8000`.
 
 For the Render + Supabase backend deployment, set:
 
