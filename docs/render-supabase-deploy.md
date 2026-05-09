@@ -66,6 +66,16 @@ GEMINI_API_KEY=<Gemini API key>
 GOOGLE_BOOKS_API_KEY=<optional Google Books API key>
 ```
 
+Optional worker media limits can be set on `mentioned-worker` if you need to tune extraction:
+
+```text
+MAX_MEDIA_FILE_BYTES=52428800
+MAX_MEDIA_TOTAL_BYTES=104857600
+MEDIA_DOWNLOAD_TIMEOUT_SECONDS=120
+MEDIA_TRANSCODE_VIDEO_BITRATE=1100k
+MEDIA_TRANSCODE_AUDIO_BITRATE=96k
+```
+
 For Supabase projects using JWT Signing Keys, no `SUPABASE_JWT_SECRET` is needed. The API verifies
 RS256/ES256 access tokens with Supabase's JWKS endpoint at
 `https://<project-ref>.supabase.co/auth/v1/.well-known/jwks.json`. If a project still uses legacy

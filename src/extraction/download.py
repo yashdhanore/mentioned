@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 import shutil
 import subprocess
@@ -8,9 +9,28 @@ from typing import Any
 
 from src.config import get_settings
 
+logger = logging.getLogger(__name__)
+
+VIDEO_SUFFIXES = {".mp4", ".mov", ".m4v", ".webm", ".mkv"}
+
 
 def is_available() -> bool:
     return shutil.which("yt-dlp") is not None
+
+
+def _yt_dlp_size_limit(max_file_bytes: int) -> str:
+    mib = max(1, max_file_bytes // (1024 * 1024))
+    return f"{mib}M"
+
+
+def _default_format_selector(max_file_bytes: int) -> str:
+    size_limit = _yt_dlp_size_limit(max_file_bytes)
+    return (
+        f"best[filesize<={size_limit}]/"
+        f"best[filesize_approx<={size_limit}]/"
+        "best[height<=720]/"
+        "worst"
+    )
 
 
 def _duration_values(metadata: dict[str, Any]) -> list[float]:
@@ -62,10 +82,115 @@ def _check_size_limits(paths: list[Path], *, max_file_bytes: int, max_total_byte
     for path in paths:
         file_bytes = path.stat().st_size
         if file_bytes > max_file_bytes:
-            raise RuntimeError(f"Downloaded media file exceeds limit of {max_file_bytes} bytes")
+            raise RuntimeError(
+                f"Downloaded media file exceeds limit of {max_file_bytes} bytes "
+                f"({path.name}: {file_bytes} bytes)"
+            )
         total_bytes += file_bytes
     if total_bytes > max_total_bytes:
-        raise RuntimeError(f"Downloaded media total exceeds limit of {max_total_bytes} bytes")
+        raise RuntimeError(
+            f"Downloaded media total exceeds limit of {max_total_bytes} bytes "
+            f"({total_bytes} bytes)"
+        )
+
+
+def _compress_video(
+    path: Path,
+    *,
+    timeout_seconds: int,
+    video_bitrate: str,
+    audio_bitrate: str,
+) -> Path:
+    compressed_path = path.with_name(f"{path.stem}.compressed.mp4")
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(path),
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-b:v",
+            video_bitrate,
+            "-maxrate",
+            video_bitrate,
+            "-bufsize",
+            "2M",
+            "-c:a",
+            "aac",
+            "-b:a",
+            audio_bitrate,
+            "-movflags",
+            "+faststart",
+            str(compressed_path),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=timeout_seconds,
+    )
+    return compressed_path
+
+
+def _compress_oversized_video(
+    path: Path,
+    *,
+    max_file_bytes: int,
+    timeout_seconds: int,
+    video_bitrate: str,
+    audio_bitrate: str,
+) -> Path:
+    if path.stat().st_size <= max_file_bytes:
+        return path
+    if path.suffix.lower() not in VIDEO_SUFFIXES:
+        return path
+    if shutil.which("ffmpeg") is None:
+        logger.warning("ffmpeg is unavailable; cannot compress oversized media %s", path.name)
+        return path
+
+    logger.info("Compressing oversized media %s before extraction", path.name)
+    try:
+        compressed_path = _compress_video(
+            path,
+            timeout_seconds=timeout_seconds,
+            video_bitrate=video_bitrate,
+            audio_bitrate=audio_bitrate,
+        )
+    except (subprocess.SubprocessError, OSError) as exc:
+        logger.warning("Failed to compress oversized media %s: %s", path.name, exc)
+        return path
+
+    if not compressed_path.exists():
+        logger.warning("ffmpeg completed without producing %s", compressed_path.name)
+        return path
+    if compressed_path.stat().st_size >= path.stat().st_size:
+        logger.warning("Compressed media is not smaller than source: %s", compressed_path.name)
+        return path
+
+    path.unlink(missing_ok=True)
+    return compressed_path
+
+
+def _compress_oversized_media(
+    paths: list[Path],
+    *,
+    max_file_bytes: int,
+    timeout_seconds: int,
+    video_bitrate: str,
+    audio_bitrate: str,
+) -> list[Path]:
+    return [
+        _compress_oversized_video(
+            path,
+            max_file_bytes=max_file_bytes,
+            timeout_seconds=timeout_seconds,
+            video_bitrate=video_bitrate,
+            audio_bitrate=audio_bitrate,
+        )
+        for path in paths
+    ]
 
 
 def download_assets(url: str, output_dir: Path) -> list[Path]:
@@ -79,10 +204,20 @@ def download_assets(url: str, output_dir: Path) -> list[Path]:
     )
     output_dir.mkdir(parents=True, exist_ok=True)
     output_template = output_dir / "media_%(autonumber)03d.%(ext)s"
+    raw_size_limit = _yt_dlp_size_limit(
+        max(settings.max_media_file_bytes, settings.max_media_total_bytes)
+    )
+    format_selector = settings.media_download_format or _default_format_selector(
+        settings.max_media_file_bytes
+    )
     completed = subprocess.run(
         [
             "yt-dlp",
             "--no-progress",
+            "--format",
+            format_selector,
+            "--max-filesize",
+            raw_size_limit,
             "--print",
             "after_move:filepath",
             "-o",
@@ -98,6 +233,13 @@ def download_assets(url: str, output_dir: Path) -> list[Path]:
     if not output_lines:
         raise RuntimeError("yt-dlp did not report any output paths")
     paths = [Path(line) for line in output_lines]
+    paths = _compress_oversized_media(
+        paths,
+        max_file_bytes=settings.max_media_file_bytes,
+        timeout_seconds=settings.media_download_timeout_seconds,
+        video_bitrate=settings.media_transcode_video_bitrate,
+        audio_bitrate=settings.media_transcode_audio_bitrate,
+    )
     _check_size_limits(
         paths,
         max_file_bytes=settings.max_media_file_bytes,
