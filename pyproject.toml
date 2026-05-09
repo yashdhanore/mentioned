@@ -1,14 +1,16 @@
 [project]
 name = "mentioned-backend"
-version = "0.1.0"
-description = "Backend validation scaffold for extracting readable text from Instagram URLs."
+version = "0.2.0"
+description = "Backend for extracting mentioned books, products, and places from Instagram content."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "alembic>=1.13.0",
     "fastapi[standard]>=0.115.0",
+    "google-genai>=1.55.0",
     "httpx>=0.27.0",
-    "openai>=2.31.0",
-    "pillow>=10.0.0",
+    "psycopg[binary]>=3.2.0",
+    "pyjwt[crypto]>=2.8.0",
     "python-dotenv>=1.0.0",
     "sqlmodel>=0.0.22",
 ]
@@ -16,16 +18,24 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "respx>=0.21.0",
 ]
 
 [project.scripts]
-mentioned-worker = "worker.run:main"
+mentioned-worker = "src.worker:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+exclude = ["data*", "evals*", "migrations*", "tests*"]
 
 [tool.fastapi]
-entrypoint = "app.main:app"
+entrypoint = "src.main:app"
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+asyncio_mode = "auto"
 
 [build-system]
 requires = ["setuptools>=68.0"]
