@@ -7,7 +7,7 @@ import 'react-native-url-polyfill/auto';
 
 WebBrowser.maybeCompleteAuthSession();
 
-export type AuthProvider = Extract<Provider, 'apple' | 'google'>;
+export type AuthProvider = Extract<Provider, 'google'>;
 
 const AUTH_CALLBACK_PATH = 'auth/callback';
 const authRedirectUrlOverride = process.env.EXPO_PUBLIC_AUTH_REDIRECT_URL?.trim() || '';

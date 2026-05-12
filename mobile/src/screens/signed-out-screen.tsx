@@ -1,22 +1,18 @@
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, Text, View } from 'react-native';
 
-import { InlineMessage, PrimaryButton, SecondaryButton } from '@/components/ui';
+import { InlineMessage, PrimaryButton } from '@/components/ui';
 import { styles } from '@/styles';
 
 export function SignedOutScreen({
   error,
-  isAppleLoading,
   isGoogleLoading,
   isDisabled,
-  onContinueApple,
   onContinueGoogle,
 }: {
   error: string | null;
-  isAppleLoading: boolean;
   isGoogleLoading: boolean;
   isDisabled: boolean;
-  onContinueApple: () => void;
   onContinueGoogle: () => void;
 }) {
   return (
@@ -37,11 +33,6 @@ export function SignedOutScreen({
         <View style={styles.authActions}>
           {error ? <InlineMessage tone="error" message={error} /> : null}
           <PrimaryButton
-            label={isAppleLoading ? 'Signing in...' : 'Continue with Apple'}
-            onPress={onContinueApple}
-            disabled={isDisabled}
-          />
-          <SecondaryButton
             label={isGoogleLoading ? 'Signing in...' : 'Continue with Google'}
             onPress={onContinueGoogle}
             disabled={isDisabled}

@@ -146,10 +146,8 @@ export default function App() {
     return (
       <SignedOutScreen
         error={authError}
-        isAppleLoading={authProviderInFlight === 'apple'}
         isGoogleLoading={authProviderInFlight === 'google'}
         isDisabled={authProviderInFlight !== null}
-        onContinueApple={() => void handleSignIn('apple')}
         onContinueGoogle={() => void handleSignIn('google')}
       />
     );

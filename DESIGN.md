@@ -350,7 +350,7 @@ Phone mockups and system sheets may have platform-native rounding, but in-app ca
 
 **Manual paste:** Include manual paste as a secondary capture action for copied links, testing, and share-sheet fallback. Do not place a large URL input on the home screen by default. Prefer a small top-nav plus action or Paste link button that opens a compact sheet.
 
-**Signed-out state:** Include one lightweight signed-out screen in product mockups. Use a concise explanation of the app and two primary auth options: Continue with Apple and Continue with Google. Do not overdesign onboarding in v1; the signed-in saved-Reel flow is the main product.
+**Signed-out state:** Include one lightweight signed-out screen in product mockups. Use a concise explanation of the app and one primary auth option: Continue with Google. Do not overdesign onboarding in v1; the signed-in saved-Reel flow is the main product.
 
 **Share extension mockup:** Include a generic iOS-style Share to Mentioned sheet in mockups so the handoff is obvious. The source app should be represented generically as a social Reel, not with exact Instagram UI, logos, brand colors, or copied platform chrome.
 
