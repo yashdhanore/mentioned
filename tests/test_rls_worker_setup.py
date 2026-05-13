@@ -161,3 +161,40 @@ def test_book_migration_adds_books_table_and_nullable_mention_link() -> None:
     assert "books_provider_volume_unique_idx" in migration
     assert "GRANT SELECT ON TABLE public.books TO mentioned_api" in migration
     assert "GRANT SELECT, INSERT, UPDATE ON TABLE public.books TO mentioned_worker" in migration
+
+
+def test_extract_jobs_queue_migration_has_role_scoped_permissions() -> None:
+    migration = (
+        Path(__file__).resolve().parents[1]
+        / "migrations"
+        / "versions"
+        / "20260512_0006_extract_jobs_queue.py"
+    ).read_text()
+
+    assert "create extension if not exists pgmq" in migration
+    assert "pgmq.create('extract_jobs')" in migration
+    assert "GRANT USAGE ON SCHEMA pgmq TO mentioned_api, mentioned_worker" in migration
+    assert "GRANT EXECUTE ON FUNCTION pgmq.send(text, jsonb, integer) TO mentioned_api" in migration
+    assert (
+        "GRANT EXECUTE ON FUNCTION pgmq.read_with_poll"
+        "(text, integer, integer, integer, integer, jsonb)" in migration
+    )
+    assert "GRANT EXECUTE ON FUNCTION pgmq.archive(text, bigint) TO mentioned_worker" in migration
+    assert "GRANT USAGE ON TYPE pgmq.message_record TO mentioned_worker" in migration
+    assert "GRANT SELECT, INSERT ON TABLE pgmq.q_extract_jobs TO mentioned_api" in migration
+    assert "GRANT SELECT, UPDATE, DELETE ON TABLE pgmq.q_extract_jobs TO mentioned_worker" in migration
+    assert "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA pgmq TO mentioned_api, mentioned_worker" in migration
+    assert "anon" not in migration
+    assert "authenticated" not in migration
+
+
+def test_extract_jobs_archive_grant_migration_allows_returning_archive_rows() -> None:
+    migration = (
+        Path(__file__).resolve().parents[1]
+        / "migrations"
+        / "versions"
+        / "20260513_0007_extract_jobs_archive_select_grant.py"
+    ).read_text()
+
+    assert "GRANT SELECT ON TABLE pgmq.a_extract_jobs TO mentioned_worker" in migration
+    assert "REVOKE SELECT ON TABLE pgmq.a_extract_jobs FROM mentioned_worker" in migration

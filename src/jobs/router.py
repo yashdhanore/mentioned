@@ -26,7 +26,7 @@ router = APIRouter(tags=["jobs"])
 
 
 @router.post("/v1/jobs", status_code=status.HTTP_202_ACCEPTED)
-async def create_job(
+def create_job(
     body: CreateJobRequest,
     caller: CallerDep,
     session: SessionDep,
@@ -56,7 +56,7 @@ async def create_job(
     if daily_count >= settings.max_jobs_created_per_day:
         raise QuotaExceeded()
 
-    job = job_service.create_job(session, caller.subject_id, source_url)
+    job = job_service.create_queued_job(session, caller.subject_id, source_url)
     return JobCreatedResponse(job_id=str(job.id), status=job.status)
 
 

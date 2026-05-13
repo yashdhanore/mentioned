@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from uuid import UUID
 
 import pytest
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import Session, SQLModel, create_engine, select
 
 from src.jobs.models import Job, JobStatus
 from src.jobs.service import (
@@ -12,6 +12,7 @@ from src.jobs.service import (
     complete_job,
     count_active_jobs,
     count_jobs_created_since,
+    create_queued_job,
     create_job,
     fail_job,
     recover_stale_jobs,
@@ -44,6 +45,33 @@ def test_create_job(session):
     assert str(job.owner_id) == OWNER
     assert job.status == JobStatus.PENDING
     assert job.source_url == "https://instagram.com/reel/ABC123/"
+
+
+def test_create_queued_job_enqueues_extract_job(session, monkeypatch):
+    enqueued = []
+
+    def fake_enqueue(session_arg: Session, job_id) -> None:
+        assert session_arg is session
+        enqueued.append(str(job_id))
+
+    monkeypatch.setattr("src.jobs.service.enqueue_extract_job", fake_enqueue)
+
+    job = create_queued_job(session, OWNER, "https://instagram.com/reel/ABC123/")
+
+    assert enqueued == [str(job.id)]
+    assert session.get(Job, job.id) is not None
+
+
+def test_create_queued_job_rolls_back_when_enqueue_fails(session, monkeypatch):
+    def fail_enqueue(_session: Session, _job_id) -> None:
+        raise RuntimeError("queue unavailable")
+
+    monkeypatch.setattr("src.jobs.service.enqueue_extract_job", fail_enqueue)
+
+    with pytest.raises(RuntimeError, match="queue unavailable"):
+        create_queued_job(session, OWNER, "https://instagram.com/reel/ABC123/")
+
+    assert list(session.exec(select(Job)).all()) == []
 
 
 def test_claim_next_job(session):

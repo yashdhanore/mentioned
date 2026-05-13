@@ -7,6 +7,7 @@ os.environ["TRUSTED_HOSTS"] = ""
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine
 
 from src.auth.dependencies import get_current_caller
@@ -15,7 +16,11 @@ from src.database import get_session
 from src.main import app
 
 
-TEST_ENGINE = create_engine("sqlite://", connect_args={"check_same_thread": False})
+TEST_ENGINE = create_engine(
+    "sqlite://",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
 TEST_USER_ID = "00000000-0000-4000-8000-000000000001"
 
 

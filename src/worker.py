@@ -13,8 +13,20 @@ from src.database import check_worker_database_role, create_sql_engine, engine
 from src.extraction.google_books import find_google_book
 from src.extraction.pipeline import run_pipeline
 from src.extraction.schemas import GoogleBook
-from src.jobs.models import Job
-from src.jobs.service import claim_next_job, complete_job, fail_job, recover_stale_jobs
+from src.jobs.models import Job, JobStatus
+from src.jobs.queue import (
+    ExtractJobMessage,
+    archive_extract_job_message,
+    read_extract_job_messages,
+)
+from src.jobs.service import (
+    claim_job_by_id,
+    claim_next_job,
+    complete_job,
+    fail_job,
+    get_job,
+    recover_stale_jobs,
+)
 from src.mentions.models import Mention
 
 logger = logging.getLogger(__name__)
@@ -78,17 +90,69 @@ def resolve_worker_engine(settings: Settings) -> Engine:
     return engine
 
 
-def run_worker() -> None:
-    settings = get_settings()
+def process_extract_job_message(
+    message: ExtractJobMessage,
+    worker_engine: Engine,
+    settings: Settings,
+) -> None:
+    with Session(worker_engine) as session:
+        job = get_job(session, message.job_id)
+        if not job:
+            logger.warning(
+                "Archiving queue message %s for missing job %s",
+                message.msg_id,
+                message.job_id,
+            )
+            archive_extract_job_message(session, message.msg_id)
+            session.commit()
+            return
+        if job.status != JobStatus.PENDING:
+            logger.info(
+                "Archiving queue message %s for terminal job %s (%s)",
+                message.msg_id,
+                job.id,
+                job.status,
+            )
+            archive_extract_job_message(session, message.msg_id)
+            session.commit()
+            return
+        if job.locked_by is not None:
+            logger.info(
+                "Leaving queue message %s unarchived for locked job %s",
+                message.msg_id,
+                job.id,
+            )
+            return
+
+        job = claim_job_by_id(session, message.job_id, settings.worker_id)
+        if not job:
+            logger.info("Queue job %s was claimed by another worker", message.job_id)
+            return
+
+    logger.info("Claimed queued job %s (%s)", job.id, job.source_url)
+    with Session(worker_engine) as session:
+        job = session.get(Job, job.id)
+        if not job:
+            logger.warning(
+                "Archiving queue message %s for missing claimed job %s",
+                message.msg_id,
+                message.job_id,
+            )
+            archive_extract_job_message(session, message.msg_id)
+            session.commit()
+            return
+        process_job(job, session)
+        archive_extract_job_message(session, message.msg_id)
+        session.commit()
+        logger.info("Archived queue message %s for job %s", message.msg_id, job.id)
+
+
+def _run_polling_worker(settings: Settings, worker_engine: Engine) -> None:
     worker_id = settings.worker_id
     poll_interval = settings.worker_poll_interval_seconds
     stale_timeout = settings.worker_stale_timeout_seconds
 
-    worker_engine = resolve_worker_engine(settings)
-    check_worker_database_role(worker_engine, require_postgres=settings.is_production)
-
-    logger.info("Worker %s starting (poll=%.1fs)", worker_id, poll_interval)
-
+    logger.info("Worker %s starting in polling mode (poll=%.1fs)", worker_id, poll_interval)
     while True:
         with Session(worker_engine) as session:
             recovered = recover_stale_jobs(session, stale_timeout)
@@ -107,6 +171,40 @@ def run_worker() -> None:
             if job:
                 process_job(job, session)
                 logger.info("Job %s finished with status: %s", job.id, job.status)
+
+
+def _run_queue_worker(settings: Settings, worker_engine: Engine) -> None:
+    logger.info(
+        "Worker %s starting in queue mode (visibility_timeout=%ss)",
+        settings.worker_id,
+        settings.worker_queue_visibility_timeout_seconds,
+    )
+    while True:
+        with Session(worker_engine) as session:
+            recovered = recover_stale_jobs(session, settings.worker_stale_timeout_seconds)
+            if recovered:
+                logger.info("Recovered %d stale jobs", recovered)
+            messages = read_extract_job_messages(
+                session,
+                visibility_timeout_seconds=settings.worker_queue_visibility_timeout_seconds,
+                max_poll_seconds=settings.worker_queue_max_poll_seconds,
+                poll_interval_ms=settings.worker_queue_poll_interval_ms,
+            )
+            session.commit()
+
+        for message in messages:
+            process_extract_job_message(message, worker_engine, settings)
+
+
+def run_worker() -> None:
+    settings = get_settings()
+    worker_engine = resolve_worker_engine(settings)
+    check_worker_database_role(worker_engine, require_postgres=settings.is_production)
+
+    if worker_engine.dialect.name == "postgresql":
+        _run_queue_worker(settings, worker_engine)
+        return
+    _run_polling_worker(settings, worker_engine)
 
 
 def main() -> None:
