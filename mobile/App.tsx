@@ -1,10 +1,18 @@
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
-import { SafeAreaView, useWindowDimensions } from 'react-native';
+import { AppState, SafeAreaView, useWindowDimensions } from 'react-native';
 
 import { clearAccessTokenProvider, errorMessage, setAccessTokenProvider } from '@/api';
 import { PasteSheet, ProfileSheet, ReelMenuSheet } from '@/components/sheets';
 import { useCaptures } from '@/features/captures/use-captures';
+import {
+  addNotificationTapListener,
+  addPushTokenRegistrationListener,
+  clearLastNotificationResponse,
+  disableRegisteredPushToken,
+  getLastNotificationJobId,
+  registerForPushNotificationsAsync,
+} from '@/notifications';
 import { AuthLoadingScreen } from '@/screens/auth-loading-screen';
 import { HomeScreen } from '@/screens/home-screen';
 import { ReelDetailScreen } from '@/screens/reel-detail-screen';
@@ -25,6 +33,7 @@ export default function App() {
   const [authProviderInFlight, setAuthProviderInFlight] = useState<AuthProvider | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [registeredPushToken, setRegisteredPushToken] = useState<string | null>(null);
 
   const {
     captures,
@@ -41,6 +50,7 @@ export default function App() {
     clearPasteError,
     refreshCaptures,
     openCapture,
+    openCaptureByJobId,
     submitPasteUrl,
     retryCapture,
     openSource,
@@ -88,6 +98,8 @@ export default function App() {
       setAccountLabel(session?.user.email || 'Signed in');
       if (session) {
         setAuthError(null);
+      } else {
+        setRegisteredPushToken(null);
       }
     });
 
@@ -97,6 +109,80 @@ export default function App() {
       clearAccessTokenProvider();
     };
   }, []);
+
+  useEffect(() => {
+    if (!isSignedIn) {
+      return undefined;
+    }
+
+    let isMounted = true;
+    void registerForPushNotificationsAsync().then((expoPushToken) => {
+      if (isMounted && expoPushToken) {
+        setRegisteredPushToken(expoPushToken);
+      }
+    });
+
+    const subscription = addPushTokenRegistrationListener((expoPushToken) => {
+      if (isMounted) {
+        setRegisteredPushToken(expoPushToken);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      subscription?.remove();
+    };
+  }, [isSignedIn]);
+
+  useEffect(() => {
+    if (!isSignedIn) {
+      return undefined;
+    }
+
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        void refreshCaptures({ silent: true });
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [isSignedIn, refreshCaptures]);
+
+  useEffect(() => {
+    if (!isSignedIn) {
+      return undefined;
+    }
+
+    let isMounted = true;
+    const openJobFromNotification = (jobId: string) => {
+      void openCaptureByJobId(jobId)
+        .catch(() => undefined)
+        .finally(() => {
+          void clearLastNotificationResponse().catch(() => undefined);
+        });
+    };
+
+    void getLastNotificationJobId()
+      .then((jobId) => {
+        if (isMounted && jobId) {
+          openJobFromNotification(jobId);
+        }
+      })
+      .catch(() => undefined);
+
+    const subscription = addNotificationTapListener((jobId) => {
+      if (isMounted) {
+        openJobFromNotification(jobId);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.remove();
+    };
+  }, [isSignedIn, openCaptureByJobId]);
 
   const handleSignIn = useCallback(async (provider: AuthProvider) => {
     setAuthError(null);
@@ -114,17 +200,19 @@ export default function App() {
     setProfileError(null);
     setIsSigningOut(true);
     try {
+      await disableRegisteredPushToken(registeredPushToken);
       const { error } = await supabase.auth.signOut();
       if (error) {
         throw error;
       }
+      setRegisteredPushToken(null);
       setSheet(null);
     } catch (error) {
       setProfileError(errorMessage(error, 'Could not sign out.'));
     } finally {
       setIsSigningOut(false);
     }
-  }, []);
+  }, [registeredPushToken]);
 
   const closePasteSheet = useCallback(() => {
     clearPasteError();

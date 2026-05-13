@@ -223,3 +223,28 @@ def test_job_events_migration_has_realtime_rls_and_role_scoped_permissions() -> 
     assert "supabase_realtime" in migration
     assert "pg_publication" in migration
     assert "pg_publication_tables" in migration
+
+
+def test_push_notifications_migration_has_private_tokens_and_worker_queue() -> None:
+    migration = (
+        Path(__file__).resolve().parents[1]
+        / "migrations"
+        / "versions"
+        / "20260514_0009_push_notifications.py"
+    ).read_text()
+
+    assert 'op.create_table(\n        "push_tokens"' in migration
+    assert "ALTER TABLE public.push_tokens ENABLE ROW LEVEL SECURITY" in migration
+    assert "REVOKE ALL ON TABLE public.push_tokens FROM anon, authenticated" in migration
+    assert "GRANT SELECT, INSERT, UPDATE ON TABLE public.push_tokens TO mentioned_api" in migration
+    assert "GRANT SELECT, UPDATE ON TABLE public.push_tokens TO mentioned_worker" in migration
+    assert "CREATE POLICY push_tokens_api_owner_select ON public.push_tokens" in migration
+    assert "current_setting('app.current_user_id', true)::uuid" in migration
+    assert "CREATE POLICY push_tokens_worker_select ON public.push_tokens" in migration
+    assert "CREATE POLICY push_tokens_worker_update ON public.push_tokens" in migration
+    assert "pgmq.create('push_notifications')" in migration
+    assert "GRANT EXECUTE ON FUNCTION pgmq.send(text, jsonb, integer) TO mentioned_worker" in migration
+    assert "GRANT EXECUTE ON FUNCTION pgmq.read(text, integer, integer, jsonb) TO mentioned_worker" in migration
+    assert "GRANT EXECUTE ON FUNCTION pgmq.archive(text, bigint) TO mentioned_worker" in migration
+    assert "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE pgmq.q_push_notifications TO mentioned_worker" in migration
+    assert "GRANT SELECT, INSERT ON TABLE pgmq.a_push_notifications TO mentioned_worker" in migration

@@ -77,6 +77,8 @@ export type JobListItem = {
   created_at: string;
 };
 
+export type PushPlatform = 'ios' | 'android';
+
 type ApiErrorPayload = {
   error_code?: string;
   message?: string;
@@ -170,4 +172,25 @@ export async function listAllJobs(): Promise<JobListItem[]> {
 
 export async function getJob(jobId: string): Promise<JobResponse> {
   return requestJson<JobResponse>(`/v1/jobs/${jobId}`);
+}
+
+// --- Push notifications ---
+
+export async function registerPushToken(
+  expoPushToken: string,
+  platform: PushPlatform,
+): Promise<{ registered: boolean }> {
+  return requestJson<{ registered: boolean }>('/v1/push-tokens', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ expo_push_token: expoPushToken, platform }),
+  });
+}
+
+export async function disablePushToken(expoPushToken: string): Promise<{ disabled: boolean }> {
+  return requestJson<{ disabled: boolean }>('/v1/push-tokens/disable', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ expo_push_token: expoPushToken }),
+  });
 }

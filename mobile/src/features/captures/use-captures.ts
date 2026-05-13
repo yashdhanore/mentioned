@@ -30,6 +30,7 @@ type UseCapturesResult = {
   clearPasteError: () => void;
   refreshCaptures: (options?: { silent?: boolean }) => Promise<void>;
   openCapture: (capture: Capture) => void;
+  openCaptureByJobId: (jobId: string) => Promise<void>;
   submitPasteUrl: () => Promise<boolean>;
   retryCapture: (capture: Capture) => Promise<void>;
   openSource: (capture: Capture) => Promise<void>;
@@ -50,12 +51,21 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
     return captures.find((capture) => capture.id === selectedCaptureId) ?? null;
   }, [captures, selectedCaptureId]);
 
-  const refreshCaptureById = useCallback(async (jobId: string) => {
+  const refreshCaptureById = useCallback(async (jobId: string, options: { select?: boolean } = {}) => {
     const job = await getJob(jobId);
     const updated = captureFromJobDetail(job);
-    setCaptures((current) =>
-      current.map((item) => (item.id === jobId ? { ...updated, thumbnailUrl: item.thumbnailUrl } : item)),
-    );
+    setCaptures((current) => {
+      const existing = current.find((item) => item.id === jobId);
+      if (!existing) {
+        return [updated, ...current];
+      }
+      return current.map((item) =>
+        item.id === jobId ? { ...updated, thumbnailUrl: item.thumbnailUrl } : item,
+      );
+    });
+    if (options.select) {
+      setSelectedCaptureId(jobId);
+    }
   }, []);
 
   const refreshCaptures = useCallback(
@@ -155,6 +165,14 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
     [refreshCaptureById],
   );
 
+  const openCaptureByJobId = useCallback(
+    async (jobId: string) => {
+      setActionError(null);
+      await refreshCaptureById(jobId, { select: true });
+    },
+    [refreshCaptureById],
+  );
+
   const setPasteUrl = useCallback((value: string) => {
     setPasteError(null);
     setPasteUrlState(value);
@@ -241,6 +259,7 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
     clearPasteError,
     refreshCaptures,
     openCapture,
+    openCaptureByJobId,
     submitPasteUrl,
     retryCapture,
     openSource,

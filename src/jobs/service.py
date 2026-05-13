@@ -10,6 +10,7 @@ from src.ids import parse_uuid
 from src.jobs.models import Job, JobEvent, JobEventType, JobStatus
 from src.jobs.queue import enqueue_extract_job
 from src.mentions.models import Mention
+from src.push.queue import enqueue_push_notification
 
 
 def _new_job(owner_id: str, source_url: str) -> Job:
@@ -121,6 +122,7 @@ def complete_job(session: Session, job: Job, mentions: list[Mention]) -> None:
     for mention in mentions:
         session.add(mention)
     _add_job_event(session, job, JobEventType.JOB_DONE)
+    enqueue_push_notification(session, job.id)
     session.commit()
 
 
@@ -132,6 +134,7 @@ def fail_job(session: Session, job: Job, error: str) -> None:
     job.locked_at = None
     session.add(job)
     _add_job_event(session, job, JobEventType.JOB_FAILED)
+    enqueue_push_notification(session, job.id)
     session.commit()
 
 

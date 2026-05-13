@@ -28,6 +28,16 @@ from src.jobs.service import (
     recover_stale_jobs,
 )
 from src.mentions.models import Mention
+from src.push.expo import PushDeliveryRetryableError, send_job_push_notifications
+from src.push.queue import (
+    PushNotificationMessage,
+    archive_push_notification_message,
+    read_push_notification_messages,
+)
+from src.push.service import (
+    disable_push_token_value,
+    list_active_push_tokens,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -147,6 +157,60 @@ def process_extract_job_message(
         logger.info("Archived queue message %s for job %s", message.msg_id, job.id)
 
 
+def process_push_notification_message(
+    message: PushNotificationMessage,
+    worker_engine: Engine,
+) -> None:
+    with Session(worker_engine) as session:
+        job = get_job(session, message.job_id)
+        if not job:
+            logger.warning(
+                "Archiving push message %s for missing job %s",
+                message.msg_id,
+                message.job_id,
+            )
+            archive_push_notification_message(session, message.msg_id)
+            session.commit()
+            return
+        if job.status == JobStatus.PENDING:
+            logger.info(
+                "Leaving push message %s unarchived for pending job %s",
+                message.msg_id,
+                job.id,
+            )
+            return
+        tokens = list_active_push_tokens(session, job.owner_id)
+
+    try:
+        result = send_job_push_notifications(job, tokens)
+    except PushDeliveryRetryableError as exc:
+        logger.warning(
+            "Leaving push message %s unarchived after retryable delivery failure: %s",
+            message.msg_id,
+            exc,
+        )
+        return
+
+    with Session(worker_engine) as session:
+        for expo_push_token in result.disabled_tokens:
+            disable_push_token_value(session, expo_push_token)
+        archive_push_notification_message(session, message.msg_id)
+        session.commit()
+        logger.info("Archived push message %s for job %s", message.msg_id, job.id)
+
+
+def _drain_push_notifications(settings: Settings, worker_engine: Engine) -> None:
+    with Session(worker_engine) as session:
+        messages = read_push_notification_messages(
+            session,
+            visibility_timeout_seconds=settings.worker_queue_visibility_timeout_seconds,
+        )
+        session.commit()
+
+    for message in messages:
+        process_push_notification_message(message, worker_engine)
+
+
 def _run_polling_worker(settings: Settings, worker_engine: Engine) -> None:
     worker_id = settings.worker_id
     poll_interval = settings.worker_poll_interval_seconds
@@ -194,6 +258,7 @@ def _run_queue_worker(settings: Settings, worker_engine: Engine) -> None:
 
         for message in messages:
             process_extract_job_message(message, worker_engine, settings)
+        _drain_push_notifications(settings, worker_engine)
 
 
 def run_worker() -> None:

@@ -108,6 +108,21 @@ def test_complete_job(session):
     assert events[0].event_type == JobEventType.JOB_DONE
 
 
+def test_complete_job_enqueues_push_notification(session, monkeypatch):
+    enqueued = []
+    job = create_job(session, OWNER, "https://instagram.com/reel/ABC123/")
+    job = claim_next_job(session, "worker-1")
+
+    def fake_enqueue(_session: Session, job_id) -> None:
+        enqueued.append(str(job_id))
+
+    monkeypatch.setattr("src.jobs.service.enqueue_push_notification", fake_enqueue)
+
+    complete_job(session, job, [])
+
+    assert enqueued == [str(job.id)]
+
+
 def test_fail_job(session):
     job = create_job(session, OWNER, "https://instagram.com/reel/ABC123/")
     job = claim_next_job(session, "worker-1")
@@ -120,6 +135,21 @@ def test_fail_job(session):
     assert events[0].owner_id == OWNER_UUID
     assert events[0].job_id == job.id
     assert events[0].event_type == JobEventType.JOB_FAILED
+
+
+def test_fail_job_enqueues_push_notification(session, monkeypatch):
+    enqueued = []
+    job = create_job(session, OWNER, "https://instagram.com/reel/ABC123/")
+    job = claim_next_job(session, "worker-1")
+
+    def fake_enqueue(_session: Session, job_id) -> None:
+        enqueued.append(str(job_id))
+
+    monkeypatch.setattr("src.jobs.service.enqueue_push_notification", fake_enqueue)
+
+    fail_job(session, job, "Download failed")
+
+    assert enqueued == [str(job.id)]
 
 
 def test_count_active_jobs(session):
