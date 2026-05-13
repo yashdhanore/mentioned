@@ -7,7 +7,7 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 
 from src.ids import parse_uuid
-from src.jobs.models import Job, JobStatus
+from src.jobs.models import Job, JobEvent, JobEventType, JobStatus
 from src.jobs.queue import enqueue_extract_job
 from src.mentions.models import Mention
 
@@ -101,6 +101,17 @@ def claim_job_by_id(session: Session, job_id: str | UUID, worker_id: str) -> Job
     return job
 
 
+def _add_job_event(session: Session, job: Job, event_type: JobEventType) -> None:
+    session.add(
+        JobEvent(
+            owner_id=job.owner_id,
+            job_id=job.id,
+            event_type=event_type,
+            created_at=datetime.utcnow(),
+        )
+    )
+
+
 def complete_job(session: Session, job: Job, mentions: list[Mention]) -> None:
     job.status = JobStatus.DONE
     job.finished_at = datetime.utcnow()
@@ -109,6 +120,7 @@ def complete_job(session: Session, job: Job, mentions: list[Mention]) -> None:
     session.add(job)
     for mention in mentions:
         session.add(mention)
+    _add_job_event(session, job, JobEventType.JOB_DONE)
     session.commit()
 
 
@@ -119,6 +131,7 @@ def fail_job(session: Session, job: Job, error: str) -> None:
     job.locked_by = None
     job.locked_at = None
     session.add(job)
+    _add_job_event(session, job, JobEventType.JOB_FAILED)
     session.commit()
 
 

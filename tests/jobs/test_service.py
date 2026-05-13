@@ -6,7 +6,7 @@ from uuid import UUID
 import pytest
 from sqlmodel import Session, SQLModel, create_engine, select
 
-from src.jobs.models import Job, JobStatus
+from src.jobs.models import Job, JobEvent, JobEventType, JobStatus
 from src.jobs.service import (
     claim_next_job,
     complete_job,
@@ -101,6 +101,11 @@ def test_complete_job(session):
     assert refreshed.status == JobStatus.DONE
     assert refreshed.finished_at is not None
     assert refreshed.locked_by is None
+    events = list(session.exec(select(JobEvent)).all())
+    assert len(events) == 1
+    assert events[0].owner_id == OWNER_UUID
+    assert events[0].job_id == job.id
+    assert events[0].event_type == JobEventType.JOB_DONE
 
 
 def test_fail_job(session):
@@ -110,6 +115,11 @@ def test_fail_job(session):
     refreshed = session.get(Job, job.id)
     assert refreshed.status == JobStatus.FAILED
     assert refreshed.error_message == "Download failed"
+    events = list(session.exec(select(JobEvent)).all())
+    assert len(events) == 1
+    assert events[0].owner_id == OWNER_UUID
+    assert events[0].job_id == job.id
+    assert events[0].event_type == JobEventType.JOB_FAILED
 
 
 def test_count_active_jobs(session):

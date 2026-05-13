@@ -8,7 +8,12 @@ import {
   captureFromJobDetail,
   type Capture,
 } from '@/captures';
+import { isSupabaseConfigured, supabase } from '@/supabase';
 import { isAllowedInstagramUrl } from '@/utils/source-url';
+
+type JobEventRecord = {
+  job_id?: string;
+};
 
 type UseCapturesResult = {
   captures: Capture[];
@@ -90,20 +95,53 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
   }, [isSignedIn, refreshCaptures]);
 
   useEffect(() => {
-    const processingIds = captures
-      .filter((capture) => capture.status === 'processing')
-      .map((capture) => capture.id);
-
-    if (!isSignedIn || processingIds.length === 0) {
+    if (!isSignedIn || !isSupabaseConfigured) {
       return undefined;
     }
 
-    const intervalId = setInterval(() => {
-      void Promise.all(processingIds.map(refreshCaptureById)).catch(() => undefined);
-    }, 4000);
+    let isActive = true;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
 
-    return () => clearInterval(intervalId);
-  }, [captures, isSignedIn, refreshCaptureById]);
+    void supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!isActive) {
+          return;
+        }
+
+        const userId = data.session?.user.id;
+        if (!userId) {
+          return;
+        }
+
+        channel = supabase
+          .channel(`mentioned-job-events:${userId}`)
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'job_events',
+              filter: `owner_id=eq.${userId}`,
+            },
+            (payload) => {
+              const event = payload.new as JobEventRecord;
+              if (event.job_id) {
+                void refreshCaptureById(event.job_id).catch(() => undefined);
+              }
+            },
+          )
+          .subscribe();
+      })
+      .catch(() => undefined);
+
+    return () => {
+      isActive = false;
+      if (channel) {
+        void supabase.removeChannel(channel);
+      }
+    };
+  }, [isSignedIn, refreshCaptureById]);
 
   const openCapture = useCallback(
     (capture: Capture) => {

@@ -14,6 +14,11 @@ class JobStatus(StrEnum):
     FAILED = "failed"
 
 
+class JobEventType(StrEnum):
+    JOB_DONE = "job_done"
+    JOB_FAILED = "job_failed"
+
+
 class Job(SQLModel, table=True):
     __tablename__ = "jobs"
 
@@ -27,3 +32,19 @@ class Job(SQLModel, table=True):
     locked_by: Optional[str] = Field(default=None)
     locked_at: Optional[datetime] = Field(default=None)
     heartbeat_at: Optional[datetime] = Field(default=None)
+
+
+class JobEvent(SQLModel, table=True):
+    __tablename__ = "job_events"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    owner_id: UUID = Field(nullable=False, index=True)
+    job_id: UUID = Field(
+        nullable=False,
+        foreign_key="jobs.id",
+        ondelete="CASCADE",
+        unique=True,
+        index=True,
+    )
+    event_type: str = Field(nullable=False)
+    created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)

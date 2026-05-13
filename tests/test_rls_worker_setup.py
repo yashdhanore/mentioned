@@ -198,3 +198,28 @@ def test_extract_jobs_archive_grant_migration_allows_returning_archive_rows() ->
 
     assert "GRANT SELECT ON TABLE pgmq.a_extract_jobs TO mentioned_worker" in migration
     assert "REVOKE SELECT ON TABLE pgmq.a_extract_jobs FROM mentioned_worker" in migration
+
+
+def test_job_events_migration_has_realtime_rls_and_role_scoped_permissions() -> None:
+    migration = (
+        Path(__file__).resolve().parents[1]
+        / "migrations"
+        / "versions"
+        / "20260513_0008_job_events.py"
+    ).read_text()
+
+    assert 'op.create_table(\n        "job_events"' in migration
+    assert 'sa.UniqueConstraint("job_id", name="job_events_job_id_key")' in migration
+    assert "ondelete=\"CASCADE\"" in migration
+    assert "event_type in ('job_done', 'job_failed')" in migration
+    assert "ALTER TABLE public.job_events ENABLE ROW LEVEL SECURITY" in migration
+    assert "REVOKE ALL ON TABLE public.job_events FROM anon, authenticated" in migration
+    assert "GRANT SELECT ON TABLE public.job_events TO authenticated" in migration
+    assert "GRANT INSERT ON TABLE public.job_events TO mentioned_worker" in migration
+    assert "CREATE POLICY job_events_owner_select ON public.job_events" in migration
+    assert "USING (owner_id = auth.uid())" in migration
+    assert "CREATE POLICY job_events_worker_insert ON public.job_events" in migration
+    assert "WITH CHECK (true)" in migration
+    assert "supabase_realtime" in migration
+    assert "pg_publication" in migration
+    assert "pg_publication_tables" in migration
