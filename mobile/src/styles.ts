@@ -53,6 +53,15 @@ export const styles = StyleSheet.create({
   authActions: {
     gap: spacing.md,
   },
+  authLink: {
+    alignSelf: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  authLinkText: {
+    ...typography.labelMd,
+    color: colors.secondary,
+  },
   topNav: {
     alignItems: 'center',
     flexDirection: 'row',

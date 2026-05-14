@@ -7,6 +7,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import * as Linking from 'expo-linking';
 
 import { styles } from '@/styles';
 import { colors } from '@/theme';
@@ -19,6 +20,7 @@ export function ProfileSheet({
   isSigningOut,
   onClose,
   onSignOut,
+  privacyPolicyUrl,
 }: {
   visible: boolean;
   accountLabel: string;
@@ -26,6 +28,7 @@ export function ProfileSheet({
   isSigningOut: boolean;
   onClose: () => void;
   onSignOut: () => void;
+  privacyPolicyUrl: string | null;
 }) {
   return (
     <BottomSheet visible={visible} onClose={onClose}>
@@ -33,6 +36,9 @@ export function ProfileSheet({
       <Text style={styles.accountEmail}>{accountLabel}</Text>
       {error ? <InlineMessage tone="error" message={error} /> : null}
       <View style={styles.sheetMenu}>
+        {privacyPolicyUrl ? (
+          <SheetRow label="Privacy Policy" onPress={() => void Linking.openURL(privacyPolicyUrl)} />
+        ) : null}
         <SheetRow label={isSigningOut ? 'Signing out...' : 'Sign out'} onPress={onSignOut} disabled={isSigningOut} />
       </View>
     </BottomSheet>

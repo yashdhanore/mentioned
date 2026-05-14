@@ -1,5 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView, Text, View } from 'react-native';
+import * as Linking from 'expo-linking';
+import { Pressable, SafeAreaView, Text, View } from 'react-native';
 
 import { InlineMessage, PrimaryButton } from '@/components/ui';
 import { styles } from '@/styles';
@@ -9,11 +10,13 @@ export function SignedOutScreen({
   isGoogleLoading,
   isDisabled,
   onContinueGoogle,
+  privacyPolicyUrl,
 }: {
   error: string | null;
   isGoogleLoading: boolean;
   isDisabled: boolean;
   onContinueGoogle: () => void;
+  privacyPolicyUrl: string | null;
 }) {
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -37,6 +40,15 @@ export function SignedOutScreen({
             onPress={onContinueGoogle}
             disabled={isDisabled}
           />
+          {privacyPolicyUrl ? (
+            <Pressable
+              accessibilityRole="link"
+              style={({ pressed }) => [styles.authLink, pressed && styles.pressed]}
+              onPress={() => void Linking.openURL(privacyPolicyUrl)}
+            >
+              <Text style={styles.authLinkText}>Privacy Policy</Text>
+            </Pressable>
+          ) : null}
         </View>
       </View>
     </SafeAreaView>

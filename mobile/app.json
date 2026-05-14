@@ -14,9 +14,14 @@
       "backgroundColor": "#F6F8F5"
     },
     "ios": {
+      "bundleIdentifier": "com.yashd18.mentioned",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      },
       "supportsTablet": false
     },
     "android": {
+      "package": "com.yashd18.mentioned",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#F6F8F5"

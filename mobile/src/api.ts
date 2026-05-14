@@ -4,6 +4,9 @@ export const API_BASE_URL = (
   process.env.EXPO_PUBLIC_API_BASE_URL?.trim() || DEFAULT_API_BASE_URL
 ).replace(/\/+$/, '');
 
+export const PRIVACY_POLICY_URL =
+  process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL?.trim().replace(/\/+$/, '') || null;
+
 type AccessTokenProvider = () => Promise<string | null> | string | null;
 
 let accessTokenProvider: AccessTokenProvider | null = null;
@@ -42,6 +45,21 @@ function validateRuntimeConfig(): void {
 
   if (parsedUrl.protocol !== 'https:' || isLocalHost(parsedUrl.hostname)) {
     throw new Error('Production mobile builds require a non-local HTTPS API base URL.');
+  }
+
+  if (!PRIVACY_POLICY_URL) {
+    throw new Error('Production mobile builds require EXPO_PUBLIC_PRIVACY_POLICY_URL.');
+  }
+
+  let parsedPrivacyUrl: URL;
+  try {
+    parsedPrivacyUrl = new URL(PRIVACY_POLICY_URL);
+  } catch {
+    throw new Error('EXPO_PUBLIC_PRIVACY_POLICY_URL must be a valid URL in production builds.');
+  }
+
+  if (parsedPrivacyUrl.protocol !== 'https:' || isLocalHost(parsedPrivacyUrl.hostname)) {
+    throw new Error('Production mobile builds require a non-local HTTPS privacy policy URL.');
   }
 }
 

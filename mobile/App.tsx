@@ -2,7 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
 import { AppState, SafeAreaView, useWindowDimensions } from 'react-native';
 
-import { clearAccessTokenProvider, errorMessage, setAccessTokenProvider } from '@/api';
+import { clearAccessTokenProvider, errorMessage, PRIVACY_POLICY_URL, setAccessTokenProvider } from '@/api';
 import { PasteSheet, ProfileSheet, ReelMenuSheet } from '@/components/sheets';
 import { useCaptures } from '@/features/captures/use-captures';
 import {
@@ -237,6 +237,7 @@ export default function App() {
         isGoogleLoading={authProviderInFlight === 'google'}
         isDisabled={authProviderInFlight !== null}
         onContinueGoogle={() => void handleSignIn('google')}
+        privacyPolicyUrl={PRIVACY_POLICY_URL}
       />
     );
   }
@@ -275,6 +276,7 @@ export default function App() {
         isSigningOut={isSigningOut}
         onClose={() => setSheet(null)}
         onSignOut={() => void handleSignOut()}
+        privacyPolicyUrl={PRIVACY_POLICY_URL}
       />
       <PasteSheet
         visible={sheet === 'paste'}
