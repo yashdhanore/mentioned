@@ -6,22 +6,42 @@ from uuid import UUID, uuid4
 from sqlalchemy import func
 from sqlmodel import Session, select
 
-from src.jobs.models import Job, JobStatus
 from src.ids import parse_uuid
+from src.jobs.models import Job, JobEvent, JobEventType, JobStatus
+from src.jobs.queue import enqueue_extract_job
 from src.mentions.models import Mention
+from src.push.queue import enqueue_push_notification
 
 
-def create_job(session: Session, owner_id: str, source_url: str) -> Job:
-    job = Job(
+def _new_job(owner_id: str, source_url: str) -> Job:
+    return Job(
         id=uuid4(),
         owner_id=parse_uuid(owner_id),
         source_url=source_url,
         status=JobStatus.PENDING,
         created_at=datetime.utcnow(),
     )
+
+
+def create_job(session: Session, owner_id: str, source_url: str) -> Job:
+    job = _new_job(owner_id, source_url)
     session.add(job)
     session.commit()
     session.refresh(job)
+    return job
+
+
+def create_queued_job(session: Session, owner_id: str, source_url: str) -> Job:
+    job = _new_job(owner_id, source_url)
+    try:
+        session.add(job)
+        session.flush()
+        enqueue_extract_job(session, job.id)
+        session.commit()
+        session.refresh(job)
+    except Exception:
+        session.rollback()
+        raise
     return job
 
 
@@ -59,6 +79,40 @@ def claim_next_job(session: Session, worker_id: str) -> Job | None:
     return job
 
 
+def claim_job_by_id(session: Session, job_id: str | UUID, worker_id: str) -> Job | None:
+    stmt = (
+        select(Job)
+        .where(
+            Job.id == parse_uuid(job_id),
+            Job.status == JobStatus.PENDING,
+            Job.locked_by == None,
+        )
+        .limit(1)
+    )
+    job = session.exec(stmt).first()
+    if not job:
+        return None
+    now = datetime.utcnow()
+    job.locked_by = worker_id
+    job.locked_at = now
+    job.heartbeat_at = now
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+    return job
+
+
+def _add_job_event(session: Session, job: Job, event_type: JobEventType) -> None:
+    session.add(
+        JobEvent(
+            owner_id=job.owner_id,
+            job_id=job.id,
+            event_type=event_type,
+            created_at=datetime.utcnow(),
+        )
+    )
+
+
 def complete_job(session: Session, job: Job, mentions: list[Mention]) -> None:
     job.status = JobStatus.DONE
     job.finished_at = datetime.utcnow()
@@ -67,6 +121,8 @@ def complete_job(session: Session, job: Job, mentions: list[Mention]) -> None:
     session.add(job)
     for mention in mentions:
         session.add(mention)
+    _add_job_event(session, job, JobEventType.JOB_DONE)
+    enqueue_push_notification(session, job.id)
     session.commit()
 
 
@@ -77,6 +133,8 @@ def fail_job(session: Session, job: Job, error: str) -> None:
     job.locked_by = None
     job.locked_at = None
     session.add(job)
+    _add_job_event(session, job, JobEventType.JOB_FAILED)
+    enqueue_push_notification(session, job.id)
     session.commit()
 
 

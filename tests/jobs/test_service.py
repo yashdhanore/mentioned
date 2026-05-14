@@ -4,14 +4,15 @@ from datetime import datetime, timedelta
 from uuid import UUID
 
 import pytest
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import Session, SQLModel, create_engine, select
 
-from src.jobs.models import Job, JobStatus
+from src.jobs.models import Job, JobEvent, JobEventType, JobStatus
 from src.jobs.service import (
     claim_next_job,
     complete_job,
     count_active_jobs,
     count_jobs_created_since,
+    create_queued_job,
     create_job,
     fail_job,
     recover_stale_jobs,
@@ -46,6 +47,33 @@ def test_create_job(session):
     assert job.source_url == "https://instagram.com/reel/ABC123/"
 
 
+def test_create_queued_job_enqueues_extract_job(session, monkeypatch):
+    enqueued = []
+
+    def fake_enqueue(session_arg: Session, job_id) -> None:
+        assert session_arg is session
+        enqueued.append(str(job_id))
+
+    monkeypatch.setattr("src.jobs.service.enqueue_extract_job", fake_enqueue)
+
+    job = create_queued_job(session, OWNER, "https://instagram.com/reel/ABC123/")
+
+    assert enqueued == [str(job.id)]
+    assert session.get(Job, job.id) is not None
+
+
+def test_create_queued_job_rolls_back_when_enqueue_fails(session, monkeypatch):
+    def fail_enqueue(_session: Session, _job_id) -> None:
+        raise RuntimeError("queue unavailable")
+
+    monkeypatch.setattr("src.jobs.service.enqueue_extract_job", fail_enqueue)
+
+    with pytest.raises(RuntimeError, match="queue unavailable"):
+        create_queued_job(session, OWNER, "https://instagram.com/reel/ABC123/")
+
+    assert list(session.exec(select(Job)).all()) == []
+
+
 def test_claim_next_job(session):
     create_job(session, OWNER, "https://instagram.com/reel/ABC123/")
     job = claim_next_job(session, "worker-1")
@@ -73,6 +101,26 @@ def test_complete_job(session):
     assert refreshed.status == JobStatus.DONE
     assert refreshed.finished_at is not None
     assert refreshed.locked_by is None
+    events = list(session.exec(select(JobEvent)).all())
+    assert len(events) == 1
+    assert events[0].owner_id == OWNER_UUID
+    assert events[0].job_id == job.id
+    assert events[0].event_type == JobEventType.JOB_DONE
+
+
+def test_complete_job_enqueues_push_notification(session, monkeypatch):
+    enqueued = []
+    job = create_job(session, OWNER, "https://instagram.com/reel/ABC123/")
+    job = claim_next_job(session, "worker-1")
+
+    def fake_enqueue(_session: Session, job_id) -> None:
+        enqueued.append(str(job_id))
+
+    monkeypatch.setattr("src.jobs.service.enqueue_push_notification", fake_enqueue)
+
+    complete_job(session, job, [])
+
+    assert enqueued == [str(job.id)]
 
 
 def test_fail_job(session):
@@ -82,6 +130,26 @@ def test_fail_job(session):
     refreshed = session.get(Job, job.id)
     assert refreshed.status == JobStatus.FAILED
     assert refreshed.error_message == "Download failed"
+    events = list(session.exec(select(JobEvent)).all())
+    assert len(events) == 1
+    assert events[0].owner_id == OWNER_UUID
+    assert events[0].job_id == job.id
+    assert events[0].event_type == JobEventType.JOB_FAILED
+
+
+def test_fail_job_enqueues_push_notification(session, monkeypatch):
+    enqueued = []
+    job = create_job(session, OWNER, "https://instagram.com/reel/ABC123/")
+    job = claim_next_job(session, "worker-1")
+
+    def fake_enqueue(_session: Session, job_id) -> None:
+        enqueued.append(str(job_id))
+
+    monkeypatch.setattr("src.jobs.service.enqueue_push_notification", fake_enqueue)
+
+    fail_job(session, job, "Download failed")
+
+    assert enqueued == [str(job.id)]
 
 
 def test_count_active_jobs(session):

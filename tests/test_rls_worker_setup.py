@@ -145,3 +145,106 @@ def test_dedicated_worker_rls_migration_contains_role_scoped_grants_and_policies
     assert "current_setting('app.current_user_id', true)::uuid" in migration
     assert "USING (true)" in migration
     assert "WITH CHECK (true)" in migration
+
+
+def test_book_migration_adds_books_table_and_nullable_mention_link() -> None:
+    migration = (
+        Path(__file__).resolve().parents[1]
+        / "migrations"
+        / "versions"
+        / "20260509_0005_books.py"
+    ).read_text()
+
+    assert 'op.create_table(\n        "books"' in migration
+    assert 'sa.Column("book_id", UUID, nullable=True)' in migration
+    assert 'op.create_foreign_key(\n        "mentions_book_id_fkey"' in migration
+    assert "books_provider_volume_unique_idx" in migration
+    assert "GRANT SELECT ON TABLE public.books TO mentioned_api" in migration
+    assert "GRANT SELECT, INSERT, UPDATE ON TABLE public.books TO mentioned_worker" in migration
+
+
+def test_extract_jobs_queue_migration_has_role_scoped_permissions() -> None:
+    migration = (
+        Path(__file__).resolve().parents[1]
+        / "migrations"
+        / "versions"
+        / "20260512_0006_extract_jobs_queue.py"
+    ).read_text()
+
+    assert "create extension if not exists pgmq" in migration
+    assert "pgmq.create('extract_jobs')" in migration
+    assert "GRANT USAGE ON SCHEMA pgmq TO mentioned_api, mentioned_worker" in migration
+    assert "GRANT EXECUTE ON FUNCTION pgmq.send(text, jsonb, integer) TO mentioned_api" in migration
+    assert (
+        "GRANT EXECUTE ON FUNCTION pgmq.read_with_poll"
+        "(text, integer, integer, integer, integer, jsonb)" in migration
+    )
+    assert "GRANT EXECUTE ON FUNCTION pgmq.archive(text, bigint) TO mentioned_worker" in migration
+    assert "GRANT USAGE ON TYPE pgmq.message_record TO mentioned_worker" in migration
+    assert "GRANT SELECT, INSERT ON TABLE pgmq.q_extract_jobs TO mentioned_api" in migration
+    assert "GRANT SELECT, UPDATE, DELETE ON TABLE pgmq.q_extract_jobs TO mentioned_worker" in migration
+    assert "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA pgmq TO mentioned_api, mentioned_worker" in migration
+    assert "anon" not in migration
+    assert "authenticated" not in migration
+
+
+def test_extract_jobs_archive_grant_migration_allows_returning_archive_rows() -> None:
+    migration = (
+        Path(__file__).resolve().parents[1]
+        / "migrations"
+        / "versions"
+        / "20260513_0007_extract_jobs_archive_select_grant.py"
+    ).read_text()
+
+    assert "GRANT SELECT ON TABLE pgmq.a_extract_jobs TO mentioned_worker" in migration
+    assert "REVOKE SELECT ON TABLE pgmq.a_extract_jobs FROM mentioned_worker" in migration
+
+
+def test_job_events_migration_has_realtime_rls_and_role_scoped_permissions() -> None:
+    migration = (
+        Path(__file__).resolve().parents[1]
+        / "migrations"
+        / "versions"
+        / "20260513_0008_job_events.py"
+    ).read_text()
+
+    assert 'op.create_table(\n        "job_events"' in migration
+    assert 'sa.UniqueConstraint("job_id", name="job_events_job_id_key")' in migration
+    assert "ondelete=\"CASCADE\"" in migration
+    assert "event_type in ('job_done', 'job_failed')" in migration
+    assert "ALTER TABLE public.job_events ENABLE ROW LEVEL SECURITY" in migration
+    assert "REVOKE ALL ON TABLE public.job_events FROM anon, authenticated" in migration
+    assert "GRANT SELECT ON TABLE public.job_events TO authenticated" in migration
+    assert "GRANT INSERT ON TABLE public.job_events TO mentioned_worker" in migration
+    assert "CREATE POLICY job_events_owner_select ON public.job_events" in migration
+    assert "USING (owner_id = auth.uid())" in migration
+    assert "CREATE POLICY job_events_worker_insert ON public.job_events" in migration
+    assert "WITH CHECK (true)" in migration
+    assert "supabase_realtime" in migration
+    assert "pg_publication" in migration
+    assert "pg_publication_tables" in migration
+
+
+def test_push_notifications_migration_has_private_tokens_and_worker_queue() -> None:
+    migration = (
+        Path(__file__).resolve().parents[1]
+        / "migrations"
+        / "versions"
+        / "20260514_0009_push_notifications.py"
+    ).read_text()
+
+    assert 'op.create_table(\n        "push_tokens"' in migration
+    assert "ALTER TABLE public.push_tokens ENABLE ROW LEVEL SECURITY" in migration
+    assert "REVOKE ALL ON TABLE public.push_tokens FROM anon, authenticated" in migration
+    assert "GRANT SELECT, INSERT, UPDATE ON TABLE public.push_tokens TO mentioned_api" in migration
+    assert "GRANT SELECT, UPDATE ON TABLE public.push_tokens TO mentioned_worker" in migration
+    assert "CREATE POLICY push_tokens_api_owner_select ON public.push_tokens" in migration
+    assert "current_setting('app.current_user_id', true)::uuid" in migration
+    assert "CREATE POLICY push_tokens_worker_select ON public.push_tokens" in migration
+    assert "CREATE POLICY push_tokens_worker_update ON public.push_tokens" in migration
+    assert "pgmq.create('push_notifications')" in migration
+    assert "GRANT EXECUTE ON FUNCTION pgmq.send(text, jsonb, integer) TO mentioned_worker" in migration
+    assert "GRANT EXECUTE ON FUNCTION pgmq.read(text, integer, integer, jsonb) TO mentioned_worker" in migration
+    assert "GRANT EXECUTE ON FUNCTION pgmq.archive(text, bigint) TO mentioned_worker" in migration
+    assert "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE pgmq.q_push_notifications TO mentioned_worker" in migration
+    assert "GRANT SELECT, INSERT ON TABLE pgmq.a_push_notifications TO mentioned_worker" in migration

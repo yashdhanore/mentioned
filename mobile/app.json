@@ -14,9 +14,14 @@
       "backgroundColor": "#F6F8F5"
     },
     "ios": {
+      "bundleIdentifier": "com.yashd18.mentioned",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      },
       "supportsTablet": false
     },
     "android": {
+      "package": "com.yashd18.mentioned",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#F6F8F5"
@@ -28,7 +33,20 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-web-browser"
-    ]
+      "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "job-status",
+          "enableBackgroundRemoteNotifications": false
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "2ca4c235-717e-48a1-aee8-173bf247f1b0"
+      }
+    },
+    "owner": "yashd18"
   }
 }

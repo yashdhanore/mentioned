@@ -26,6 +26,7 @@ async def list_mentions_endpoint(
     items = [
         MentionResponse(
             id=str(m.id),
+            book_id=str(m.book_id) if m.book_id else None,
             title=m.title,
             author=m.author,
             category=m.category,
@@ -51,6 +52,7 @@ async def update_mention_endpoint(
     updated = update_mention(session, mention, **fields)
     return MentionResponse(
         id=str(updated.id),
+        book_id=str(updated.book_id) if updated.book_id else None,
         title=updated.title,
         author=updated.author,
         category=updated.category,

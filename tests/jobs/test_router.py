@@ -5,8 +5,10 @@ from uuid import UUID
 
 import pytest
 
+from src.books.models import Book
 from src.config import Settings
 from src.jobs.models import Job, JobStatus
+from src.mentions.models import Mention
 
 
 pytestmark = pytest.mark.asyncio
@@ -111,6 +113,54 @@ async def test_get_job(client):
     assert data["job_id"] == job_id
     assert data["status"] == "pending"
     assert data["mentions"] == []
+
+
+async def test_get_job_returns_linked_book_id_and_existing_flat_fields(client, session):
+    book = Book(
+        provider_volume_id="google-volume-1",
+        title="Atomic Habits",
+        authors=["James Clear"],
+        cover_image_url="https://books.google.com/thumb.jpg",
+        info_link="https://books.google.com/books?id=google-volume-1",
+    )
+    session.add(book)
+    session.commit()
+    session.refresh(book)
+
+    job = Job(
+        owner_id=TEST_USER_UUID,
+        source_url="https://www.instagram.com/reel/BOOK123/",
+        status=JobStatus.DONE,
+    )
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+
+    session.add(
+        Mention(
+            owner_id=TEST_USER_UUID,
+            job_id=job.id,
+            book_id=book.id,
+            title="Atomic Habits",
+            author="James Clear",
+            category="book",
+            confidence=0.93,
+            google_books_url=book.info_link,
+            cover_image_url=book.cover_image_url,
+            source_url=job.source_url,
+        )
+    )
+    session.commit()
+
+    resp = await client.get(f"/v1/jobs/{job.id}")
+
+    assert resp.status_code == 200
+    mention = resp.json()["mentions"][0]
+    assert mention["book_id"] == str(book.id)
+    assert mention["title"] == "Atomic Habits"
+    assert mention["author"] == "James Clear"
+    assert mention["google_books_url"] == book.info_link
+    assert mention["cover_image_url"] == book.cover_image_url
 
 
 async def test_get_job_not_found(client):

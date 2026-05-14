@@ -55,6 +55,9 @@ class Settings:
     # Worker
     worker_poll_interval_seconds: float = 2.0
     worker_stale_timeout_seconds: int = 15 * 60
+    worker_queue_visibility_timeout_seconds: int = 30 * 60
+    worker_queue_max_poll_seconds: int = 5
+    worker_queue_poll_interval_ms: int = 100
     worker_id: str = "worker-local"
 
     # Media download limits
@@ -197,6 +200,11 @@ def get_settings() -> Settings:
         source_require_https=_env_bool("SOURCE_REQUIRE_HTTPS", app_env == "production"),
         worker_poll_interval_seconds=_env_float("WORKER_POLL_INTERVAL_SECONDS", 2.0),
         worker_stale_timeout_seconds=_env_int("WORKER_STALE_TIMEOUT_SECONDS", 15 * 60),
+        worker_queue_visibility_timeout_seconds=_env_int(
+            "WORKER_QUEUE_VISIBILITY_TIMEOUT_SECONDS", 30 * 60
+        ),
+        worker_queue_max_poll_seconds=_env_int("WORKER_QUEUE_MAX_POLL_SECONDS", 5),
+        worker_queue_poll_interval_ms=_env_int("WORKER_QUEUE_POLL_INTERVAL_MS", 100),
         worker_id=os.getenv("WORKER_ID", "worker-local").strip(),
         media_download_timeout_seconds=_env_int("MEDIA_DOWNLOAD_TIMEOUT_SECONDS", 120),
         media_download_format=_env_optional("MEDIA_DOWNLOAD_FORMAT"),

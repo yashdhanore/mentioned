@@ -7,6 +7,7 @@ from sqlalchemy import engine_from_config, pool
 
 from src.config import get_settings
 from src.database import normalize_database_url
+from src.books.models import Book  # noqa: F401 — register models
 from src.jobs.models import Job  # noqa: F401 — register models
 from src.mentions.models import Mention  # noqa: F401 — register models
 from sqlmodel import SQLModel
