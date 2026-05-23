@@ -1,13 +1,14 @@
-import { Image, Pressable, ScrollView, Text, View } from 'react-native';
+import { Image, ScrollView, Text, View } from 'react-native';
 
 import type { Capture } from '@/captures';
+import { BackIcon, ExternalIcon, MoreIcon } from '@/components/icons';
 import {
   BooksMentioned,
   FailedState,
   NoBooks,
   ProcessingBooks,
 } from '@/components/books';
-import { InlineMessage } from '@/components/ui';
+import { IconButton, InlineMessage, SecondaryButton, SourceQuote } from '@/components/ui';
 import { styles } from '@/styles';
 
 export function ReelDetailScreen({
@@ -38,40 +39,36 @@ export function ReelDetailScreen({
       bounces
     >
       <View style={styles.detailNav}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Back to saved Reels"
-          style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
-          onPress={onBack}
-        >
-          <Text style={styles.backText}>Back</Text>
-        </Pressable>
+        <IconButton accessibilityLabel="Back to saved Reels" onPress={onBack}>
+          <BackIcon />
+        </IconButton>
         <Text numberOfLines={1} style={styles.detailNavTitle}>
           {capture.creator}
         </Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Open Reel actions"
-          style={({ pressed }) => [styles.navSquareButton, pressed && styles.pressed]}
-          onPress={onOpenMenu}
-        >
-          <Text style={styles.navButtonText}>...</Text>
-        </Pressable>
+        <IconButton accessibilityLabel="Open Reel actions" onPress={onOpenMenu}>
+          <MoreIcon />
+        </IconButton>
       </View>
 
-      <View style={styles.previewWrap}>
-        <View style={[styles.reelPreview, { width: previewWidth }]}>
-          <Image source={{ uri: capture.thumbnailUrl }} style={styles.reelPreviewImage} />
+      <View style={styles.detailHero}>
+        <View style={styles.previewPaper}>
+          <View style={[styles.reelPreview, { width: previewWidth }]}>
+            <Image source={{ uri: capture.thumbnailUrl }} style={styles.reelPreviewImage} />
+          </View>
         </View>
-      </View>
 
-      <View style={styles.sourceBlock}>
-        <Text style={styles.sourceCreator}>{capture.creator}</Text>
-        {capture.sourceContextSnippet ? (
-          <Text numberOfLines={2} style={styles.sourceSnippet}>
-            {capture.sourceContextSnippet}
-          </Text>
-        ) : null}
+        <View style={styles.sourceBlock}>
+          <Text style={styles.sourceCreator}>{capture.creator}</Text>
+          {capture.sourceContextSnippet ? (
+            <SourceQuote quote={capture.sourceContextSnippet} attribution={`Saved from ${capture.creator}`} />
+          ) : (
+            <Text style={styles.sourceSnippet}>Source saved. Mentioned will keep the Reel with any books it finds.</Text>
+          )}
+          <View style={styles.detailSourceAction}>
+            <SecondaryButton label="Open source" onPress={onOpenSource} compact />
+            <ExternalIcon />
+          </View>
+        </View>
       </View>
 
       {actionError ? <InlineMessage tone="error" message={actionError} /> : null}

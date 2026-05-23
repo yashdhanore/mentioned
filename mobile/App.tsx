@@ -25,6 +25,7 @@ type Sheet = 'profile' | 'paste' | 'reelMenu' | null;
 
 export default function App() {
   const { width } = useWindowDimensions();
+  const contentWidth = Math.min(width, 430);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isSignedIn, setIsSignedIn] = useState(false);
   const [accountLabel, setAccountLabel] = useState('Signed in');
@@ -56,7 +57,7 @@ export default function App() {
     openSource,
   } = useCaptures(isSignedIn);
 
-  const tileWidth = (width - spacing.screen * 2 - spacing.md) / 2;
+  const tileWidth = (contentWidth - spacing.screen * 2 - spacing.md) / 2;
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -248,7 +249,7 @@ export default function App() {
       {selectedCapture ? (
         <ReelDetailScreen
           capture={selectedCapture}
-          width={width}
+          width={contentWidth}
           actionError={actionError}
           isRetrying={retryingCaptureId === selectedCapture.id}
           onBack={() => setSelectedCaptureId(null)}

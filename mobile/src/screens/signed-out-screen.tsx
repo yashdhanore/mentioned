@@ -1,8 +1,9 @@
 import { StatusBar } from 'expo-status-bar';
 import * as Linking from 'expo-linking';
-import { Pressable, SafeAreaView, Text, View } from 'react-native';
+import { Pressable, SafeAreaView, ScrollView, Text, View } from 'react-native';
 
-import { InlineMessage, PrimaryButton } from '@/components/ui';
+import { SourceToBooksPreview } from '@/components/product-preview';
+import { AppMark, InlineMessage, PrimaryButton } from '@/components/ui';
 import { styles } from '@/styles';
 
 export function SignedOutScreen({
@@ -21,18 +22,23 @@ export function SignedOutScreen({
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
-      <View style={styles.authScreen}>
-        <View style={styles.authMark}>
-          <Text style={styles.authMarkText}>M</Text>
+      <ScrollView contentContainerStyle={styles.authScreen} showsVerticalScrollIndicator={false}>
+        <AppMark />
+
+        <View style={styles.authHero}>
+          <View style={styles.authCopy}>
+            <Text style={styles.authBrand}>Mentioned</Text>
+            <Text style={styles.authTitle}>
+              Don't lose the <Text style={styles.authTitleSlot}>books</Text> that were mentioned.
+            </Text>
+            <Text style={styles.authBody}>Share a Reel, keep the source, find it later.</Text>
+          </View>
+
+          <View style={styles.authPreviewWrap}>
+            <SourceToBooksPreview />
+          </View>
         </View>
-        <View style={styles.authCopy}>
-          <Text style={styles.authBrand}>Mentioned</Text>
-          <Text style={styles.authTitle}>Save Reels and see the books mentioned inside them.</Text>
-          <Text style={styles.authBody}>
-            Share a Reel to Mentioned. We keep the source with the books it mentions, so you can find
-            them later.
-          </Text>
-        </View>
+
         <View style={styles.authActions}>
           {error ? <InlineMessage tone="error" message={error} /> : null}
           <PrimaryButton
@@ -50,7 +56,7 @@ export function SignedOutScreen({
             </Pressable>
           ) : null}
         </View>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
