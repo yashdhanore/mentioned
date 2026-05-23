@@ -103,6 +103,24 @@ async def test_list_jobs_empty(client):
     assert resp.json() == []
 
 
+async def test_list_jobs_returns_thumbnail_url(client, session):
+    job = Job(
+        owner_id=TEST_USER_UUID,
+        source_url="https://www.instagram.com/reel/LIST123/",
+        thumbnail_url="https://instagram.example/list-thumb.jpg",
+        status=JobStatus.DONE,
+    )
+    session.add(job)
+    session.commit()
+
+    resp = await client.get("/v1/jobs")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data[0]["job_id"] == str(job.id)
+    assert data[0]["thumbnail_url"] == "https://instagram.example/list-thumb.jpg"
+
+
 async def test_get_job(client):
     create_resp = await client.post("/v1/jobs", json={"url": "https://www.instagram.com/reel/ABC123/"})
     job_id = create_resp.json()["job_id"]
@@ -130,6 +148,7 @@ async def test_get_job_returns_linked_book_id_and_existing_flat_fields(client, s
     job = Job(
         owner_id=TEST_USER_UUID,
         source_url="https://www.instagram.com/reel/BOOK123/",
+        thumbnail_url="https://instagram.example/thumb.jpg",
         status=JobStatus.DONE,
     )
     session.add(job)
@@ -155,7 +174,9 @@ async def test_get_job_returns_linked_book_id_and_existing_flat_fields(client, s
     resp = await client.get(f"/v1/jobs/{job.id}")
 
     assert resp.status_code == 200
-    mention = resp.json()["mentions"][0]
+    data = resp.json()
+    assert data["thumbnail_url"] == "https://instagram.example/thumb.jpg"
+    mention = data["mentions"][0]
     assert mention["book_id"] == str(book.id)
     assert mention["title"] == "Atomic Habits"
     assert mention["author"] == "James Clear"

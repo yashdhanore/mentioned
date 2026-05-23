@@ -32,6 +32,7 @@ class JobResponse(BaseModel):
     job_id: str
     status: str
     source_url: str
+    thumbnail_url: Optional[str] = None
     error_message: Optional[str] = None
     created_at: datetime
     finished_at: Optional[datetime] = None
@@ -42,4 +43,5 @@ class JobListItem(BaseModel):
     job_id: str
     status: str
     source_url: str
+    thumbnail_url: Optional[str] = None
     created_at: datetime

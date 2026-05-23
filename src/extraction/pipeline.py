@@ -4,7 +4,7 @@ import logging
 import tempfile
 from pathlib import Path
 
-from src.extraction.download import download_assets
+from src.extraction.download import download_assets_with_metadata
 from src.extraction.gemini import extract_mentions_from_media
 from src.extraction.schemas import ExtractedMention, PipelineResult
 
@@ -16,11 +16,12 @@ def run_pipeline(source_url: str) -> PipelineResult:
     with tempfile.TemporaryDirectory() as tmp:
         logger.info("Downloading media from %s", source_url)
         try:
-            paths = download_assets(source_url, Path(tmp))
+            assets = download_assets_with_metadata(source_url, Path(tmp))
         except Exception as exc:
             logger.warning("Download failed for %s: %s", source_url, exc)
             return PipelineResult(error=f"Download failed: {exc}")
 
+        paths = assets.paths
         if not paths:
             return PipelineResult(error="No media downloaded")
 
@@ -32,7 +33,10 @@ def run_pipeline(source_url: str) -> PipelineResult:
             raw = extract_mentions_from_media(paths)
         except Exception as exc:
             logger.warning("Gemini extraction failed: %s", exc)
-            return PipelineResult(error=f"Extraction failed: {exc}")
+            return PipelineResult(
+                thumbnail_url=assets.thumbnail_url,
+                error=f"Extraction failed: {exc}",
+            )
 
         logger.info("Gemini returned %d mentions", len(raw.get("mentions", [])))
 
@@ -50,4 +54,4 @@ def run_pipeline(source_url: str) -> PipelineResult:
                 )
             )
 
-        return PipelineResult(mentions=mentions)
+        return PipelineResult(mentions=mentions, thumbnail_url=assets.thumbnail_url)

@@ -15,6 +15,7 @@ class ExtractedMention:
 @dataclass
 class PipelineResult:
     mentions: list[ExtractedMention] = field(default_factory=list)
+    thumbnail_url: str | None = None
     error: str | None = None
 
 

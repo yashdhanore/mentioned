@@ -58,6 +58,7 @@ def _find_google_book_sync(title: str, author: str | None) -> GoogleBook | None:
 def process_job(job: Job, session: Session) -> None:
     logger.info("Starting pipeline for job %s → %s", job.id, job.source_url)
     result = run_pipeline(job.source_url)
+    job.thumbnail_url = result.thumbnail_url
     if result.error:
         logger.warning("Job %s failed: %s", job.id, result.error)
         fail_job(session, job, result.error)
