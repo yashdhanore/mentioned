@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from src.config import get_settings
-from src.extraction.download import download_assets
+from src.extraction.download import download_assets, download_assets_with_metadata
 
 
 @pytest.fixture(autouse=True)
@@ -47,6 +47,43 @@ def test_download_assets_uses_timeout(monkeypatch, tmp_path):
     download_args = calls[1][0]
     assert "--format" in download_args
     assert "--max-filesize" in download_args
+
+
+def test_download_assets_with_metadata_returns_largest_thumbnail(monkeypatch, tmp_path):
+    media_file = tmp_path / "media_001.mp4"
+
+    def fake_run(args, **kwargs):
+        if "--dump-single-json" in args:
+            return _completed(
+                json.dumps(
+                    {
+                        "duration": 8,
+                        "thumbnail": "https://example.com/default.jpg",
+                        "thumbnails": [
+                            {
+                                "url": "https://example.com/small.jpg",
+                                "width": 320,
+                                "height": 568,
+                            },
+                            {
+                                "url": "https://example.com/large.jpg",
+                                "width": 1080,
+                                "height": 1917,
+                            },
+                        ],
+                    }
+                )
+            )
+        media_file.write_bytes(b"12345")
+        return _completed(str(media_file))
+
+    monkeypatch.setattr("src.extraction.download.is_available", lambda: True)
+    monkeypatch.setattr("src.extraction.download.subprocess.run", fake_run)
+
+    assets = download_assets_with_metadata("https://instagram.com/reel/ABC123/", tmp_path)
+
+    assert assets.paths == [media_file]
+    assert assets.thumbnail_url == "https://example.com/large.jpg"
 
 
 def test_download_assets_rejects_duration_over_limit(monkeypatch, tmp_path):

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 import shutil
 import subprocess
@@ -12,6 +13,12 @@ from src.config import get_settings
 logger = logging.getLogger(__name__)
 
 VIDEO_SUFFIXES = {".mp4", ".mov", ".m4v", ".webm", ".mkv"}
+
+
+@dataclass(frozen=True)
+class DownloadedAssets:
+    paths: list[Path]
+    thumbnail_url: str | None = None
 
 
 def is_available() -> bool:
@@ -75,6 +82,39 @@ def _check_duration_limit(metadata: dict[str, Any], *, max_duration_seconds: int
             raise RuntimeError(
                 f"Media duration {duration:.1f}s exceeds limit of {max_duration_seconds}s"
             )
+
+
+def _text_or_none(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
+def _numeric(value: Any) -> float:
+    if isinstance(value, (int, float)):
+        return float(value)
+    return 0.0
+
+
+def _thumbnail_url(metadata: dict[str, Any]) -> str | None:
+    best_url = None
+    best_area = -1.0
+    thumbnails = metadata.get("thumbnails")
+    if isinstance(thumbnails, list):
+        for item in thumbnails:
+            if not isinstance(item, dict):
+                continue
+            url = _text_or_none(item.get("url"))
+            if not url:
+                continue
+            area = _numeric(item.get("width")) * _numeric(item.get("height"))
+            if area > best_area:
+                best_url = url
+                best_area = area
+    if best_url:
+        return best_url
+    return _text_or_none(metadata.get("thumbnail"))
 
 
 def _check_size_limits(paths: list[Path], *, max_file_bytes: int, max_total_bytes: int) -> None:
@@ -193,11 +233,12 @@ def _compress_oversized_media(
     ]
 
 
-def download_assets(url: str, output_dir: Path) -> list[Path]:
+def download_assets_with_metadata(url: str, output_dir: Path) -> DownloadedAssets:
     if not is_available():
         raise FileNotFoundError("yt-dlp is not installed")
     settings = get_settings()
     metadata = _preflight_metadata(url, timeout_seconds=settings.media_download_timeout_seconds)
+    thumbnail_url = _thumbnail_url(metadata)
     _check_duration_limit(
         metadata,
         max_duration_seconds=settings.max_media_duration_seconds,
@@ -245,4 +286,8 @@ def download_assets(url: str, output_dir: Path) -> list[Path]:
         max_file_bytes=settings.max_media_file_bytes,
         max_total_bytes=settings.max_media_total_bytes,
     )
-    return paths
+    return DownloadedAssets(paths=paths, thumbnail_url=thumbnail_url)
+
+
+def download_assets(url: str, output_dir: Path) -> list[Path]:
+    return download_assets_with_metadata(url, output_dir).paths

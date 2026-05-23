@@ -59,9 +59,7 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
       if (!existing) {
         return [updated, ...current];
       }
-      return current.map((item) =>
-        item.id === jobId ? { ...updated, thumbnailUrl: item.thumbnailUrl } : item,
-      );
+      return current.map((item) => (item.id === jobId ? updated : item));
     });
     if (options.select) {
       setSelectedCaptureId(jobId);
@@ -217,7 +215,7 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
         const created = await createJob(capture.sourceUrl);
         const processingCapture = captureFromJobCreated(created.job_id, capture.sourceUrl);
         setCaptures((current) => [
-          { ...processingCapture, thumbnailUrl: capture.thumbnailUrl },
+          processingCapture,
           ...current.filter((item) => item.id !== capture.id),
         ]);
         setSelectedCaptureId(processingCapture.id);

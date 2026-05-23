@@ -70,6 +70,7 @@ export type JobStatus = 'pending' | 'done' | 'failed';
 export type JobResponse = {
   job_id: string;
   source_url: string;
+  thumbnail_url: string | null;
   status: JobStatus;
   error_message: string | null;
   created_at: string;
@@ -92,6 +93,7 @@ export type JobListItem = {
   job_id: string;
   status: JobStatus;
   source_url: string;
+  thumbnail_url: string | null;
   created_at: string;
 };
 

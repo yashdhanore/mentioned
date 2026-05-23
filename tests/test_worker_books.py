@@ -39,6 +39,7 @@ def test_worker_links_book_mentions_to_deduplicated_google_book(monkeypatch):
         monkeypatch.setattr(
             "src.worker.run_pipeline",
             lambda _url: PipelineResult(
+                thumbnail_url="https://instagram.example/reel.jpg",
                 mentions=[
                     ExtractedMention(
                         title="Atomic Habits",
@@ -71,13 +72,49 @@ def test_worker_links_book_mentions_to_deduplicated_google_book(monkeypatch):
 
             books = list(session.exec(select(Book)).all())
             mentions = list(session.exec(select(Mention)).all())
+            refreshed_job = session.get(Job, job.id)
 
         assert len(books) == 1
         assert books[0].provider_volume_id == "google-volume-1"
         assert books[0].isbn_13 == "9780735211292"
         assert len(mentions) == 2
+        assert refreshed_job.thumbnail_url == "https://instagram.example/reel.jpg"
         assert {mention.book_id for mention in mentions} == {books[0].id}
         assert {mention.google_books_url for mention in mentions} == {books[0].info_link}
         assert {mention.cover_image_url for mention in mentions} == {books[0].cover_image_url}
+    finally:
+        SQLModel.metadata.drop_all(engine)
+
+
+def test_worker_persists_thumbnail_when_pipeline_fails(monkeypatch):
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+    try:
+        monkeypatch.setattr(
+            "src.worker.run_pipeline",
+            lambda _url: PipelineResult(
+                thumbnail_url="https://instagram.example/reel.jpg",
+                error="Extraction failed",
+            ),
+        )
+
+        with Session(engine) as session:
+            job = Job(
+                owner_id=OWNER,
+                source_url="https://www.instagram.com/reel/BOOK123/",
+                status=JobStatus.PENDING,
+            )
+            session.add(job)
+            session.commit()
+            session.refresh(job)
+
+            process_job(job, session)
+
+            refreshed_job = session.get(Job, job.id)
+            mentions = list(session.exec(select(Mention)).all())
+
+        assert refreshed_job.status == JobStatus.FAILED
+        assert refreshed_job.thumbnail_url == "https://instagram.example/reel.jpg"
+        assert mentions == []
     finally:
         SQLModel.metadata.drop_all(engine)

@@ -56,6 +56,10 @@ function placeholderThumbnail(jobId: string) {
   return `https://picsum.photos/seed/mentioned-${seed}/900/1600`;
 }
 
+function thumbnailForJob(job: JobResponse) {
+  return compact(job.thumbnail_url) ?? placeholderThumbnail(job.job_id);
+}
+
 function visibleBookMentions(mentions: MentionInJob[]): BookMention[] {
   return mentions
     .filter((mention) => mention.category === 'book')
@@ -104,7 +108,7 @@ export function captureFromJobDetail(job: JobResponse): Capture {
     id: job.job_id,
     creator: 'Instagram',
     status: statusFor(job.status, books),
-    thumbnailUrl: placeholderThumbnail(job.job_id),
+    thumbnailUrl: thumbnailForJob(job),
     sourceUrl: job.source_url,
     sourceContextSnippet: null,
     books,
