@@ -53,18 +53,24 @@ Use the root `render.yaml` file to create the Blueprint in Render. It defines:
 - one worker instance.
 
 Render will prompt for `sync: false` environment variables. Set the runtime variables on both
-services, and set `MIGRATION_DATABASE_URL` on the worker service:
+services, and set `MIGRATION_DATABASE_URL` plus `SUPABASE_SERVICE_ROLE_KEY` on the worker service
+only:
 
 ```text
 DATABASE_URL=postgresql://mentioned_api.../postgres
 WORKER_DATABASE_URL=postgresql://mentioned_worker.../postgres
 MIGRATION_DATABASE_URL=postgresql://postgres.../postgres
 SUPABASE_PROJECT_URL=https://<project-ref>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<worker-only-service-role-key>
 CORS_ALLOWED_ORIGINS=https://<your-web-origin>,http://localhost:8082,http://127.0.0.1:8082
 TRUSTED_HOSTS=mentioned-api.onrender.com,<your-custom-api-domain>
 GEMINI_API_KEY=<Gemini API key>
 GOOGLE_BOOKS_API_KEY=<optional Google Books API key>
 ```
+
+`SUPABASE_SERVICE_ROLE_KEY` is used only by the worker to copy public Reel thumbnails into the
+public `job-thumbnails` Supabase Storage bucket. Do not set it in the mobile app or expose it to
+browser clients.
 
 Optional worker media limits can be set on `mentioned-worker` if you need to tune extraction:
 
@@ -74,6 +80,13 @@ MAX_MEDIA_TOTAL_BYTES=104857600
 MEDIA_DOWNLOAD_TIMEOUT_SECONDS=120
 MEDIA_TRANSCODE_VIDEO_BITRATE=1100k
 MEDIA_TRANSCODE_AUDIO_BITRATE=96k
+```
+
+Apply Supabase migrations before deploying the worker so the public thumbnail bucket exists:
+
+```bash
+supabase db push --dry-run
+supabase db push
 ```
 
 For Supabase projects using JWT Signing Keys, no `SUPABASE_JWT_SECRET` is needed. The API verifies

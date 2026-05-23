@@ -9,3 +9,4 @@ __pycache__/
 .cursor/
 app.db
 data/artifacts/
+supabase/.temp/

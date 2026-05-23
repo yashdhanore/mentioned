@@ -42,6 +42,8 @@ Tests use pytest and should live in `tests/test_*.py` with functions named `test
 
 Copy `.env.example` to `.env` for local settings. Do not commit secrets, `.env` files, local databases, or generated artifacts. Defaults disable ASR and multimodal LLM calls; enable OpenAI locally with `OPENAI_API_KEY`, `MULTIMODAL_LLM_PROVIDER=openai`, and related model settings only when needed.
 
+Keep environment variables reserved for secrets, deployment-specific endpoints, credentials, and values that truly differ by environment. Stable product defaults such as bucket names, file size limits, and timeouts should be code constants unless there is a concrete operational need to configure them per deployment.
+
 ## Commit & Pull Request Guidelines
 
 The current history only establishes an initial commit, so use clear imperative commit messages, for example `Add visual extraction fallback tests`. Pull requests should include a concise summary, linked issue if available, commands run, and sample API responses or screenshots when behavior changes.
