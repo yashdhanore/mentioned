@@ -22,6 +22,14 @@ python scripts/evaluate_visual_manifest.py --artifacts-dir data/artifacts
 
 Media extraction paths may require local `ffmpeg`, `yt-dlp`, and `tesseract` installations.
 
+## Database & Supabase Workflow
+
+For any database schema, migration, seed, RLS, or Supabase configuration change, use the Supabase CLI directly instead of handing migration steps back to the user. Check commands with `supabase --help` and `supabase <group> --help` because CLI behavior changes. Create migration files with `supabase migration new <descriptive_name>` and keep them under `supabase/migrations/`. Apply and verify migrations yourself with the appropriate local command, such as `supabase migration up --local` or `supabase db reset`. For hosted targets, run `supabase db push --dry-run` first, then run `supabase db push` when the intended linked remote target is clear. End with the commands you ran and any errors. Do not stop at "run the migration" unless the CLI, Docker, or credentials are unavailable.
+
+Prefer local/dev verification before touching a hosted project. Once migrations exist, do not make schema changes directly in the Supabase Dashboard or remote SQL editor; keep remote state synchronized through migration files and `supabase db push`.
+
+Do not commit Supabase passwords, access tokens, service-role keys, `.env` files, local database URLs, or generated artifacts. It is fine to commit non-secret config such as `supabase/config.toml`, migration SQL, seed files, and `.env.example` placeholders. For local automation, use `supabase login` and `supabase link --project-ref <ref>` so the CLI can store credentials in the OS credential store when available. For noninteractive CI or agent runs, provide secrets through environment variables such as `SUPABASE_ACCESS_TOKEN` and `SUPABASE_DB_PASSWORD` from the host environment or secret manager.
+
 ## Coding Style & Naming Conventions
 
 Use Python 3.11+ syntax, 4-space indentation, type hints, and small focused functions. Follow existing naming: `snake_case` for modules, functions, variables, and stage files; `PascalCase` for classes and Pydantic/SQLModel models. Keep pipeline stages in `extractor/stages/` narrow and named by action, such as `probe_media.py` or `transcribe_audio.py`. Prefer client wrappers in `extractor/clients/` when calling external binaries or services. No formatter or linter config is currently committed; match the style already present in the repository.
