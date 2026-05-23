@@ -25,6 +25,7 @@ class AuthConfig:
     auth_mode: str = "dev"
     dev_user_id: str = "00000000-0000-4000-8000-000000000001"
     supabase_project_url: str | None = None
+    supabase_service_role_key: str | None = None
     supabase_jwt_secret: str | None = None
     supabase_jwt_audience: str = "authenticated"
 
@@ -225,6 +226,7 @@ def get_settings() -> Settings:
             auth_mode=os.getenv("AUTH_MODE", "dev").strip().casefold(),
             dev_user_id=os.getenv("DEV_USER_ID", "00000000-0000-4000-8000-000000000001").strip(),
             supabase_project_url=_env_optional("SUPABASE_PROJECT_URL"),
+            supabase_service_role_key=_env_optional("SUPABASE_SERVICE_ROLE_KEY"),
             supabase_jwt_secret=_env_optional("SUPABASE_JWT_SECRET"),
             supabase_jwt_audience=os.getenv("SUPABASE_JWT_AUDIENCE", "authenticated").strip(),
         ),

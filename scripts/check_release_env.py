@@ -95,6 +95,8 @@ def _check_release_env(worker_replicas: str | None) -> list[str]:
 
     if not _env("SUPABASE_PROJECT_URL"):
         errors.append("SUPABASE_PROJECT_URL must be set")
+    if not _env("SUPABASE_SERVICE_ROLE_KEY"):
+        errors.append("SUPABASE_SERVICE_ROLE_KEY must be set on the worker")
     if not _env("SUPABASE_JWT_AUDIENCE"):
         errors.append("SUPABASE_JWT_AUDIENCE must be set")
 
