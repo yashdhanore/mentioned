@@ -1,4 +1,4 @@
-import type { JobResponse, JobStatus, MentionInJob } from './api';
+import { thumbnailProxyUrl, type JobResponse, type JobStatus, type MentionInJob } from './api';
 
 export type CaptureStatus = 'ready' | 'processing' | 'no_books' | 'failed';
 
@@ -57,7 +57,8 @@ function placeholderThumbnail(jobId: string) {
 }
 
 function thumbnailForJob(job: JobResponse) {
-  return compact(job.thumbnail_url) ?? placeholderThumbnail(job.job_id);
+  const thumbnailUrl = compact(job.thumbnail_url);
+  return thumbnailUrl ? thumbnailProxyUrl(thumbnailUrl) : placeholderThumbnail(job.job_id);
 }
 
 function visibleBookMentions(mentions: MentionInJob[]): BookMention[] {

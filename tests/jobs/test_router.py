@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 from uuid import UUID
 
 import pytest
+import respx
+from httpx import Response
 
 from src.books.models import Book
 from src.config import Settings
@@ -119,6 +121,48 @@ async def test_list_jobs_returns_thumbnail_url(client, session):
     data = resp.json()
     assert data[0]["job_id"] == str(job.id)
     assert data[0]["thumbnail_url"] == "https://instagram.example/list-thumb.jpg"
+
+
+@respx.mock
+async def test_thumbnail_proxy_returns_allowed_remote_image(client):
+    remote_url = "https://instagram.example.fna.fbcdn.net/thumb.jpg"
+    route = respx.get(remote_url).mock(
+        return_value=Response(200, content=b"image-bytes", headers={"content-type": "image/jpeg"})
+    )
+
+    resp = await client.get("/v1/thumbnail-proxy", params={"url": remote_url})
+
+    assert resp.status_code == 200
+    assert route.called
+    assert resp.content == b"image-bytes"
+    assert resp.headers["content-type"] == "image/jpeg"
+    assert resp.headers["cache-control"] == "public, max-age=86400"
+
+
+@respx.mock
+async def test_thumbnail_proxy_rejects_non_instagram_cdn_url(client):
+    remote_url = "https://example.com/thumb.jpg"
+
+    resp = await client.get("/v1/thumbnail-proxy", params={"url": remote_url})
+
+    assert resp.status_code == 404
+    assert len(respx.calls) == 0
+
+
+@pytest.mark.parametrize(
+    "remote_url",
+    [
+        "http://instagram.example.fna.fbcdn.net/thumb.jpg",
+        "https://instagram.example.fna.fbcdn.net:8443/thumb.jpg",
+        "https://instagram.example.fna.fbcdn.net.evil.example/thumb.jpg",
+    ],
+)
+@respx.mock
+async def test_thumbnail_proxy_rejects_unsafe_url_shapes(client, remote_url):
+    resp = await client.get("/v1/thumbnail-proxy", params={"url": remote_url})
+
+    assert resp.status_code == 404
+    assert len(respx.calls) == 0
 
 
 async def test_get_job(client):

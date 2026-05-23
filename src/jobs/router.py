@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from typing import Annotated
+from urllib.parse import urlparse
 
-from fastapi import APIRouter, status
+import httpx
+from fastapi import APIRouter, HTTPException, Query, Response, status
 from sqlmodel import select
 
 from src.auth.dependencies import CallerDep
@@ -23,6 +26,20 @@ from src.jobs import service as job_service
 from src.mentions.models import Mention
 
 router = APIRouter(tags=["jobs"])
+THUMBNAIL_PROXY_ALLOWED_HOST_SUFFIXES = (".fbcdn.net", ".cdninstagram.com")
+
+
+def _is_allowed_thumbnail_url(url: str) -> bool:
+    parsed = urlparse(url)
+    hostname = parsed.hostname
+    if parsed.scheme != "https" or not hostname:
+        return False
+    if parsed.port not in (None, 443):
+        return False
+    return any(
+        hostname == suffix.removeprefix(".") or hostname.endswith(suffix)
+        for suffix in THUMBNAIL_PROXY_ALLOWED_HOST_SUFFIXES
+    )
 
 
 @router.post("/v1/jobs", status_code=status.HTTP_202_ACCEPTED)
@@ -82,6 +99,30 @@ async def list_jobs(
         )
         for j in jobs
     ]
+
+
+@router.get("/v1/thumbnail-proxy", include_in_schema=False)
+async def proxy_thumbnail(
+    url: Annotated[str, Query(min_length=1, max_length=4096)],
+) -> Response:
+    if not _is_allowed_thumbnail_url(url):
+        raise HTTPException(status_code=404, detail="Thumbnail not found")
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=False) as client:
+            upstream = await client.get(url)
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=404, detail="Thumbnail not found") from exc
+
+    content_type = upstream.headers.get("content-type", "").split(";", 1)[0].strip()
+    if upstream.status_code != 200 or not content_type.startswith("image/"):
+        raise HTTPException(status_code=404, detail="Thumbnail not found")
+
+    return Response(
+        content=upstream.content,
+        media_type=content_type,
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
 
 
 @router.get("/v1/jobs/{job_id}")

@@ -172,6 +172,10 @@ export function errorMessage(error: unknown, fallback = 'Something went wrong. P
   return fallback;
 }
 
+export function thumbnailProxyUrl(url: string): string {
+  return `${API_BASE_URL}/v1/thumbnail-proxy?url=${encodeURIComponent(url)}`;
+}
+
 // --- Jobs ---
 
 export async function createJob(url: string): Promise<{ job_id: string; status: JobStatus }> {
