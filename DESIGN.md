@@ -1,25 +1,28 @@
 ---
-version: alpha
+version: beta
 name: Mentioned
-description: Consumer mobile app design system for capturing book recommendations from shared social reels.
+description: Consumer mobile app design system for saving recommendations mentioned inside social sources.
 colors:
   primary: "#0E6F68"
-  primary-pressed: "#0A4F4A"
+  primary-pressed: "#094C48"
   primary-soft: "#DDF5F1"
   on-primary: "#FFFFFF"
-  secondary: "#53615B"
-  tertiary: "#345D8C"
-  neutral: "#F6F8F5"
+  neutral: "#F7F5F0"
+  neutral-deep: "#ECE7DD"
   surface: "#FFFFFF"
-  surface-muted: "#EEF3EF"
-  surface-elevated: "#FCFDFB"
-  on-surface: "#14201B"
-  on-muted: "#64706A"
-  border: "#DDE5DF"
-  book: "#345D8C"
-  book-soft: "#E7F0FA"
-  source-context: "#4B6378"
-  source-context-soft: "#EAF0F4"
+  surface-muted: "#F1EEE6"
+  surface-elevated: "#FFFEFA"
+  paper: "#F4EFE5"
+  paper-edge: "#DCD4C6"
+  ink: "#101A17"
+  ink-muted: "#69706A"
+  secondary: "#4E5D57"
+  border: "#DDD7CC"
+  hairline: "rgba(16,26,23,0.10)"
+  book: "#2F4A44"
+  book-soft: "#E7ECE5"
+  source-context: "#405B55"
+  source-context-soft: "#E9EDE7"
   warning: "#8A5E00"
   warning-soft: "#FFF3D6"
   success: "#17643C"
@@ -27,62 +30,62 @@ colors:
   error: "#B42318"
   error-soft: "#FDE7E4"
 typography:
+  display:
+    fontFamily: "Satoshi, Geist, SF Pro Display, system-ui, sans-serif"
+    fontSize: 44px
+    fontWeight: 650
+    lineHeight: 1.02
+    letterSpacing: 0em
   headline-lg:
-    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', sans-serif"
-    fontSize: 30px
-    fontWeight: 700
-    lineHeight: 1.14
+    fontFamily: "Satoshi, Geist, SF Pro Display, system-ui, sans-serif"
+    fontSize: 34px
+    fontWeight: 650
+    lineHeight: 1.08
     letterSpacing: 0em
   headline-md:
-    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', sans-serif"
+    fontFamily: "Satoshi, Geist, SF Pro Display, system-ui, sans-serif"
     fontSize: 24px
-    fontWeight: 700
-    lineHeight: 1.18
+    fontWeight: 650
+    lineHeight: 1.16
     letterSpacing: 0em
   title-lg:
-    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', sans-serif"
+    fontFamily: "Satoshi, Geist, SF Pro Text, system-ui, sans-serif"
     fontSize: 20px
     fontWeight: 650
     lineHeight: 1.25
     letterSpacing: 0em
   title-md:
-    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', sans-serif"
+    fontFamily: "Satoshi, Geist, SF Pro Text, system-ui, sans-serif"
     fontSize: 17px
     fontWeight: 650
     lineHeight: 1.3
     letterSpacing: 0em
-  body-lg:
-    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', sans-serif"
-    fontSize: 17px
-    fontWeight: 400
-    lineHeight: 1.45
-    letterSpacing: 0em
   body-md:
-    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', sans-serif"
+    fontFamily: "Satoshi, Geist, SF Pro Text, system-ui, sans-serif"
     fontSize: 16px
     fontWeight: 400
     lineHeight: 1.45
     letterSpacing: 0em
   body-sm:
-    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', sans-serif"
+    fontFamily: "Satoshi, Geist, SF Pro Text, system-ui, sans-serif"
     fontSize: 14px
     fontWeight: 400
-    lineHeight: 1.4
+    lineHeight: 1.42
     letterSpacing: 0em
   label-lg:
-    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', sans-serif"
+    fontFamily: "Satoshi, Geist, SF Pro Text, system-ui, sans-serif"
     fontSize: 14px
     fontWeight: 650
     lineHeight: 1.2
     letterSpacing: 0em
   label-md:
-    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', sans-serif"
+    fontFamily: "Satoshi, Geist, SF Pro Text, system-ui, sans-serif"
     fontSize: 12px
     fontWeight: 650
     lineHeight: 1.2
     letterSpacing: 0em
   caption:
-    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', sans-serif"
+    fontFamily: "Satoshi, Geist, SF Pro Text, system-ui, sans-serif"
     fontSize: 12px
     fontWeight: 400
     lineHeight: 1.35
@@ -91,8 +94,9 @@ rounded:
   none: 0px
   xs: 4px
   sm: 6px
-  md: 8px
-  lg: 12px
+  md: 10px
+  lg: 16px
+  xl: 24px
   full: 9999px
 spacing:
   2xs: 2px
@@ -102,127 +106,48 @@ spacing:
   lg: 16px
   xl: 24px
   2xl: 32px
+  3xl: 44px
   screen-margin: 20px
-  card-padding: 14px
+  card-padding: 16px
   bottom-tab-height: 64px
 components:
   screen:
     backgroundColor: "{colors.neutral}"
-    textColor: "{colors.on-surface}"
+    textColor: "{colors.ink}"
     typography: "{typography.body-md}"
     rounded: "{rounded.none}"
     padding: 20px
-  bottom-tab:
-    backgroundColor: "{colors.surface-elevated}"
-    textColor: "{colors.on-muted}"
-    typography: "{typography.label-md}"
-    rounded: "{rounded.none}"
-    height: 64px
-  divider:
-    backgroundColor: "{colors.border}"
-    textColor: "{colors.secondary}"
-    typography: "{typography.caption}"
-    rounded: "{rounded.none}"
-    height: 1px
   button-primary:
     backgroundColor: "{colors.primary}"
     textColor: "{colors.on-primary}"
     typography: "{typography.label-lg}"
     rounded: "{rounded.md}"
-    padding: 14px
-    height: 48px
-  button-primary-pressed:
-    backgroundColor: "{colors.primary-pressed}"
-    textColor: "{colors.on-primary}"
-    typography: "{typography.label-lg}"
-    rounded: "{rounded.md}"
-    padding: 14px
-    height: 48px
+    padding: 16px
+    height: 52px
   button-secondary:
     backgroundColor: "{colors.surface-muted}"
-    textColor: "{colors.on-surface}"
+    textColor: "{colors.ink}"
     typography: "{typography.label-lg}"
     rounded: "{rounded.md}"
     padding: 14px
     height: 48px
-  button-destructive:
-    backgroundColor: "{colors.error-soft}"
-    textColor: "{colors.error}"
-    typography: "{typography.label-lg}"
-    rounded: "{rounded.md}"
-    padding: 14px
-    height: 48px
-  input:
-    backgroundColor: "{colors.surface-muted}"
-    textColor: "{colors.on-surface}"
+  reel-card:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.on-primary}"
+    rounded: "{rounded.lg}"
+  book-row:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
     typography: "{typography.body-md}"
     rounded: "{rounded.md}"
     padding: 14px
-    height: 48px
-  chip:
-    backgroundColor: "{colors.surface-muted}"
-    textColor: "{colors.secondary}"
-    typography: "{typography.label-md}"
-    rounded: "{rounded.full}"
-    padding: 10px
-  chip-selected:
-    backgroundColor: "{colors.primary-soft}"
-    textColor: "{colors.primary-pressed}"
-    typography: "{typography.label-md}"
-    rounded: "{rounded.full}"
-    padding: 10px
-  book-chip:
-    backgroundColor: "{colors.book-soft}"
-    textColor: "{colors.tertiary}"
-    typography: "{typography.label-md}"
-    rounded: "{rounded.full}"
-    padding: 10px
-  book-cover-placeholder:
+  book-spine:
     backgroundColor: "{colors.book}"
     textColor: "{colors.on-primary}"
     typography: "{typography.label-md}"
     rounded: "{rounded.sm}"
-    width: 44px
-    height: 64px
-  status-attention:
-    backgroundColor: "{colors.warning-soft}"
-    textColor: "{colors.warning}"
-    typography: "{typography.label-md}"
-    rounded: "{rounded.full}"
-    padding: 8px
-  status-complete:
-    backgroundColor: "{colors.success-soft}"
-    textColor: "{colors.success}"
-    typography: "{typography.label-md}"
-    rounded: "{rounded.full}"
-    padding: 8px
-  reel-status-ready:
-    backgroundColor: "{colors.success-soft}"
-    textColor: "{colors.success}"
-    typography: "{typography.caption}"
-    rounded: "{rounded.full}"
-    width: 18px
-    height: 18px
-  reel-status-processing:
-    backgroundColor: "{colors.warning-soft}"
-    textColor: "{colors.warning}"
-    typography: "{typography.caption}"
-    rounded: "{rounded.full}"
-    width: 18px
-    height: 18px
-  reel-status-attention:
-    backgroundColor: "{colors.error-soft}"
-    textColor: "{colors.error}"
-    typography: "{typography.caption}"
-    rounded: "{rounded.full}"
-    width: 18px
-    height: 18px
-  book-card:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.on-surface}"
-    typography: "{typography.body-md}"
-    rounded: "{rounded.md}"
-    padding: 14px
+    width: 52px
+    height: 74px
   source-context-card:
     backgroundColor: "{colors.source-context-soft}"
     textColor: "{colors.source-context}"
@@ -233,164 +158,123 @@ components:
 
 # Mentioned Design System
 
-## Overview
+## 1. Visual Theme & Atmosphere
 
-Mentioned is a consumer mobile app for readers who discover books inside social videos. The core product moment is simple: a user sees a Reel, taps share, sends it to Mentioned, and the Reel appears in a saved collection with the books mentioned inside it.
+Mentioned is a consumer mobile app for saving recommendations that would otherwise disappear inside social video, newsletters, messages, and travel content. The first supported category is books. The product language must still be flexible enough to later say: "Don't lose the places that were mentioned", "Don't lose the essays that were mentioned", or "Don't lose the restaurants that were mentioned."
 
-The interface should feel like a fast personal utility, not an admin dashboard, social feed, or marketing page. It should be calm, native, trustworthy, and lightly bookish without looking old-fashioned. The product personality is precise and helpful: it captures recommendations without asking the user to rewatch, transcribe, or manually organize everything.
+The interface should feel like a quiet personal archive: editorial reading culture, social-source immediacy, and native mobile utility. It should not feel like a marketing landing page, admin dashboard, AI audit screen, or generic social clone.
 
-The design must hide extraction mechanics from normal users. Auto-saved books should feel like the natural result of opening a saved Reel, not like a model audit screen. Backend confidence, raw evidence, stages, artifacts, and worker terms must stay out of the primary UI.
+Atmosphere:
 
-The v1 information architecture is Reel-first. Home is a two-column visual collection of saved Reels/posts, mostly represented by thumbnails. Tapping a saved Reel opens a detail screen with the Reel video or thumbnail at the top and the books mentioned below. A global book library is deferred until the product proves that users want cross-Reel browsing.
+- **Density:** Daily App Balanced, 4/10. Screens should be useful and scannable, but not crowded.
+- **Variance:** Offset Asymmetric, 7/10. Use controlled asymmetry, featured tiles, and source-to-result compositions rather than uniform card rows.
+- **Motion:** Fluid Native, 5/10. Use short tactile feedback, skeleton shimmer, and staggered arrivals only where they explain state.
 
-After a user shares a Reel to Mentioned, the app should open directly to that new Reel detail page in a processing state. Do not drop the user into the home grid and make them find the newly shared Reel. The home grid is for later browsing and returning to saved sources.
+Core product promise:
 
-## Colors
+> Don't lose the books that were mentioned.
 
-The palette uses warm neutral surfaces, high-contrast charcoal text, and one restrained teal action color.
+The active noun is **books** in v1. Treat it as a semantic slot, not hardcoded brand positioning. Future nouns can rotate in onboarding and empty states, but production v1 remains book-first.
 
-- **Primary (#0E6F68):** Used for the most important action on a screen, such as Find books, Continue, Retry, or Save changes.
-- **Primary Soft (#DDF5F1):** Used for selected filters, subtle active states, and quiet successful surfaces.
-- **Neutral (#F6F8F5):** The app background. It should read as clean and personal, softer than pure white but not beige.
-- **Surface (#FFFFFF):** Cards, sheets, and list rows.
-- **Surface Muted (#EEF3EF):** Inputs, inactive chips, bottom tab backgrounds, and secondary controls.
-- **Book (#345D8C):** A supporting accent for book category labels and book-focused visual details.
-- **Source Context (#4B6378):** Used for source creator, caption snippets, and Open source areas, not as a visible debug concept.
-- **Warning (#8A5E00):** Used only for failed, empty, or needs-attention states.
-- **Success (#17643C):** Used for completed or successful states when a visible state is necessary.
-- **Error (#B42318):** Used for destructive actions and failed extraction states.
+## 2. Color Palette & Roles
 
-Primary teal should not dominate the screen. Most UI should be neutral, with color reserved for actions, source state, and category recognition.
+Use one restrained teal accent and a paper-warm neutral system. Do not drift into purple, neon blue, beige monochrome, or heavy dark-mode styling.
 
-## Typography
+- **Archive Canvas (#F7F5F0):** Primary app background. Warm enough to feel editorial, clean enough to avoid a beige theme.
+- **Folded Paper (#F4EFE5):** Behind Reel previews, source quote blocks, and product-preview surfaces.
+- **Paper Edge (#DCD4C6):** Soft physical edge color for source paper layers and subtle separators.
+- **Pure Surface (#FFFFFF):** Book rows, sheets, inputs, and raised content.
+- **Raised Surface (#FFFEFA):** Premium elevated shells and nested preview panels.
+- **Charcoal Ink (#101A17):** Primary text. Never use pure black.
+- **Muted Graphite (#69706A):** Secondary text, captions, source metadata.
+- **Sage Line (#DDD7CC):** Structural borders and dividers.
+- **Quiet Teal (#0E6F68):** The single accent for primary CTAs, active source actions, and the app mark.
+- **Deep Teal (#094C48):** Pressed primary CTA and dark accent surfaces.
+- **Book Green (#2F4A44):** Typographic book spines and book-first visual details.
+- **Source Sage (#405B55):** Source snippets and Open source treatment.
+- **Warning Amber (#8A5E00), Success Green (#17643C), Error Red (#B42318):** Use only for real state communication.
 
-Use the native iOS system stack first, with Inter as a cross-platform fallback. The typography should feel compact, readable, and app-native.
+Primary teal must never flood the interface. Most pixels should be canvas, paper, image, ink, and white surface.
 
-- **Headlines:** Use `headline-lg` and `headline-md` for screen titles such as Saved, Books mentioned, and Reel detail. Keep them short and avoid landing-page scale.
-- **Titles:** Use `title-lg` and `title-md` for book titles, detail headers, and sheet titles.
-- **Body:** Use `body-md` for normal descriptions and source context. Use `body-sm` and `caption` for source creator, status metadata, and timestamps.
-- **Labels:** Use `label-lg` for buttons and `label-md` for chips, tabs, source labels, and status badges.
+## 3. Typography Rules
 
-Do not scale type based on viewport width. Do not use negative letter spacing. Long book titles must wrap gracefully rather than shrink into illegible text.
+Use a premium geometric sans direction: Satoshi, Geist, or Cabinet Grotesk when installed. Until custom fonts are wired into Expo, native SF on iOS is acceptable. Do not document or add Inter as a fallback.
 
-## Layout
+- **Display:** Controlled large type for signed-out and empty-state concepts. Use 40-46px on mobile, line-height near 1.02, and no negative letter spacing.
+- **Screen headlines:** 30-34px, 2 lines maximum in normal screens.
+- **Section titles:** 20-24px, compact and clear.
+- **Body:** 14-16px, relaxed leading, max 65 characters where possible.
+- **Labels and metadata:** 12-14px, medium weight. Use tabular numbers for timestamps and counts when implemented.
 
-Mentioned is mobile-first. Screens should respect iOS safe areas, use a strict 8px-based rhythm, and keep primary actions within thumb reach.
+Avoid fake editorial serif styling in the app shell. Mentioned is a native utility with an editorial texture, not a magazine site.
 
-The default app shell should keep the primary collection first. V1 should not use a bottom tab bar. Use a simple top navigation treatment instead: small Mentioned brand on the left and profile/settings plus a secondary paste-link action on the right. Capture happens mostly through the share sheet, not through a persistent tab.
+## 4. Layout Principles
 
-Core screen structure:
+Mentioned is mobile-first. Screens must respect safe areas and keep primary actions within comfortable thumb reach.
 
-- **Share extension:** Compact iOS-style share target that clearly says Share to Mentioned without copying a third-party social app's exact UI.
-- **Incoming link:** Show source creator, normalized source URL, and a single Find books action.
-- **Finding books:** After share handoff, open the new Reel detail screen and show a calm processing state below the Reel preview. Prefer user-facing copy such as “Finding books…” over backend progress labels.
-- **Saved Reels home:** Show saved Reel/post thumbnails in a two-column grid. Each tile should show only the thumbnail and a tiny creator handle when available. Do not show book counts, captions, descriptions, or status text on normal tiles.
-- **Reel detail:** Show a large but not edge-to-edge vertical Reel preview near the top, source creator, caption snippet, and books mentioned. The Reel preview should confirm the tapped source without turning the app into a full-screen video player.
-- **Books mentioned:** On the Reel detail screen, show extracted books inline as mobile rows/cards with cover placeholder, title, author, and short synopsis. Do not show saved badges, confidence, evidence, review status, edit controls, or remove controls. Do not require a separate book detail screen in v1.
-- **Book saving later:** In a later version, each book row may expose a small plus action so users can save a book to their personal book library. This is separate from the v1 saved-Reel collection.
+Use these screen patterns:
 
-Use cards only for repeated items such as books and source rows. Do not put cards inside cards. Full-screen sections should be unframed layouts, sheets, or simple lists.
+- **Signed out:** Asymmetric onboarding with the headline, one primary CTA, and a miniature source-to-books product preview. Do not use onboarding carousels, badges, or feature lists.
+- **Saved Reels home:** A two-column visual collection with one subtly featured latest tile when content exists. Tiles are browsable source memories, not equal marketing cards.
+- **Reel detail:** Source-first composition: navigation, creator/source, vertical preview, visible Open source action, source quote/snippet, then Books mentioned.
+- **Books mentioned:** Compact editorial rows with typographic spines. Do not use chevrons unless a row navigates or expands.
+- **States:** Loading uses skeletons. Empty uses a composed source-to-result preview. Failed and no-books states remain calm and recoverable.
 
-## Elevation & Depth
+Do not introduce a bottom tab bar in v1. Profile/settings and manual paste stay as lightweight sheets or top-right actions.
 
-Depth should come from tonal layers, borders, spacing, and fixed hierarchy rather than heavy shadows.
+## 5. Component Stylings
 
-Use the neutral app background behind white cards. Use muted surface fills for inputs, chips, and source context blocks. Use thin dividers for lists and bottom navigation. Shadows are reserved for modal sheets and should be subtle enough that the interface still feels flat and native.
+**Buttons:** Primary buttons are deep teal, 52px tall, and have tactile press feedback (`scale: 0.97` to `0.98`). Do not add neon shadows. Secondary buttons use paper or white surfaces with sage borders.
 
-Avoid glassmorphism, floating decorative panels, dramatic gradients, and stacked shadows. The UI should look credible as a production mobile app.
+**Icon buttons:** Use precise line icons or native glyph-like symbols. Avoid raw text such as `+`, `...`, or profile initials as the final visual language when an icon is clearer.
 
-## Shapes
+**Reel tiles:** Use real or generic source thumbnails with a subtle bottom scrim. Normal ready tiles should be visually quiet. Processing and attention states use small icon-only indicators.
 
-The shape language is soft but controlled.
+**Featured tile:** The newest or most relevant source may be slightly taller or wider in the home grid. This creates collection rhythm without turning the screen into a feed.
 
-- Use `rounded.md` (8px) for book cards, source context cards, inputs, and primary buttons.
-- Use `rounded.sm` (6px) for compact inline controls.
-- Use `rounded.full` only for status badges, filter chips, and avatar-like source marks.
-- Avoid mixing many corner radii on one screen.
+**Book rows:** Use a typographic spine/cover placeholder, title, author, and concise synopsis. Prefer hairline dividers and soft surfaces over bulky cards.
 
-Phone mockups and system sheets may have platform-native rounding, but in-app cards should stay at 8px or less.
+**Source quote:** Render cleaned source context as a quote or source block with a left accent line. Never render backend evidence, raw transcript debris, confidence, provider names, or artifact paths.
 
-## Components
+**Sheets:** Bottom sheets use a soft raised surface, a centered handle, and grouped rows. Destructive actions remain secondary and confirmed.
 
-**Buttons:** Primary buttons are teal with white text and should appear once per screen when possible. Secondary buttons use muted surfaces. Destructive actions use error color sparingly and usually as text or a secondary action.
+## 6. Motion & Interaction
 
-**Inputs:** Text fields use muted surfaces, 48px height, and clear placeholder text. The source URL field should never be visually noisy because most users arrive through sharing, not manual paste.
+Use motion only where it supports comprehension or tactile feedback.
 
-**Book cards:** A book card must show only a cover placeholder, title, author when available, and a short synopsis. If cover art is not available or rights are unclear, use a typographic book placeholder rather than a fake cover. The fact that the book appears under Books mentioned is enough confirmation; do not add a Saved badge.
+- Button and tile press: 100-160ms scale feedback.
+- Sheet entrance: native slide is acceptable; future custom motion should use a spring-like curve.
+- New book rows: stagger by 30-60ms when a processing state resolves.
+- Loading: skeleton shimmer matching final row dimensions; no generic circular spinner for primary loading states.
+- Status dots: subtle pulse only for active processing, not for static ready content.
 
-**Book expansion:** Keep book information inline on the Reel detail page in v1. A book card may expand in place for a longer synopsis, but tapping a book should not navigate to a separate book detail page until richer metadata, notes, links, or cross-Reel history exist.
+Never animate layout properties. Use transform and opacity. Do not add decorative perpetual motion to content users scan repeatedly.
 
-**Book actions:** Users should not edit or remove individual books from a Reel in v1. Books are presented as what was mentioned in the source Reel. Future library behavior may add a small plus action to save a book independently, but the first mockup should keep rows read-only.
+## 7. Content Rules
 
-**Processing quality:** Confidence is not a user-facing UI element. The app may filter unreliable items internally, but visible book cards should not show confidence percentages, meters, model scores, or evidence labels.
+Use concrete product copy:
 
-**Source context:** Detail screens may show the Reel video or thumbnail, creator, a cleaned source snippet, and Open source action. Do not expose raw evidence JSON, backend stage names, artifact paths, or provider/debug text. Render the source snippet only when `source_context_snippet` exists and has passed cleanup; otherwise omit the snippet area entirely.
+- Signed out headline: **Don't lose the books that were mentioned.**
+- Supporting copy: **Share a Reel, keep the source, find it later.**
+- Processing: **Finding books...**
+- Home title: **Saved Reels**
+- Detail section: **Books mentioned**
 
-**Source snippet quality:** A useful snippet is short, readable, and helps identify the Reel. It should usually be roughly 40-180 characters after cleanup, not mostly hashtags, mentions, links, promo boilerplate, repeated punctuation, raw transcript debris, or duplicate book-title text. The frontend should not run complex caption heuristics; it should render the cleaned nullable field.
+Avoid AI/marketing filler such as "elevate", "seamless", "unlock", "supercharge", and "next-gen". Avoid generic placeholder names and exact third-party social chrome. Do not use celebrities or recognizable creators in production mock data.
 
-**Reel preview:** Use a centered vertical preview frame with a controlled radius, roughly 70-76% of the screen width on standard phones. Avoid true edge-to-edge full-width video on the detail page because it pushes books too far down and makes the app feel like a video player. If playback is not available in v1, use the downloaded thumbnail or a quiet placeholder in the same frame.
+## 8. Anti-Patterns
 
-**Share handoff:** The post-share destination is the new Reel detail page, not the saved Reel grid. Show the source preview immediately and place the “Finding books…” state where the books list will appear. Use quiet skeleton book rows under the message instead of step labels. Once processing completes, replace that state with Books mentioned. If the app is backgrounded or closed, the saved Reel remains visible in the home grid.
+Never do these in Mentioned:
 
-**Processing copy:** Use a single calm label such as “Finding books…” for user-facing processing. Do not show progress percentages or step labels such as Reading caption, Listening, Scanning text, or Saving books in the normal UI.
-
-**Reel tile status:** Prefer quiet icon-only state indicators over text labels on the home grid. Ready should be visually silent. Processing may use a small muted yellow dot or ring. Failed and no-books states should share the same small muted red attention mark on the grid, because the grid only needs to signal that a tile needs attention. Explain the exact state after the user opens the Reel detail. Avoid permanent green checkmarks on every ready tile because they add noise to the collection.
-
-**No-books detail:** If extraction completes but no useful books are found, the detail screen should feel neutral and recoverable. Show the Reel context, a simple message such as “No books found in this Reel,” and actions to Open source or Remove from saved. Do not make this look like a technical failure.
-
-**Failed detail:** If extraction fails, the detail screen should clearly offer Retry. Keep the copy user-facing and avoid exposing the backend reason unless it gives the user a useful next action.
-
-**Detail actions:** Open source should be easy to find on detail screens. Delete or Remove from saved can be available for the saved Reel but should not dominate. Do not expose book edit/remove actions in v1.
-
-**Reel removal:** Users may remove an entire saved Reel from the Reel detail page in v1, but it must live in a top-right overflow menu rather than as a primary button. The same menu can include Open source. Confirm destructive removal in a bottom sheet.
-
-**Navigation:** Prefer no bottom tab bar in v1. Home should show Mentioned as a small brand element in the top nav and Saved Reels as the screen title. Profile/settings should live behind a top-right profile button. Add tabs only later if Saved, Search, Capture, and Profile become real first-class destinations.
-
-**Profile/settings:** Open profile/settings as a bottom sheet, not a full page, in v1. The sheet can show account email, sign out, privacy, delete account, and How sharing works. Keep it lightweight so profile does not feel like a major destination. Promote settings to a full page only if the surface grows.
-
-**Manual paste:** Include manual paste as a secondary capture action for copied links, testing, and share-sheet fallback. Do not place a large URL input on the home screen by default. Prefer a small top-nav plus action or Paste link button that opens a compact sheet.
-
-**Signed-out state:** Include one lightweight signed-out screen in product mockups. Use a concise explanation of the app and one primary auth option: Continue with Google. Do not overdesign onboarding in v1; the signed-in saved-Reel flow is the main product.
-
-**Share extension mockup:** Include a generic iOS-style Share to Mentioned sheet in mockups so the handoff is obvious. The source app should be represented generically as a social Reel, not with exact Instagram UI, logos, brand colors, or copied platform chrome.
-
-**Full mockup board:** The first full mockup board should include exactly eight user-facing screens: signed out, generic share sheet, new Reel detail while Finding books, new Reel detail with Books mentioned, Saved Reels home grid, Reel detail no books found, Reel detail failed with Retry, and profile/settings bottom sheet. Avoid backend/admin/debug screens.
-
-**Reel imagery:** Use realistic but generic video stills for saved Reel thumbnails and detail previews. They should feel like social video frames without copying Instagram UI, logos, captions, brand colors, or recognizable creators. Avoid abstract placeholders unless the source media is truly unavailable.
-
-**Book artwork:** Use simple typographic book placeholders in v1 mockups. Do not create fake realistic covers because that implies cover metadata or rights the product may not have. Placeholders may use initials, title fragments, or quiet geometric composition.
-
-**Empty states:** Empty Saved should suggest sharing a Reel to Mentioned. No-books detail should stay neutral and focused on the source Reel. Avoid cute illustrations that compete with the workflow.
-
-## Do's and Don'ts
-
-- Do make the share-to-Mentioned handoff obvious on first use.
-- Do open a newly shared Reel directly in its detail screen.
-- Do make saved Reels/posts the primary home collection in v1.
-- Do use a two-column thumbnail grid for the saved Reel collection.
-- Do keep normal Reel tiles to thumbnail plus tiny creator handle only.
-- Do show books as the primary content inside each saved Reel detail.
-- Do keep book information inline on Reel detail for v1.
-- Do use Mentioned as the small nav brand and Saved Reels as the home title.
-- Do present profile/settings as a bottom sheet in v1.
-- Do include manual paste as a secondary action, not the primary home surface.
-- Do keep signed-out onboarding to one lightweight screen.
-- Do include a generic Share to Mentioned handoff screen in full mockup sets.
-- Do use the agreed eight-screen set for the first full mockup board.
-- Do use realistic generic video stills for Reel thumbnails and previews.
-- Do use typographic book placeholders in v1 mockups.
-- Do tuck Remove from saved into a Reel detail overflow menu.
-- Do keep individual book rows read-only in v1.
-- Do keep the source Reel and books mentioned visually connected.
-- Do use primary teal for the main action only.
-- Do use simple, native controls over custom novelty UI.
-- Do keep Instagram and other social-source UI generic; avoid exact logos, copied layouts, or brand colors unless assets are explicitly licensed.
-- Do preserve a clear path back to the source Reel through Open source.
-- Don't create a desktop dashboard, admin table, or analytics interface for the consumer app.
-- Don't make the first screen a global book library in v1.
-- Don't add a bottom tab bar in v1 just to expose profile/settings.
-- Don't show confidence, raw evidence, stage history, artifact metadata, worker attempts, or provider details in normal user-facing UI.
-- Don't merge books across different source posts in the UI unless a later canonicalization feature exists.
-- Don't use giant hero sections, marketing copy, purple gradients, beige monochrome palettes, decorative blobs, or stock photography.
-- Don't invent book covers or exact source thumbnails when real assets are unavailable or rights are unclear.
-- Don't use raw artifact paths, provider debug text, or backend stage internals in user-facing screens.
+- No emojis in app UI, docs, labels, or alt text.
+- No Inter fallback in design docs or token files.
+- No pure black (`#000000`).
+- No purple/neon AI gradients or glowing buttons.
+- No fake realistic book covers that imply rights or metadata.
+- No copied Instagram/TikTok UI, logos, verification badges, or brand colors.
+- No chevrons on non-interactive book rows.
+- No giant marketing hero inside the signed-in app.
+- No bottom tab bar until there are real first-class destinations.
+- No confidence scores, model stages, raw evidence, provider names, artifacts, or worker internals in user-facing UI.
+- No generic 3-card feature rows.
+- No decorative elements that overlap text or reduce tap clarity.

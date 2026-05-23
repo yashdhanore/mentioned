@@ -1,13 +1,16 @@
 import { Text, View } from 'react-native';
 
 import type { BookMention } from '@/captures';
-import { PrimaryButton, SecondaryButton } from '@/components/ui';
+import { FadeInView } from '@/components/motion';
+import { SourceToBooksPreview } from '@/components/product-preview';
+import { BookSpine, BookSpineSkeleton, PrimaryButton, SecondaryButton } from '@/components/ui';
 import { styles } from '@/styles';
 
 export function ProcessingBooks() {
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Finding books...</Text>
+      <Text style={styles.sectionSubtitle}>Mentioned is reading the source and preparing the list.</Text>
       <View style={styles.skeletonList}>
         <SkeletonBookRow />
         <SkeletonBookRow />
@@ -19,7 +22,7 @@ export function ProcessingBooks() {
 function SkeletonBookRow() {
   return (
     <View style={styles.bookRow}>
-      <View style={styles.skeletonCover} />
+      <BookSpineSkeleton />
       <View style={styles.skeletonTextGroup}>
         <View style={[styles.skeletonLine, { width: '78%' }]} />
         <View style={[styles.skeletonLine, { width: '52%' }]} />
@@ -34,8 +37,10 @@ export function BooksMentioned({ books }: { books: BookMention[] }) {
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Books mentioned</Text>
       <View style={styles.bookList}>
-        {books.map((book) => (
-          <BookRow key={book.id} book={book} />
+        {books.map((book, index) => (
+          <FadeInView key={book.id} delay={Math.min(index * 55, 220)}>
+            <BookRow book={book} />
+          </FadeInView>
         ))}
       </View>
     </View>
@@ -45,9 +50,7 @@ export function BooksMentioned({ books }: { books: BookMention[] }) {
 function BookRow({ book }: { book: BookMention }) {
   return (
     <View style={styles.bookRow}>
-      <View style={[styles.bookCover, { backgroundColor: book.color }]}>
-        <Text style={styles.bookCoverText}>{book.initials}</Text>
-      </View>
+      <BookSpine color={book.color} initials={book.initials} title={book.title} />
       <View style={styles.bookCopy}>
         <Text style={styles.bookTitle}>{book.title}</Text>
         {book.author ? <Text style={styles.bookAuthor}>{book.author}</Text> : null}
@@ -64,6 +67,9 @@ export function NoBooks({ onOpenSource }: { onOpenSource: () => void }) {
       <Text style={styles.stateBody}>
         We saved the Reel, but did not find a useful book mention to show here.
       </Text>
+      <View style={styles.statePreviewWrap}>
+        <SourceToBooksPreview />
+      </View>
       <View style={styles.stateActions}>
         <SecondaryButton label="Open source" onPress={onOpenSource} compact />
       </View>

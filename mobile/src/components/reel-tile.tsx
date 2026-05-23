@@ -5,10 +5,12 @@ import { styles } from '@/styles';
 
 export function ReelTile({
   capture,
+  featured = false,
   width,
   onPress,
 }: {
   capture: Capture;
+  featured?: boolean;
   width: number;
   onPress: () => void;
 }) {
@@ -16,15 +18,30 @@ export function ReelTile({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${capture.creator} saved Reel`}
-      style={({ pressed }) => [styles.reelTile, { width }, pressed && styles.pressed]}
+      style={({ pressed }) => [
+        styles.reelTile,
+        featured && styles.reelTileFeatured,
+        { width },
+        pressed && styles.pressed,
+      ]}
       onPress={onPress}
     >
       <Image source={{ uri: capture.thumbnailUrl }} style={styles.reelTileImage} />
       <View style={styles.reelTileScrim} />
+      {featured ? (
+        <View style={styles.latestBadge}>
+          <Text style={styles.latestBadgeText}>Latest</Text>
+        </View>
+      ) : null}
       {capture.status !== 'ready' ? <TileStatus status={capture.status} /> : null}
-      <Text numberOfLines={1} style={styles.reelCreator}>
-        {capture.creator}
-      </Text>
+      <View style={styles.reelTileMeta}>
+        <Text numberOfLines={featured ? 2 : 1} style={styles.reelTileTitle}>
+          {capture.sourceContextSnippet || 'Saved source'}
+        </Text>
+        <Text numberOfLines={1} style={styles.reelCreator}>
+          {capture.creator}
+        </Text>
+      </View>
     </Pressable>
   );
 }
