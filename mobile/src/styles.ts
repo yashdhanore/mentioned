@@ -640,7 +640,7 @@ export const styles = StyleSheet.create({
     color: colors.primary,
   },
   modalOverlay: {
-    backgroundColor: 'rgba(20, 32, 27, 0.18)',
+    backgroundColor: 'rgba(20, 32, 27, 0.06)',
     flex: 1,
     justifyContent: 'flex-end',
   },
