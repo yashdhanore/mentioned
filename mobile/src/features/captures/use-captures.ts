@@ -82,7 +82,7 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
         const jobDetails = await Promise.all(jobs.map((job) => getJob(job.job_id)));
         setCaptures(buildCaptures(jobDetails));
       } catch (error) {
-        setLoadError(errorMessage(error, 'Could not load saved Reels.'));
+        setLoadError(errorMessage(error, 'Could not load saved items.'));
       } finally {
         if (!silent) {
           setIsLoadingCaptures(false);
@@ -232,13 +232,13 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
   const openSource = useCallback(async (capture: Capture) => {
     setActionError(null);
     if (!isAllowedInstagramUrl(capture.sourceUrl)) {
-      setActionError('This source URL cannot be opened from the app.');
+      setActionError('This Instagram URL cannot be opened from the app.');
       return;
     }
     try {
       await Linking.openURL(capture.sourceUrl);
     } catch (error) {
-      setActionError(errorMessage(error, 'Could not open the source URL.'));
+      setActionError(errorMessage(error, 'Could not open Instagram.'));
     }
   }, []);
 

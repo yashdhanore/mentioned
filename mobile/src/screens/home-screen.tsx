@@ -47,8 +47,8 @@ export function HomeScreen({
       </View>
 
       <View style={styles.homeHeader}>
-        <Text style={styles.screenTitle}>Saved Reels</Text>
-        <Text style={styles.screenSubtitle}>Sources you've saved and processed.</Text>
+        <Text style={styles.screenTitle}>Saved items</Text>
+        <Text style={styles.screenSubtitle}>Items you have saved</Text>
       </View>
 
       {error ? <InlineMessage tone="error" message={error} actionLabel="Try again" onAction={onRefresh} /> : null}
@@ -90,7 +90,7 @@ function LoadingState({ tileWidth }: { tileWidth: number }) {
 function EmptyCaptures({ onOpenPaste }: { onOpenPaste: () => void }) {
   return (
     <View style={styles.stateCard}>
-      <Text style={styles.stateTitle}>No saved Reels yet</Text>
+      <Text style={styles.stateTitle}>No saved items yet</Text>
       <Text style={styles.stateBody}>Share a Reel to Mentioned, or paste a link to start finding books.</Text>
       <View style={styles.emptyPreviewWrap}>
         <SourceToBooksPreview />

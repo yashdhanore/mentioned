@@ -10,7 +10,7 @@ export function ProcessingBooks() {
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Finding books...</Text>
-      <Text style={styles.sectionSubtitle}>Mentioned is reading the source and preparing the list.</Text>
+      <Text style={styles.sectionSubtitle}>Mentioned is reading the Instagram post and preparing the list.</Text>
       <View style={styles.skeletonList}>
         <SkeletonBookRow />
         <SkeletonBookRow />
@@ -71,7 +71,7 @@ export function NoBooks({ onOpenSource }: { onOpenSource: () => void }) {
         <SourceToBooksPreview />
       </View>
       <View style={styles.stateActions}>
-        <SecondaryButton label="Open source" onPress={onOpenSource} compact />
+        <SecondaryButton label="Open on Instagram" onPress={onOpenSource} compact />
       </View>
     </View>
   );
@@ -90,7 +90,7 @@ export function FailedState({
     <View style={styles.stateCard}>
       <Text style={styles.stateTitle}>Could not find books from this Reel</Text>
       <Text style={styles.stateBody}>
-        The source is still saved. Try again, or open the original Reel.
+        The item is still saved. Try again, or open it on Instagram.
       </Text>
       <View style={styles.stateActions}>
         <PrimaryButton
@@ -99,7 +99,7 @@ export function FailedState({
           compact
           disabled={isRetrying}
         />
-        <SecondaryButton label="Open source" onPress={onOpenSource} compact />
+        <SecondaryButton label="Open on Instagram" onPress={onOpenSource} compact />
       </View>
     </View>
   );

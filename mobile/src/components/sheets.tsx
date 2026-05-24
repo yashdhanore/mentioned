@@ -66,7 +66,7 @@ export function PasteSheet({
     <BottomSheet visible={visible} onClose={onClose}>
       <KeyboardAvoidingView behavior={process.env.EXPO_OS === 'ios' ? 'padding' : undefined}>
         <Text style={styles.sheetTitle}>Paste link</Text>
-        <Text style={styles.sheetBody}>Use this when sharing from the source app is not available.</Text>
+        <Text style={styles.sheetBody}>Use this when sharing from Instagram is not available.</Text>
         <Text style={styles.inputLabel}>Reel URL</Text>
         <TextInput
           autoCapitalize="none"
@@ -103,7 +103,7 @@ export function ReelMenuSheet({
       <Text style={styles.sheetTitle}>Reel actions</Text>
       <View style={styles.sheetMenu}>
         <SheetRow
-          label="Open source"
+          label="Open on Instagram"
           onPress={() => {
             onOpenSource?.();
             onClose();

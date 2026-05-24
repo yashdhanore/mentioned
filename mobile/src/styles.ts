@@ -87,18 +87,31 @@ export const styles = StyleSheet.create({
     marginTop: 2,
     width: 15,
   },
-  iconChevronLine: {
+  iconBackShaft: {
     borderRadius: 1,
     height: 2,
     left: 5,
     position: 'absolute',
-    width: 11,
+    top: 10,
+    width: 13,
   },
-  iconChevronUpper: {
-    transform: [{ rotate: '-45deg' }, { translateX: -2 }],
+  iconBackUpper: {
+    borderRadius: 1,
+    height: 2,
+    left: 4,
+    position: 'absolute',
+    top: 7,
+    transform: [{ rotate: '-45deg' }],
+    width: 9,
   },
-  iconChevronLower: {
-    transform: [{ rotate: '45deg' }, { translateX: -2 }],
+  iconBackLower: {
+    borderRadius: 1,
+    height: 2,
+    left: 4,
+    position: 'absolute',
+    top: 13,
+    transform: [{ rotate: '45deg' }],
+    width: 9,
   },
   iconMoreCanvas: {
     flexDirection: 'row',
@@ -108,37 +121,6 @@ export const styles = StyleSheet.create({
     borderRadius: 2,
     height: 4,
     width: 4,
-  },
-  iconExternalBox: {
-    borderRadius: 3,
-    borderWidth: 1.5,
-    bottom: 4,
-    height: 12,
-    left: 4,
-    position: 'absolute',
-    width: 12,
-  },
-  iconExternalStem: {
-    height: 2,
-    position: 'absolute',
-    right: 4,
-    top: 6,
-    transform: [{ rotate: '-45deg' }],
-    width: 11,
-  },
-  iconExternalArrowA: {
-    height: 2,
-    position: 'absolute',
-    right: 4,
-    top: 5,
-    width: 6,
-  },
-  iconExternalArrowB: {
-    height: 6,
-    position: 'absolute',
-    right: 4,
-    top: 5,
-    width: 2,
   },
   authScreen: {
     alignSelf: 'center',
@@ -417,17 +399,14 @@ export const styles = StyleSheet.create({
   previewPaper: {
     alignItems: 'center',
     alignSelf: 'center',
-    backgroundColor: colors.paper,
-    borderColor: colors.paperEdge,
-    borderRadius: radius.xl,
-    borderWidth: 1,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.lg,
+    backgroundColor: 'transparent',
+    borderRadius: radius.lg,
+    padding: 0,
   },
   reelPreview: {
     aspectRatio: 9 / 16,
     backgroundColor: colors.surfaceMuted,
-    borderColor: colors.border,
+    borderColor: colors.hairline,
     borderRadius: radius.lg,
     borderWidth: 1,
     overflow: 'hidden',
@@ -442,10 +421,6 @@ export const styles = StyleSheet.create({
   sourceCreator: {
     ...typography.labelLg,
     color: colors.onSurface,
-  },
-  sourceSnippet: {
-    ...typography.bodySm,
-    color: colors.onMuted,
   },
   detailSourceAction: {
     alignItems: 'center',

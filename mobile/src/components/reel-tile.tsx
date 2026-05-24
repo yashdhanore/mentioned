@@ -17,7 +17,7 @@ export function ReelTile({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${capture.creator} saved Reel`}
+      accessibilityLabel={capture.creator}
       style={({ pressed }) => [
         styles.reelTile,
         featured && styles.reelTileFeatured,
@@ -35,9 +35,11 @@ export function ReelTile({
       ) : null}
       {capture.status !== 'ready' ? <TileStatus status={capture.status} /> : null}
       <View style={styles.reelTileMeta}>
-        <Text numberOfLines={featured ? 2 : 1} style={styles.reelTileTitle}>
-          {capture.sourceContextSnippet || 'Saved source'}
-        </Text>
+        {capture.sourceContextSnippet ? (
+          <Text numberOfLines={featured ? 2 : 1} style={styles.reelTileTitle}>
+            {capture.sourceContextSnippet}
+          </Text>
+        ) : null}
         <Text numberOfLines={1} style={styles.reelCreator}>
           {capture.creator}
         </Text>
