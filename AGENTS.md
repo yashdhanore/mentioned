@@ -22,6 +22,10 @@ python scripts/evaluate_visual_manifest.py --artifacts-dir data/artifacts
 
 Media extraction paths may require local `ffmpeg`, `yt-dlp`, and `tesseract` installations.
 
+## Backend Deployment & Render Troubleshooting
+
+When investigating hosted backend failures, use the Render plugin to inspect the backend service before guessing from local code alone. Check Render deploy status, runtime logs, health checks, service configuration, and recent deploy/error events to identify production-only issues. Summarize the Render evidence you used, then connect it to any local code or configuration changes.
+
 ## Database & Supabase Workflow
 
 For any database schema, migration, seed, RLS, or Supabase configuration change, use the Supabase CLI directly instead of handing migration steps back to the user. Check commands with `supabase --help` and `supabase <group> --help` because CLI behavior changes. Create migration files with `supabase migration new <descriptive_name>` and keep them under `supabase/migrations/`. Apply and verify migrations yourself with the appropriate local command, such as `supabase migration up --local` or `supabase db reset`. For hosted targets, run `supabase db push --dry-run` first, then run `supabase db push` when the intended linked remote target is clear. End with the commands you ran and any errors. Do not stop at "run the migration" unless the CLI, Docker, or credentials are unavailable.
