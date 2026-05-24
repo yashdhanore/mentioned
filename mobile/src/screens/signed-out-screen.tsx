@@ -31,7 +31,7 @@ export function SignedOutScreen({
             <Text style={styles.authTitle}>
               Don't lose the <Text style={styles.authTitleSlot}>books</Text> that were mentioned.
             </Text>
-            <Text style={styles.authBody}>Share a Reel, keep the source, find it later.</Text>
+            <Text style={styles.authBody}>Share a Reel, keep the original, find it later.</Text>
           </View>
 
           <View style={styles.authPreviewWrap}>

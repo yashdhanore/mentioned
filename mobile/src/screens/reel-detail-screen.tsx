@@ -1,7 +1,7 @@
 import { Image, ScrollView, Text, View } from 'react-native';
 
 import type { Capture } from '@/captures';
-import { BackIcon, ExternalIcon, MoreIcon } from '@/components/icons';
+import { BackIcon, MoreIcon } from '@/components/icons';
 import {
   BooksMentioned,
   FailedState,
@@ -30,7 +30,7 @@ export function ReelDetailScreen({
   onOpenSource: () => void;
   onRetry: () => void;
 }) {
-  const previewWidth = Math.min(width * 0.74, 318);
+  const previewWidth = Math.min(width * 0.82, 342);
 
   return (
     <ScrollView
@@ -39,7 +39,7 @@ export function ReelDetailScreen({
       bounces
     >
       <View style={styles.detailNav}>
-        <IconButton accessibilityLabel="Back to saved Reels" onPress={onBack}>
+        <IconButton accessibilityLabel="Back to saved items" onPress={onBack}>
           <BackIcon />
         </IconButton>
         <Text numberOfLines={1} style={styles.detailNavTitle}>
@@ -60,13 +60,10 @@ export function ReelDetailScreen({
         <View style={styles.sourceBlock}>
           <Text style={styles.sourceCreator}>{capture.creator}</Text>
           {capture.sourceContextSnippet ? (
-            <SourceQuote quote={capture.sourceContextSnippet} attribution={`Saved from ${capture.creator}`} />
-          ) : (
-            <Text style={styles.sourceSnippet}>Source saved. Mentioned will keep the Reel with any books it finds.</Text>
-          )}
+            <SourceQuote quote={capture.sourceContextSnippet} attribution="From Instagram" />
+          ) : null}
           <View style={styles.detailSourceAction}>
-            <SecondaryButton label="Open source" onPress={onOpenSource} compact />
-            <ExternalIcon />
+            <SecondaryButton label="Open on Instagram" onPress={onOpenSource} compact />
           </View>
         </View>
       </View>

@@ -15,7 +15,7 @@ export function SourceToBooksPreview() {
         <View style={styles.previewImageWash} />
         <View style={styles.previewScrim} />
         <Text style={styles.previewReelText}>This book changed how I think about attention.</Text>
-        <Text style={styles.previewCreator}>@source</Text>
+        <Text style={styles.previewCreator}>Instagram</Text>
       </View>
 
       <View style={styles.previewConnector}>
