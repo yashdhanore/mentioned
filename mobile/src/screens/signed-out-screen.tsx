@@ -3,7 +3,7 @@ import * as Linking from 'expo-linking';
 import { Pressable, SafeAreaView, ScrollView, Text, View } from 'react-native';
 
 import { SourceToBooksPreview } from '@/components/product-preview';
-import { AppMark, InlineMessage, PrimaryButton } from '@/components/ui';
+import { AppMark, GoogleButton, InlineMessage } from '@/components/ui';
 import { styles } from '@/styles';
 
 export function SignedOutScreen({
@@ -41,7 +41,7 @@ export function SignedOutScreen({
 
         <View style={styles.authActions}>
           {error ? <InlineMessage tone="error" message={error} /> : null}
-          <PrimaryButton
+          <GoogleButton
             label={isGoogleLoading ? 'Signing in...' : 'Continue with Google'}
             onPress={onContinueGoogle}
             disabled={isDisabled}

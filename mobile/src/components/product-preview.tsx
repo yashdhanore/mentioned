@@ -1,4 +1,4 @@
-import { Text, View } from 'react-native';
+import { Image, Text, View } from 'react-native';
 
 import { BookSpine, Surface } from '@/components/ui';
 import { styles } from '@/styles';
@@ -8,14 +8,23 @@ const previewBooks = [
   { title: 'Deep Work', author: 'Cal Newport', initials: 'DW', color: '#2F4A44' },
 ];
 
+const previewReelImage = require('../../assets/preview-reel.png');
+
 export function SourceToBooksPreview() {
   return (
     <View style={styles.productPreview}>
       <View style={styles.previewReelCard}>
-        <View style={styles.previewImageWash} />
+        <Image source={previewReelImage} style={styles.previewReelImage} />
         <View style={styles.previewScrim} />
-        <Text style={styles.previewReelText}>This book changed how I think about attention.</Text>
-        <Text style={styles.previewCreator}>@source</Text>
+        <View style={styles.previewSourceMeta}>
+          <Text numberOfLines={1} style={styles.previewCreator}>
+            @annelewis
+          </Text>
+          <View style={styles.previewSourcePill}>
+            <View style={styles.previewPlayGlyph} />
+            <Text style={styles.previewDuration}>1.2M</Text>
+          </View>
+        </View>
       </View>
 
       <View style={styles.previewConnector}>
