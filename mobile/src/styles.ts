@@ -125,16 +125,19 @@ export const styles = StyleSheet.create({
   authScreen: {
     alignSelf: 'center',
     flexGrow: 1,
-    gap: spacing.xxl,
-    justifyContent: 'space-between',
+    gap: spacing.xl,
+    justifyContent: 'flex-start',
     maxWidth: 430,
     padding: spacing.screen,
-    paddingTop: spacing.xxl + spacing.xl,
+    paddingTop: spacing.xxl,
     paddingBottom: spacing.xxl,
     width: '100%',
   },
+  authTop: {
+    gap: spacing.xl,
+  },
   authHero: {
-    gap: spacing.xxxl,
+    gap: spacing.xl,
   },
   authMark: {
     alignItems: 'center',
@@ -152,7 +155,7 @@ export const styles = StyleSheet.create({
     color: colors.primary,
   },
   authCopy: {
-    gap: spacing.lg,
+    gap: spacing.md,
   },
   authBrand: {
     ...typography.labelLg,
@@ -161,7 +164,9 @@ export const styles = StyleSheet.create({
   authTitle: {
     ...typography.display,
     color: colors.onSurface,
-    maxWidth: 360,
+    fontSize: 39,
+    lineHeight: 41,
+    maxWidth: 348,
   },
   authTitleSlot: {
     color: colors.primaryPressed,
@@ -169,7 +174,7 @@ export const styles = StyleSheet.create({
   authBody: {
     ...typography.bodyMd,
     color: colors.onMuted,
-    maxWidth: 300,
+    maxWidth: 292,
   },
   authPreviewWrap: {
     alignItems: 'center',
@@ -732,7 +737,7 @@ export const styles = StyleSheet.create({
   productPreview: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: spacing.sm,
+    gap: spacing.xs,
     justifyContent: 'center',
   },
   previewReelCard: {
@@ -802,33 +807,71 @@ export const styles = StyleSheet.create({
   previewConnectorDot: {
     backgroundColor: colors.primary,
     borderRadius: 4,
-    height: 8,
-    width: 8,
+    height: 7,
+    width: 7,
   },
   previewConnectorLine: {
     backgroundColor: colors.primary,
-    height: 70,
-    opacity: 0.5,
+    height: 58,
+    opacity: 0.38,
     width: 1,
   },
   previewBookStack: {
     gap: spacing.sm,
-    width: 176,
+    width: 162,
   },
   previewBookLabel: {
     ...typography.caption,
     color: colors.onMuted,
     textAlign: 'center',
   },
-  previewBookRow: {
+  previewBookCard: {
     alignItems: 'center',
+    backgroundColor: colors.surfaceElevated,
+    borderColor: colors.paperEdge,
+    borderRadius: radius.md,
+    borderWidth: 1,
     flexDirection: 'row',
     gap: spacing.sm,
-    padding: spacing.xs,
+    minHeight: 64,
+    padding: 6,
   },
-  previewBookCopy: {
+  previewBookCardFirst: {
+    alignSelf: 'flex-start',
+    transform: [{ rotate: '-0.8deg' }],
+    width: 156,
+  },
+  previewBookCardSecond: {
+    alignSelf: 'flex-end',
+    transform: [{ rotate: '0.8deg' }],
+    width: 150,
+  },
+  previewBookObject: {
+    alignItems: 'center',
+    borderColor: colors.hairline,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    height: 52,
+    justifyContent: 'center',
+    overflow: 'hidden',
+    paddingHorizontal: spacing.xs,
+    width: 38,
+  },
+  previewBookPageEdge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.42)',
+    bottom: 0,
+    left: 4,
+    position: 'absolute',
+    top: 0,
+    width: 3,
+  },
+  previewBookObjectText: {
+    ...typography.labelMd,
+    textAlign: 'center',
+  },
+  previewBookCardCopy: {
     flex: 1,
-    gap: spacing.xs,
+    gap: spacing.xxs,
   },
   previewBookTitle: {
     ...typography.labelMd,
