@@ -3,7 +3,7 @@ import * as Linking from 'expo-linking';
 import { Pressable, SafeAreaView, ScrollView, Text, View } from 'react-native';
 
 import { SourceToBooksPreview } from '@/components/product-preview';
-import { AppMark, InlineMessage, PrimaryButton } from '@/components/ui';
+import { AppMark, GoogleButton, InlineMessage } from '@/components/ui';
 import { styles } from '@/styles';
 
 export function SignedOutScreen({
@@ -31,7 +31,7 @@ export function SignedOutScreen({
             <Text style={styles.authTitle}>
               Don't lose the <Text style={styles.authTitleSlot}>books</Text> that were mentioned.
             </Text>
-            <Text style={styles.authBody}>Share a Reel, keep the original, find it later.</Text>
+            <Text style={styles.authBody}>Share a Reel, keep the source, find it later.</Text>
           </View>
 
           <View style={styles.authPreviewWrap}>
@@ -41,7 +41,7 @@ export function SignedOutScreen({
 
         <View style={styles.authActions}>
           {error ? <InlineMessage tone="error" message={error} /> : null}
-          <PrimaryButton
+          <GoogleButton
             label={isGoogleLoading ? 'Signing in...' : 'Continue with Google'}
             onPress={onContinueGoogle}
             disabled={isDisabled}
