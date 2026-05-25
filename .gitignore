@@ -6,7 +6,9 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .venv/
-.cursor/
+.claude/settings.local.json
+.codex/plugins/
+.cursor/hooks/state/
 app.db
 data/artifacts/
 supabase/.temp/
