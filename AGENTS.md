@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-`app/` contains the FastAPI application: routers, schemas, SQLModel models, config, database setup, and job services. `extractor/` contains the extraction pipeline, with individual stages in `extractor/stages/`, external tool wrappers in `extractor/clients/`, and OCR/LLM visual logic in `extractor/visual/`. `worker/` runs queued extraction jobs. `tests/` contains pytest coverage, `evals/` stores visual regression manifests, and `scripts/` holds utility commands. Runtime outputs such as `app.db` and `data/artifacts/` are generated locally and should not be committed.
+`src/` contains the FastAPI backend. `src/main.py` registers the app and routers; feature modules such as `src/jobs/`, `src/mentions/`, `src/auth/`, `src/books/`, and `src/push/` contain routers, schemas, SQLModel models, dependencies, and services. `src/extraction/` contains the extraction pipeline, provider clients, URL/download helpers, and extraction schemas. `src/worker.py` runs queued extraction jobs. `mobile/` contains the Expo React Native app. `tests/` contains pytest coverage, `evals/` stores visual regression manifests, and `scripts/` holds utility commands. Runtime outputs such as `app.db` and `data/artifacts/` are generated locally and should not be committed.
 
 ## Build, Test, and Development Commands
 
@@ -22,6 +22,23 @@ python scripts/evaluate_visual_manifest.py --artifacts-dir data/artifacts
 
 Media extraction paths may require local `ffmpeg`, `yt-dlp`, and `tesseract` installations.
 
+## AI Layer Workflow
+
+`.agents/commands/` is the source of truth for reusable agent commands. `.agents/skills/` is the
+source of truth for repo-specific skills. `.agents/rules/` is the source of truth for Cursor rule
+files. The files under `.claude/commands/`, `.cursor/commands/`, `.claude/skills/`, and
+`.cursor/rules/` are symlinks to those canonical files and should not be edited directly. When
+changing a command, skill, or rule, edit `.agents/...` first so adapters stay synchronized.
+
+Shared commands are plain Markdown for Claude/Cursor command compatibility and are referenceable
+playbooks for Codex. Codex's active reusable workflows live in `.agents/skills/`. Avoid
+agent-specific argument syntax in shared commands unless a separate adapter is intentionally
+created.
+
+Use the command loop for larger work: `prime` to load context, `plan` to write an implementation
+plan, `implement` to execute it, `validate` to run checks, `review` or `security-review` before
+shipping, and `system-review` after messy runs to improve the AI layer.
+
 ## Backend Deployment & Render Troubleshooting
 
 When investigating hosted backend failures, use the Render plugin to inspect the backend service before guessing from local code alone. Check Render deploy status, runtime logs, health checks, service configuration, and recent deploy/error events to identify production-only issues. Summarize the Render evidence you used, then connect it to any local code or configuration changes.
@@ -36,7 +53,7 @@ Do not commit Supabase passwords, access tokens, service-role keys, `.env` files
 
 ## Coding Style & Naming Conventions
 
-Use Python 3.11+ syntax, 4-space indentation, type hints, and small focused functions. Follow existing naming: `snake_case` for modules, functions, variables, and stage files; `PascalCase` for classes and Pydantic/SQLModel models. Keep pipeline stages in `extractor/stages/` narrow and named by action, such as `probe_media.py` or `transcribe_audio.py`. Prefer client wrappers in `extractor/clients/` when calling external binaries or services. No formatter or linter config is currently committed; match the style already present in the repository.
+Use Python 3.11+ syntax, 4-space indentation, type hints, and small focused functions. Follow existing naming: `snake_case` for modules, functions, variables, and stage files; `PascalCase` for classes and Pydantic/SQLModel models. Keep extraction modules in `src/extraction/` narrow and named by action, such as `download.py`, `pipeline.py`, or provider-specific modules. Prefer small wrapper functions around external binaries or services so tests can monkeypatch them cleanly. No formatter or linter config is currently committed; match the style already present in the repository.
 
 ## Testing Guidelines
 

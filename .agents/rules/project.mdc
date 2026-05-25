@@ -1,0 +1,28 @@
+---
+description: Mentioned backend and mobile project rules
+globs:
+  - "src/**/*.py"
+  - "tests/**/*.py"
+  - "mobile/**/*.{ts,tsx}"
+alwaysApply: true
+---
+
+# Mentioned Project Rules
+
+Use `AGENTS.md` for the authoritative repo guidance.
+
+Key project shape:
+
+- Backend code lives under `src/`.
+- FastAPI app registration lives in `src/main.py`.
+- Extraction pipeline lives in `src/extraction/`.
+- Queued worker entrypoint lives in `src/worker.py`.
+- Expo mobile app lives under `mobile/`.
+- Generated runtime outputs such as `app.db` and `data/artifacts/` must not be committed.
+
+AI layer source of truth:
+
+- Edit commands in `.agents/commands/`.
+- Edit skills in `.agents/skills/`.
+- Edit Cursor rules in `.agents/rules/`.
+- Do not edit symlinks under `.claude/commands/`, `.claude/skills/`, `.cursor/commands/`, or `.cursor/rules/` directly.

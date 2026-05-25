@@ -1,0 +1,1 @@
+../../.agents/commands/prime-api-endpoint.md

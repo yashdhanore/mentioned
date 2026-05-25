@@ -1,0 +1,1 @@
+../../.agents/commands/prime-extraction.md
