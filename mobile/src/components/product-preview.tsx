@@ -1,21 +1,41 @@
-import { Text, View } from 'react-native';
+import { Image, Text, View } from 'react-native';
 
-import { BookSpine, Surface } from '@/components/ui';
 import { styles } from '@/styles';
 
 const previewBooks = [
-  { title: 'The Shallows', author: 'Nicholas Carr', initials: 'TS', color: '#405B55' },
-  { title: 'Deep Work', author: 'Cal Newport', initials: 'DW', color: '#2F4A44' },
+  {
+    title: 'The Shallows',
+    author: 'Nicholas Carr',
+    initials: 'TS',
+    coverColor: '#E7DECC',
+    textColor: '#27332F',
+  },
+  {
+    title: 'Deep Work',
+    author: 'Cal Newport',
+    initials: 'DW',
+    coverColor: '#202A28',
+    textColor: '#F8F3EA',
+  },
 ];
+
+const previewReelImage = require('../../assets/preview-reel.png');
 
 export function SourceToBooksPreview() {
   return (
     <View style={styles.productPreview}>
       <View style={styles.previewReelCard}>
-        <View style={styles.previewImageWash} />
+        <Image source={previewReelImage} style={styles.previewReelImage} />
         <View style={styles.previewScrim} />
-        <Text style={styles.previewReelText}>This book changed how I think about attention.</Text>
-        <Text style={styles.previewCreator}>Instagram</Text>
+        <View style={styles.previewSourceMeta}>
+          <Text numberOfLines={1} style={styles.previewCreator}>
+            @annelewis
+          </Text>
+          <View style={styles.previewSourcePill}>
+            <View style={styles.previewPlayGlyph} />
+            <Text style={styles.previewDuration}>1.2M</Text>
+          </View>
+        </View>
       </View>
 
       <View style={styles.previewConnector}>
@@ -26,10 +46,19 @@ export function SourceToBooksPreview() {
 
       <View style={styles.previewBookStack}>
         <Text style={styles.previewBookLabel}>Books mentioned</Text>
-        {previewBooks.map((book) => (
-          <Surface key={book.title} style={styles.previewBookRow}>
-            <BookSpine color={book.color} initials={book.initials} title={book.title} />
-            <View style={styles.previewBookCopy}>
+        {previewBooks.map((book, index) => (
+          <View
+            key={book.title}
+            style={[
+              styles.previewBookCard,
+              index === 0 ? styles.previewBookCardFirst : styles.previewBookCardSecond,
+            ]}
+          >
+            <View style={[styles.previewBookObject, { backgroundColor: book.coverColor }]}>
+              <View style={styles.previewBookPageEdge} />
+              <Text style={[styles.previewBookObjectText, { color: book.textColor }]}>{book.initials}</Text>
+            </View>
+            <View style={styles.previewBookCardCopy}>
               <Text numberOfLines={1} style={styles.previewBookTitle}>
                 {book.title}
               </Text>
@@ -37,7 +66,7 @@ export function SourceToBooksPreview() {
                 {book.author}
               </Text>
             </View>
-          </Surface>
+          </View>
         ))}
       </View>
     </View>

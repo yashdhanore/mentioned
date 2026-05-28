@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Pressable, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Image, Pressable, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { styles } from '@/styles';
 
@@ -9,6 +9,8 @@ type ButtonProps = {
   compact?: boolean;
   disabled?: boolean;
 };
+
+const googleLogo = require('../../assets/google-g.png');
 
 type IconButtonProps = {
   accessibilityLabel: string;
@@ -66,6 +68,28 @@ export function SecondaryButton({
       onPress={onPress}
     >
       <Text style={styles.secondaryButtonText}>{label}</Text>
+    </Pressable>
+  );
+}
+
+export function GoogleButton({
+  label,
+  onPress,
+  disabled = false,
+}: Omit<ButtonProps, 'compact'>) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      disabled={disabled}
+      style={({ pressed }) => [
+        styles.googleButton,
+        disabled && styles.disabledButton,
+        pressed && styles.pressed,
+      ]}
+      onPress={onPress}
+    >
+      <Image source={googleLogo} style={styles.googleButtonLogo} />
+      <Text style={styles.googleButtonText}>{label}</Text>
     </Pressable>
   );
 }

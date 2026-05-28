@@ -3,7 +3,7 @@ import * as Linking from 'expo-linking';
 import { Pressable, SafeAreaView, ScrollView, Text, View } from 'react-native';
 
 import { SourceToBooksPreview } from '@/components/product-preview';
-import { AppMark, InlineMessage, PrimaryButton } from '@/components/ui';
+import { AppMark, GoogleButton, InlineMessage } from '@/components/ui';
 import { styles } from '@/styles';
 
 export function SignedOutScreen({
@@ -23,38 +23,40 @@ export function SignedOutScreen({
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
       <ScrollView contentContainerStyle={styles.authScreen} showsVerticalScrollIndicator={false}>
-        <AppMark />
+        <View style={styles.authTop}>
+          <AppMark />
 
-        <View style={styles.authHero}>
-          <View style={styles.authCopy}>
-            <Text style={styles.authBrand}>Mentioned</Text>
-            <Text style={styles.authTitle}>
-              Don't lose the <Text style={styles.authTitleSlot}>books</Text> that were mentioned.
-            </Text>
-            <Text style={styles.authBody}>Share a Reel, keep the original, find it later.</Text>
+          <View style={styles.authHero}>
+            <View style={styles.authCopy}>
+              <Text style={styles.authBrand}>Mentioned</Text>
+              <Text style={styles.authTitle}>
+                Don't lose the <Text style={styles.authTitleSlot}>books</Text> that were mentioned.
+              </Text>
+              <Text style={styles.authBody}>Share a Reel, keep the source, find it later.</Text>
+            </View>
+
+            <View style={styles.authActions}>
+              {error ? <InlineMessage tone="error" message={error} /> : null}
+              <GoogleButton
+                label={isGoogleLoading ? 'Signing in...' : 'Continue with Google'}
+                onPress={onContinueGoogle}
+                disabled={isDisabled}
+              />
+              {privacyPolicyUrl ? (
+                <Pressable
+                  accessibilityRole="link"
+                  style={({ pressed }) => [styles.authLink, pressed && styles.pressed]}
+                  onPress={() => void Linking.openURL(privacyPolicyUrl)}
+                >
+                  <Text style={styles.authLinkText}>Privacy Policy</Text>
+                </Pressable>
+              ) : null}
+            </View>
+
+            <View style={styles.authPreviewWrap}>
+              <SourceToBooksPreview />
+            </View>
           </View>
-
-          <View style={styles.authPreviewWrap}>
-            <SourceToBooksPreview />
-          </View>
-        </View>
-
-        <View style={styles.authActions}>
-          {error ? <InlineMessage tone="error" message={error} /> : null}
-          <PrimaryButton
-            label={isGoogleLoading ? 'Signing in...' : 'Continue with Google'}
-            onPress={onContinueGoogle}
-            disabled={isDisabled}
-          />
-          {privacyPolicyUrl ? (
-            <Pressable
-              accessibilityRole="link"
-              style={({ pressed }) => [styles.authLink, pressed && styles.pressed]}
-              onPress={() => void Linking.openURL(privacyPolicyUrl)}
-            >
-              <Text style={styles.authLinkText}>Privacy Policy</Text>
-            </Pressable>
-          ) : null}
         </View>
       </ScrollView>
     </SafeAreaView>
