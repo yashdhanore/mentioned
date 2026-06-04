@@ -57,6 +57,29 @@ function supportedNormalizedUrl(value: string): string | null {
   return url ? normalizeSharedSourceUrl(url) : null;
 }
 
+function supportedNormalizedUrlFromQueryValue(value: string): string | null {
+  let currentValue = value;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const normalizedUrl = supportedNormalizedUrl(currentValue);
+    if (normalizedUrl) {
+      return normalizedUrl;
+    }
+
+    try {
+      const decodedValue = decodeURIComponent(currentValue);
+      if (decodedValue === currentValue) {
+        return null;
+      }
+      currentValue = decodedValue;
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
 export function isSupportedSharedSourceUrl(value: string): boolean {
   return supportedUrl(value) !== null;
 }
@@ -85,24 +108,43 @@ export function sharedUrlFromMentionedDeepLink(rawUrl: string): string | null {
 }
 
 export function parseMentionedShareDeepLink(rawUrl: string): MentionedShareDeepLinkParseResult {
+  return parseMentionedShareDeepLinkWithDepth(rawUrl, 0);
+}
+
+function parseMentionedShareDeepLinkWithDepth(rawUrl: string, depth: number): MentionedShareDeepLinkParseResult {
   try {
     const deepLink = new URL(rawUrl);
+    const wrappedUrl = wrappedShareDeepLink(deepLink);
+    if (wrappedUrl && depth < 2) {
+      const wrappedResult = parseMentionedShareDeepLinkWithDepth(wrappedUrl, depth + 1);
+      if (wrappedResult.type !== 'non-share-link') {
+        return wrappedResult;
+      }
+    }
 
     if (deepLink.protocol !== 'mentioned:' || mentionedRoute(deepLink) !== 'share') {
       return { type: 'non-share-link' };
     }
 
     const sharedUrl = deepLink.searchParams.get('url');
-    const sourceUrl = sharedUrl ? supportedNormalizedUrl(sharedUrl) : null;
+    const sourceUrl = sharedUrl ? supportedNormalizedUrlFromQueryValue(sharedUrl) : null;
     return sourceUrl ? { type: 'valid', sourceUrl } : { type: 'invalid-share-link' };
   } catch {
     return { type: 'non-share-link' };
   }
 }
 
+function wrappedShareDeepLink(deepLink: URL): string | null {
+  if (mentionedRoute(deepLink) !== 'expo-development-client') {
+    return null;
+  }
+
+  return deepLink.searchParams.get('url');
+}
+
 function mentionedRoute(deepLink: URL): string {
   if (deepLink.hostname) {
-    return deepLink.pathname === '' ? deepLink.hostname : '';
+    return deepLink.pathname === '' || deepLink.pathname === '/' ? deepLink.hostname : '';
   }
 
   const pathParts = deepLink.pathname.replace(/^\/+/, '').split('/');

@@ -55,6 +55,24 @@ assert.equal(
   'https://www.instagram.com/reel/BRIDGE/',
 );
 
+assert.equal(
+  sharedUrlFromMentionedDeepLink(
+    `mentioned://expo-development-client/?url=${encodeURIComponent(
+      `mentioned://share?url=${encodeURIComponent('https://www.instagram.com/reel/WRAPPED/')}`,
+    )}`,
+  ),
+  'https://www.instagram.com/reel/WRAPPED/',
+);
+
+assert.equal(
+  sharedUrlFromMentionedDeepLink(
+    `com.yashd18.mentioned://expo-development-client/?url=${encodeURIComponent(
+      `mentioned://share?url=${encodeURIComponent('https://www.instagram.com/reel/DEVCLIENT/')}`,
+    )}`,
+  ),
+  'https://www.instagram.com/reel/DEVCLIENT/',
+);
+
 assert.equal(sharedUrlFromMentionedDeepLink('mentioned://auth/callback?code=abc'), null);
 assert.deepEqual(parseMentionedShareDeepLink('mentioned://auth/callback?code=abc'), {
   type: 'non-share-link',
@@ -79,6 +97,16 @@ assert.deepEqual(parseMentionedShareDeepLink('mentioned://share?url=https%3A%2F%
 assert.equal(
   sharedUrlFromMentionedDeepLink('mentioned://share?url=https%3A%2F%2Fwww.instagram.com%2Fp%2FHOSTAPP%2F'),
   'https://www.instagram.com/p/HOSTAPP/',
+);
+
+assert.equal(
+  sharedUrlFromMentionedDeepLink('mentioned:///share?url=https%253A%252F%252Fwww.instagram.com%252Freel%252FSAFARI%252F'),
+  'https://www.instagram.com/reel/SAFARI/',
+);
+
+assert.equal(
+  sharedUrlFromMentionedDeepLink('mentioned:///share?url=https://www.instagram.com/reel/RAW/'),
+  'https://www.instagram.com/reel/RAW/',
 );
 
 assert.equal(sharedUrlFromMentionedDeepLink('mentioned://share'), null);
