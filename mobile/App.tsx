@@ -24,6 +24,7 @@ import { spacing } from '@/theme';
 import { styles } from '@/styles';
 
 type Sheet = 'profile' | 'paste' | 'reelMenu' | null;
+type PendingSharedSource = { rawUrl: string; sourceUrl: string };
 
 export default function App() {
   const { width } = useWindowDimensions();
@@ -37,8 +38,10 @@ export default function App() {
   const [profileError, setProfileError] = useState<string | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [registeredPushToken, setRegisteredPushToken] = useState<string | null>(null);
-  const [pendingSharedUrl, setPendingSharedUrl] = useState<string | null>(null);
+  const [pendingSharedSource, setPendingSharedSource] = useState<PendingSharedSource | null>(null);
+  const pendingSharedSourceRef = useRef<PendingSharedSource | null>(null);
   const handledShareDeepLinksRef = useRef<Set<string>>(new Set());
+  const submittingShareDeepLinksRef = useRef<Set<string>>(new Set());
 
   const {
     captures,
@@ -74,13 +77,11 @@ export default function App() {
         return;
       }
 
-      if (handledShareDeepLinksRef.current.has(url)) {
+      if (handledShareDeepLinksRef.current.has(url) || submittingShareDeepLinksRef.current.has(url)) {
         return;
       }
-      handledShareDeepLinksRef.current.add(url);
 
       if (result.type === 'invalid-share-link') {
-        setPendingSharedUrl(null);
         setSelectedCaptureId(null);
         setSharedCaptureError('Share an Instagram Reel or post link to save it.');
         setSheet((currentSheet) => (currentSheet === 'paste' ? null : currentSheet));
@@ -88,7 +89,14 @@ export default function App() {
       }
 
       clearSharedCaptureError();
-      setPendingSharedUrl(result.sourceUrl);
+      if (pendingSharedSourceRef.current) {
+        return;
+      }
+
+      const pendingSource = { rawUrl: url, sourceUrl: result.sourceUrl };
+      pendingSharedSourceRef.current = pendingSource;
+      submittingShareDeepLinksRef.current.add(url);
+      setPendingSharedSource(pendingSource);
     },
     [clearSharedCaptureError, setSelectedCaptureId, setSharedCaptureError],
   );
@@ -167,7 +175,7 @@ export default function App() {
   }, [handleIncomingShareLink]);
 
   useEffect(() => {
-    if (!pendingSharedUrl || isAuthLoading) {
+    if (!pendingSharedSource || isAuthLoading) {
       return undefined;
     }
 
@@ -177,17 +185,23 @@ export default function App() {
     }
 
     let isMounted = true;
-    void submitSharedUrl(pendingSharedUrl).then((didSubmit) => {
+    const { rawUrl, sourceUrl } = pendingSharedSource;
+    void submitSharedUrl(sourceUrl).then((didSubmit) => {
       if (!isMounted) {
         return;
       }
 
+      submittingShareDeepLinksRef.current.delete(rawUrl);
+      if (pendingSharedSourceRef.current?.rawUrl === rawUrl) {
+        pendingSharedSourceRef.current = null;
+        setPendingSharedSource(null);
+      }
+
       if (didSubmit) {
-        setPendingSharedUrl(null);
+        handledShareDeepLinksRef.current.add(rawUrl);
         clearSharedCaptureError();
         setSheet((currentSheet) => (currentSheet === 'paste' ? null : currentSheet));
       } else {
-        setPendingSharedUrl(null);
         setSelectedCaptureId(null);
         setSheet((currentSheet) => (currentSheet === 'paste' ? null : currentSheet));
       }
@@ -200,7 +214,7 @@ export default function App() {
     clearSharedCaptureError,
     isAuthLoading,
     isSignedIn,
-    pendingSharedUrl,
+    pendingSharedSource,
     setSelectedCaptureId,
     submitSharedUrl,
   ]);
