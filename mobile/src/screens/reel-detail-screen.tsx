@@ -1,4 +1,4 @@
-import { Image, ScrollView, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 
 import type { Capture } from '@/captures';
 import { BackIcon, MoreIcon } from '@/components/icons';
@@ -30,7 +30,8 @@ export function ReelDetailScreen({
   onOpenSource: () => void;
   onRetry: () => void;
 }) {
-  const previewWidth = Math.min(width * 0.82, 342);
+  const sourcePreviewWidth = Math.min(Math.max(width * 0.32, 96), 124);
+  const inlineError = actionError ? <InlineMessage tone="error" message={actionError} /> : null;
 
   return (
     <ScrollView
@@ -50,15 +51,103 @@ export function ReelDetailScreen({
         </IconButton>
       </View>
 
-      <View style={styles.detailHero}>
-        <View style={styles.previewPaper}>
-          <View style={[styles.reelPreview, { width: previewWidth }]}>
-            <Image source={{ uri: capture.thumbnailUrl }} style={styles.reelPreviewImage} />
-          </View>
-        </View>
+      {capture.status === 'ready' ? (
+        <>
+          <SourceSummary capture={capture} onOpenSource={onOpenSource} />
+          {inlineError}
+          <BooksMentioned books={capture.books} />
+          <OriginalSourceSection
+            capture={capture}
+            previewWidth={sourcePreviewWidth}
+            onOpenSource={onOpenSource}
+          />
+        </>
+      ) : null}
+      {capture.status === 'processing' ? (
+        <>
+          {inlineError}
+          <ProcessingBooks />
+          <OriginalSourceSection
+            capture={capture}
+            previewWidth={sourcePreviewWidth}
+            onOpenSource={onOpenSource}
+          />
+        </>
+      ) : null}
+      {capture.status === 'no_books' ? (
+        <>
+          {inlineError}
+          <NoBooks onOpenSource={onOpenSource} />
+          <OriginalSourceSection
+            capture={capture}
+            previewWidth={sourcePreviewWidth}
+            onOpenSource={onOpenSource}
+          />
+        </>
+      ) : null}
+      {capture.status === 'failed' ? (
+        <>
+          {inlineError}
+          <FailedState isRetrying={isRetrying} onOpenSource={onOpenSource} onRetry={onRetry} />
+          <OriginalSourceSection
+            capture={capture}
+            previewWidth={sourcePreviewWidth}
+            onOpenSource={onOpenSource}
+          />
+        </>
+      ) : null}
+    </ScrollView>
+  );
+}
 
-        <View style={styles.sourceBlock}>
-          <Text style={styles.sourceCreator}>{capture.creator}</Text>
+function SourceSummary({
+  capture,
+  onOpenSource,
+}: {
+  capture: Capture;
+  onOpenSource: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Open original source"
+      style={({ pressed }) => [styles.sourceSummary, pressed && styles.pressed]}
+      onPress={onOpenSource}
+    >
+      <Image source={{ uri: capture.thumbnailUrl }} style={styles.sourceSummaryImage} />
+      <View style={styles.sourceSummaryCopy}>
+        <Text numberOfLines={1} style={styles.sourceSummaryLabel}>
+          Saved source
+        </Text>
+        <Text numberOfLines={1} style={styles.sourceSummaryCreator}>
+          {capture.creator}
+        </Text>
+      </View>
+      <Text style={styles.sourceSummaryAction}>Open</Text>
+    </Pressable>
+  );
+}
+
+function OriginalSourceSection({
+  capture,
+  previewWidth,
+  onOpenSource,
+}: {
+  capture: Capture;
+  previewWidth: number;
+  onOpenSource: () => void;
+}) {
+  return (
+    <View style={styles.originalSourceSection}>
+      <Text style={styles.originalSourceTitle}>Original source</Text>
+      <View style={styles.originalSourceModule}>
+        <View style={[styles.originalSourcePreview, { width: previewWidth }]}>
+          <Image source={{ uri: capture.thumbnailUrl }} style={styles.reelPreviewImage} />
+        </View>
+        <View style={styles.originalSourceCopy}>
+          <Text numberOfLines={1} style={styles.sourceCreator}>
+            {capture.creator}
+          </Text>
           {capture.sourceContextSnippet ? (
             <SourceQuote quote={capture.sourceContextSnippet} attribution="From Instagram" />
           ) : null}
@@ -67,15 +156,6 @@ export function ReelDetailScreen({
           </View>
         </View>
       </View>
-
-      {actionError ? <InlineMessage tone="error" message={actionError} /> : null}
-
-      {capture.status === 'processing' ? <ProcessingBooks /> : null}
-      {capture.status === 'ready' ? <BooksMentioned books={capture.books} /> : null}
-      {capture.status === 'no_books' ? <NoBooks onOpenSource={onOpenSource} /> : null}
-      {capture.status === 'failed' ? (
-        <FailedState isRetrying={isRetrying} onOpenSource={onOpenSource} onRetry={onRetry} />
-      ) : null}
-    </ScrollView>
+    </View>
   );
 }
