@@ -5,28 +5,38 @@ import { PlusIcon, UserIcon } from '@/components/icons';
 import { FadeInView } from '@/components/motion';
 import { SourceToBooksPreview } from '@/components/product-preview';
 import { ReelTile } from '@/components/reel-tile';
-import { IconButton, InlineMessage, PrimaryButton } from '@/components/ui';
+import { IconButton, InlineMessage, PrimaryButton, SecondaryButton } from '@/components/ui';
 import { styles } from '@/styles';
 import { spacing } from '@/theme';
 
 export function HomeScreen({
   captures,
   error,
+  errorActionLabel,
+  onErrorAction,
+  pendingSharedSourceUrl,
+  isSubmittingPendingSharedSource,
+  onSavePendingSharedSource,
+  onDiscardPendingSharedSource,
   isLoading,
   tileWidth,
   onOpenPaste,
   onOpenProfile,
   onOpenCapture,
-  onRefresh,
 }: {
   captures: Capture[];
   error: string | null;
+  errorActionLabel?: string;
+  onErrorAction?: () => void;
+  pendingSharedSourceUrl: string | null;
+  isSubmittingPendingSharedSource: boolean;
+  onSavePendingSharedSource: () => void;
+  onDiscardPendingSharedSource: () => void;
   isLoading: boolean;
   tileWidth: number;
   onOpenPaste: () => void;
   onOpenProfile: () => void;
   onOpenCapture: (capture: Capture) => void;
-  onRefresh: () => void;
 }) {
   return (
     <ScrollView
@@ -51,7 +61,39 @@ export function HomeScreen({
         <Text style={styles.screenSubtitle}>Items you have saved</Text>
       </View>
 
-      {error ? <InlineMessage tone="error" message={error} actionLabel="Try again" onAction={onRefresh} /> : null}
+      {pendingSharedSourceUrl ? (
+        <View style={styles.pendingSourcePrompt}>
+          <View style={styles.pendingSourceCopy}>
+            <Text style={styles.pendingSourceTitle}>Shared source ready</Text>
+            <Text ellipsizeMode="middle" numberOfLines={1} style={styles.pendingSourceUrl}>
+              {pendingSharedSourceUrl}
+            </Text>
+          </View>
+          <View style={styles.pendingSourceActions}>
+            <PrimaryButton
+              label={isSubmittingPendingSharedSource ? 'Saving...' : 'Save source'}
+              onPress={onSavePendingSharedSource}
+              compact
+              disabled={isSubmittingPendingSharedSource}
+            />
+            <SecondaryButton
+              label="Discard"
+              onPress={onDiscardPendingSharedSource}
+              compact
+              disabled={isSubmittingPendingSharedSource}
+            />
+          </View>
+        </View>
+      ) : null}
+
+      {error ? (
+        <InlineMessage
+          tone="error"
+          message={error}
+          actionLabel={errorActionLabel}
+          onAction={onErrorAction}
+        />
+      ) : null}
 
       {isLoading && captures.length === 0 ? <LoadingState tileWidth={tileWidth} /> : null}
       {!isLoading && captures.length === 0 ? <EmptyCaptures onOpenPaste={onOpenPaste} /> : null}

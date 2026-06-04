@@ -34,6 +34,9 @@ The mobile client persists the Supabase session locally and sends the session ac
 `EXPO_PUBLIC_APP_ENV=production`; startup then fails if the API URL is local/non-HTTPS or Supabase
 auth variables are missing. Add the app callback URL, `mentioned://auth/callback`, to the allowed
 redirect URLs in the Supabase Auth provider configuration.
+Production mobile builds reject local or non-HTTPS Supabase URLs, Supabase secret/service-role
+keys, and `EXPO_PUBLIC_AUTH_REDIRECT_URL`. Use `EXPO_PUBLIC_AUTH_REDIRECT_URL` only for
+development sessions such as Expo Go or tunnel testing.
 
 Native iOS builds and development builds use `mentioned://auth/callback` for Supabase OAuth. Expo Go
 uses an `exp://.../--/auth/callback` URL instead; if Safari says it cannot connect to the server

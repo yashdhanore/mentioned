@@ -1,12 +1,15 @@
 {
   "name": "mentioned-mobile",
   "version": "1.0.0",
-  "main": "index.ts",
+  "main": "index.js",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "test:share-url": "tsx scripts/test-share-url-extraction.ts",
+    "test:pending-shared-source": "tsx scripts/test-pending-shared-source.ts",
+    "test:supabase-config": "tsx scripts/test-supabase-config.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -17,6 +20,7 @@
     "expo-constants": "~18.0.13",
     "expo-linking": "~8.0.12",
     "expo-notifications": "~0.32.17",
+    "expo-share-extension": "^5.0.6",
     "expo-status-bar": "~3.0.9",
     "expo-web-browser": "~15.0.11",
     "react": "19.1.0",
@@ -27,6 +31,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
+    "tsx": "^4.22.3",
     "typescript": "~5.9.2"
   },
   "private": true
