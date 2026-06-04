@@ -567,6 +567,30 @@ export const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: spacing.sm,
   },
+  pendingSourcePrompt: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    gap: spacing.md,
+    padding: spacing.md,
+  },
+  pendingSourceCopy: {
+    gap: spacing.xs,
+  },
+  pendingSourceTitle: {
+    ...typography.labelLg,
+    color: colors.onSurface,
+  },
+  pendingSourceUrl: {
+    ...typography.bodySm,
+    color: colors.onMuted,
+  },
+  pendingSourceActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
   statePreviewWrap: {
     alignItems: 'center',
     overflow: 'hidden',

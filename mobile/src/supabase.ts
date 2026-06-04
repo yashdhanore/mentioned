@@ -5,6 +5,8 @@ import * as WebBrowser from 'expo-web-browser';
 import { AppState, Platform } from 'react-native';
 import 'react-native-url-polyfill/auto';
 
+import { validateSupabaseMobileConfig } from '@/supabase-runtime-config';
+
 WebBrowser.maybeCompleteAuthSession();
 
 export type AuthProvider = Extract<Provider, 'google'>;
@@ -19,9 +21,12 @@ const supabasePublishableKey =
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabasePublishableKey);
 
-if (process.env.EXPO_PUBLIC_APP_ENV?.trim().toLowerCase() === 'production' && !isSupabaseConfigured) {
-  throw new Error('Production mobile builds require EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY.');
-}
+validateSupabaseMobileConfig({
+  appEnv: process.env.EXPO_PUBLIC_APP_ENV,
+  supabaseUrl,
+  supabasePublishableKey,
+  authRedirectUrlOverride,
+});
 
 export const supabase = createClient(
   supabaseUrl || 'http://127.0.0.1',

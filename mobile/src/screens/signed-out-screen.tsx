@@ -8,15 +8,19 @@ import { styles } from '@/styles';
 
 export function SignedOutScreen({
   error,
+  pendingSharedSourceUrl,
   isGoogleLoading,
   isDisabled,
   onContinueGoogle,
+  onDiscardPendingSharedSource,
   privacyPolicyUrl,
 }: {
   error: string | null;
+  pendingSharedSourceUrl: string | null;
   isGoogleLoading: boolean;
   isDisabled: boolean;
   onContinueGoogle: () => void;
+  onDiscardPendingSharedSource: () => void;
   privacyPolicyUrl: string | null;
 }) {
   return (
@@ -40,6 +44,14 @@ export function SignedOutScreen({
         </View>
 
         <View style={styles.authActions}>
+          {pendingSharedSourceUrl ? (
+            <InlineMessage
+              tone="warning"
+              message="Sign in to save this shared source."
+              actionLabel="Discard"
+              onAction={onDiscardPendingSharedSource}
+            />
+          ) : null}
           {error ? <InlineMessage tone="error" message={error} /> : null}
           <PrimaryButton
             label={isGoogleLoading ? 'Signing in...' : 'Continue with Google'}

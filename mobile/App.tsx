@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Linking from 'expo-linking';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -5,6 +6,10 @@ import { AppState, SafeAreaView, useWindowDimensions } from 'react-native';
 
 import { clearAccessTokenProvider, errorMessage, PRIVACY_POLICY_URL, setAccessTokenProvider } from '@/api';
 import { PasteSheet, ProfileSheet, ReelMenuSheet } from '@/components/sheets';
+import {
+  createPendingSharedSourceStore,
+  type PendingSharedSource,
+} from '@/features/captures/pending-shared-source';
 import { useCaptures } from '@/features/captures/use-captures';
 import {
   addNotificationTapListener,
@@ -24,7 +29,11 @@ import { spacing } from '@/theme';
 import { styles } from '@/styles';
 
 type Sheet = 'profile' | 'paste' | 'reelMenu' | null;
-type PendingSharedSource = { rawUrl: string; sourceUrl: string };
+type PendingSharedSourceState = PendingSharedSource & {
+  shouldAutoSubmit: boolean;
+};
+
+const pendingSharedSourceStore = createPendingSharedSourceStore(AsyncStorage);
 
 export default function App() {
   const { width } = useWindowDimensions();
@@ -38,10 +47,12 @@ export default function App() {
   const [profileError, setProfileError] = useState<string | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [registeredPushToken, setRegisteredPushToken] = useState<string | null>(null);
-  const [pendingSharedSource, setPendingSharedSource] = useState<PendingSharedSource | null>(null);
-  const pendingSharedSourceRef = useRef<PendingSharedSource | null>(null);
-  const handledShareDeepLinksRef = useRef<Set<string>>(new Set());
-  const submittingShareDeepLinksRef = useRef<Set<string>>(new Set());
+  const [pendingSharedSource, setPendingSharedSource] = useState<PendingSharedSourceState | null>(null);
+  const handledSharedSourceKeysRef = useRef<Set<string>>(new Set());
+  const submittingSharedSourceKeysRef = useRef<Set<string>>(new Set());
+  const pendingSharedSourceRef = useRef<PendingSharedSourceState | null>(null);
+  const authStateRef = useRef({ isAuthLoading: true, isSignedIn: false });
+  const initialShareUrlProcessedRef = useRef(false);
 
   const {
     captures,
@@ -49,6 +60,7 @@ export default function App() {
     pasteUrl,
     isLoadingCaptures,
     isSubmittingUrl,
+    isSubmittingSharedUrl,
     retryingCaptureId,
     loadError,
     pasteError,
@@ -70,14 +82,48 @@ export default function App() {
 
   const tileWidth = (contentWidth - spacing.screen * 2 - spacing.md) / 2;
 
+  useEffect(() => {
+    pendingSharedSourceRef.current = pendingSharedSource;
+  }, [pendingSharedSource]);
+
+  useEffect(() => {
+    authStateRef.current = { isAuthLoading, isSignedIn };
+  }, [isAuthLoading, isSignedIn]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    void pendingSharedSourceStore
+      .load()
+      .then((source) => {
+        if (!isMounted || !source) {
+          return;
+        }
+        setPendingSharedSource((currentSource) => {
+          if (currentSource) {
+            return currentSource;
+          }
+          return {
+            ...source,
+            shouldAutoSubmit: false,
+          };
+        });
+      })
+      .catch(() => {
+        if (isMounted) {
+          setAuthError('Could not restore the shared source.');
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const handleIncomingShareLink = useCallback(
     (url: string) => {
       const result = parseMentionedShareDeepLink(url);
       if (result.type === 'non-share-link') {
-        return;
-      }
-
-      if (handledShareDeepLinksRef.current.has(url) || submittingShareDeepLinksRef.current.has(url)) {
         return;
       }
 
@@ -88,15 +134,55 @@ export default function App() {
         return;
       }
 
-      clearSharedCaptureError();
-      if (pendingSharedSourceRef.current) {
+      const sourceKey = result.sourceUrl;
+      if (
+        handledSharedSourceKeysRef.current.has(sourceKey) ||
+        submittingSharedSourceKeysRef.current.has(sourceKey)
+      ) {
         return;
       }
 
-      const pendingSource = { rawUrl: url, sourceUrl: result.sourceUrl };
-      pendingSharedSourceRef.current = pendingSource;
-      submittingShareDeepLinksRef.current.add(url);
-      setPendingSharedSource(pendingSource);
+      clearSharedCaptureError();
+      submittingSharedSourceKeysRef.current.add(sourceKey);
+
+      if (!authStateRef.current.isAuthLoading && authStateRef.current.isSignedIn) {
+        setPendingSharedSource({
+          sourceUrl: result.sourceUrl,
+          sourceKey,
+          createdAtMs: Date.now(),
+          shouldAutoSubmit: true,
+        });
+        return;
+      }
+
+      void pendingSharedSourceStore
+        .save(result.sourceUrl)
+        .then((source) => {
+          submittingSharedSourceKeysRef.current.delete(sourceKey);
+          setPendingSharedSource((currentSource) => {
+            if (currentSource && currentSource.createdAtMs > source.createdAtMs) {
+              return currentSource;
+            }
+            return {
+              ...source,
+              shouldAutoSubmit: authStateRef.current.isAuthLoading,
+            };
+          });
+        })
+        .catch((error) => {
+          submittingSharedSourceKeysRef.current.delete(sourceKey);
+          setPendingSharedSource((currentSource) =>
+            currentSource ?? {
+              sourceUrl: result.sourceUrl,
+              sourceKey,
+              createdAtMs: Date.now(),
+              shouldAutoSubmit: authStateRef.current.isAuthLoading,
+            },
+          );
+          if (!authStateRef.current.isAuthLoading) {
+            setAuthError(errorMessage(error, 'Could not keep that shared source. Try sharing it again.'));
+          }
+        });
     },
     [clearSharedCaptureError, setSelectedCaptureId, setSharedCaptureError],
   );
@@ -154,6 +240,11 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (initialShareUrlProcessedRef.current) {
+      return;
+    }
+    initialShareUrlProcessedRef.current = true;
+
     let isMounted = true;
 
     void Linking.getInitialURL()
@@ -164,60 +255,20 @@ export default function App() {
       })
       .catch(() => undefined);
 
+    return () => {
+      isMounted = false;
+    };
+  }, [handleIncomingShareLink]);
+
+  useEffect(() => {
     const subscription = Linking.addEventListener('url', (event) => {
       handleIncomingShareLink(event.url);
     });
 
     return () => {
-      isMounted = false;
       subscription.remove();
     };
   }, [handleIncomingShareLink]);
-
-  useEffect(() => {
-    if (!pendingSharedSource || isAuthLoading) {
-      return undefined;
-    }
-
-    if (!isSignedIn) {
-      setAuthError('Sign in to save shared Instagram links.');
-      return undefined;
-    }
-
-    let isMounted = true;
-    const { rawUrl, sourceUrl } = pendingSharedSource;
-    void submitSharedUrl(sourceUrl).then((didSubmit) => {
-      if (!isMounted) {
-        return;
-      }
-
-      submittingShareDeepLinksRef.current.delete(rawUrl);
-      if (pendingSharedSourceRef.current?.rawUrl === rawUrl) {
-        pendingSharedSourceRef.current = null;
-        setPendingSharedSource(null);
-      }
-
-      if (didSubmit) {
-        handledShareDeepLinksRef.current.add(rawUrl);
-        clearSharedCaptureError();
-        setSheet((currentSheet) => (currentSheet === 'paste' ? null : currentSheet));
-      } else {
-        setSelectedCaptureId(null);
-        setSheet((currentSheet) => (currentSheet === 'paste' ? null : currentSheet));
-      }
-    });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [
-    clearSharedCaptureError,
-    isAuthLoading,
-    isSignedIn,
-    pendingSharedSource,
-    setSelectedCaptureId,
-    submitSharedUrl,
-  ]);
 
   useEffect(() => {
     if (!isSignedIn) {
@@ -293,6 +344,95 @@ export default function App() {
     };
   }, [isSignedIn, openCaptureByJobId]);
 
+  const clearPendingSharedSource = useCallback(async (expectedSourceKey?: string) => {
+    const currentSource = pendingSharedSourceRef.current;
+    if (expectedSourceKey && currentSource?.sourceKey !== expectedSourceKey) {
+      return;
+    }
+
+    if (currentSource) {
+      submittingSharedSourceKeysRef.current.delete(currentSource.sourceKey);
+    }
+    try {
+      if (expectedSourceKey) {
+        await pendingSharedSourceStore.clearIfCurrent(expectedSourceKey);
+      } else {
+        await pendingSharedSourceStore.clear();
+      }
+    } catch {
+      // Local cleanup should not block clearing the in-memory prompt.
+    }
+    setPendingSharedSource((latestSource) => {
+      if (expectedSourceKey && latestSource?.sourceKey !== expectedSourceKey) {
+        return latestSource;
+      }
+      return null;
+    });
+  }, []);
+
+  const discardPendingSharedSource = useCallback(async () => {
+    await clearPendingSharedSource(pendingSharedSourceRef.current?.sourceKey);
+    setAuthError(null);
+    clearSharedCaptureError();
+  }, [clearPendingSharedSource, clearSharedCaptureError]);
+
+  const submitPendingSharedSource = useCallback(async () => {
+    const source = pendingSharedSourceRef.current;
+    if (!source || !isSignedIn) {
+      return;
+    }
+
+    const didSubmit = await submitSharedUrl(source.sourceUrl);
+    submittingSharedSourceKeysRef.current.delete(source.sourceKey);
+
+    if (pendingSharedSourceRef.current?.sourceKey !== source.sourceKey) {
+      return;
+    }
+
+    if (didSubmit) {
+      handledSharedSourceKeysRef.current.add(source.sourceKey);
+      await clearPendingSharedSource(source.sourceKey);
+      clearSharedCaptureError();
+      setSheet((currentSheet) => (currentSheet === 'paste' ? null : currentSheet));
+      return;
+    }
+
+    setPendingSharedSource((currentSource) =>
+      currentSource?.sourceKey === source.sourceKey
+        ? { ...currentSource, shouldAutoSubmit: false }
+        : currentSource,
+    );
+    setSelectedCaptureId(null);
+    setSheet((currentSheet) => (currentSheet === 'paste' ? null : currentSheet));
+  }, [
+    clearPendingSharedSource,
+    clearSharedCaptureError,
+    isSignedIn,
+    setSelectedCaptureId,
+    submitSharedUrl,
+  ]);
+
+  useEffect(() => {
+    if (!pendingSharedSource || isAuthLoading) {
+      return;
+    }
+
+    if (!isSignedIn) {
+      if (pendingSharedSource.shouldAutoSubmit) {
+        setPendingSharedSource((currentSource) =>
+          currentSource?.sourceKey === pendingSharedSource.sourceKey
+            ? { ...currentSource, shouldAutoSubmit: false }
+            : currentSource,
+        );
+      }
+      return;
+    }
+
+    if (pendingSharedSource.shouldAutoSubmit) {
+      void submitPendingSharedSource();
+    }
+  }, [isAuthLoading, isSignedIn, pendingSharedSource, submitPendingSharedSource]);
+
   const handleSignIn = useCallback(async (provider: AuthProvider) => {
     setAuthError(null);
     setAuthProviderInFlight(provider);
@@ -348,9 +488,11 @@ export default function App() {
     return (
       <SignedOutScreen
         error={authError}
+        pendingSharedSourceUrl={pendingSharedSource?.sourceUrl ?? null}
         isGoogleLoading={authProviderInFlight === 'google'}
         isDisabled={authProviderInFlight !== null}
         onContinueGoogle={() => void handleSignIn('google')}
+        onDiscardPendingSharedSource={() => void discardPendingSharedSource()}
         privacyPolicyUrl={PRIVACY_POLICY_URL}
       />
     );
@@ -376,6 +518,10 @@ export default function App() {
           error={sharedCaptureError ?? loadError}
           errorActionLabel={sharedCaptureError ? undefined : 'Try again'}
           onErrorAction={sharedCaptureError ? undefined : () => void refreshCaptures()}
+          pendingSharedSourceUrl={pendingSharedSource?.sourceUrl ?? null}
+          isSubmittingPendingSharedSource={isSubmittingSharedUrl}
+          onSavePendingSharedSource={() => void submitPendingSharedSource()}
+          onDiscardPendingSharedSource={() => void discardPendingSharedSource()}
           isLoading={isLoadingCaptures}
           tileWidth={tileWidth}
           onOpenPaste={openPasteSheet}

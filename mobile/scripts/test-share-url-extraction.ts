@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 
 import {
+  canonicalSharedSourceKey,
   extractSharedSourceUrl,
   isSupportedSharedSourceUrl,
   parseMentionedShareDeepLink,
@@ -15,6 +16,7 @@ assert.equal(isSupportedSharedSourceUrl(postUrl), true);
 assert.equal(isSupportedSharedSourceUrl('http://www.instagram.com/reel/ABC123/'), false);
 assert.equal(isSupportedSharedSourceUrl('https://example.com/reel/ABC123/'), false);
 assert.equal(isSupportedSharedSourceUrl('https://www.instagram.com/stories/account/123/'), false);
+assert.equal(isSupportedSharedSourceUrl('https://www.instagram.com/account/reel/ABC123/'), false);
 
 assert.equal(
   extractSharedSourceUrl({ url: reelUrl, text: undefined }),
@@ -32,6 +34,13 @@ assert.equal(
 );
 
 assert.equal(
+  extractSharedSourceUrl({
+    url: 'https://www.instagram.com/reel/SECRET/?utm_source=x&igsh=abc&access_token=secret&code=oauth&state=oauth#frag',
+  }),
+  'https://www.instagram.com/reel/SECRET/',
+);
+
+assert.equal(
   extractSharedSourceUrl({ text: 'No supported source here https://example.com/reel/ABC123/' }),
   null,
 );
@@ -46,6 +55,15 @@ assert.equal(
     `mentioned://share?url=${encodeURIComponent('https://www.instagram.com/reel/DEEPLINK/')}`,
   ),
   'https://www.instagram.com/reel/DEEPLINK/',
+);
+
+assert.equal(
+  sharedUrlFromMentionedDeepLink(
+    `mentioned://share?url=${encodeURIComponent(
+      'https://www.instagram.com/p/PARAMS/?ref=feed&tracking=kept&fbclid=abc&token=secret',
+    )}`,
+  ),
+  'https://www.instagram.com/p/PARAMS/',
 );
 
 assert.equal(
@@ -123,8 +141,20 @@ assert.deepEqual(
   ),
   {
     type: 'valid',
-    sourceUrl: 'https://www.instagram.com/reel/PARAMS/?ref=feed&tracking=kept',
+    sourceUrl: 'https://www.instagram.com/reel/PARAMS/',
   },
 );
+
+assert.equal(
+  canonicalSharedSourceKey('https://www.instagram.com/reel/DUP/?utm_source=one&token=secret'),
+  'https://www.instagram.com/reel/DUP/',
+);
+
+assert.equal(
+  canonicalSharedSourceKey('https://www.instagram.com/reel/DUP/?utm_source=two'),
+  canonicalSharedSourceKey('https://www.instagram.com/reel/DUP/'),
+);
+
+assert.equal(canonicalSharedSourceKey('https://example.com/reel/DUP/'), null);
 
 console.log('share URL extraction tests passed');

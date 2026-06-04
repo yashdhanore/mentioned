@@ -13,7 +13,8 @@ function trimUrlCandidate(value: string): string {
 }
 
 function hasSupportedPath(pathname: string): boolean {
-  return pathname.includes('/reel/') || pathname.includes('/p/');
+  const [, kind, shortcode] = pathname.split('/');
+  return (kind === 'reel' || kind === 'p') && Boolean(shortcode);
 }
 
 function supportedUrl(value: string): URL | null {
@@ -41,13 +42,7 @@ function supportedUrl(value: string): URL | null {
 function normalizeSharedSourceUrl(url: URL): string {
   const normalizedUrl = new URL(url.toString());
   normalizedUrl.hash = '';
-
-  for (const key of Array.from(normalizedUrl.searchParams.keys())) {
-    const normalizedKey = key.toLowerCase();
-    if (normalizedKey === 'igsh' || normalizedKey.startsWith('utm_')) {
-      normalizedUrl.searchParams.delete(key);
-    }
-  }
+  normalizedUrl.search = '';
 
   return normalizedUrl.toString();
 }
@@ -82,6 +77,10 @@ function supportedNormalizedUrlFromQueryValue(value: string): string | null {
 
 export function isSupportedSharedSourceUrl(value: string): boolean {
   return supportedUrl(value) !== null;
+}
+
+export function canonicalSharedSourceKey(value: string): string | null {
+  return supportedNormalizedUrl(value);
 }
 
 export function extractSharedSourceUrl(payload: SharedSourcePayload): string | null {
