@@ -40,6 +40,27 @@
           "defaultChannel": "job-status",
           "enableBackgroundRemoteNotifications": false
         }
+      ],
+      [
+        "expo-share-extension",
+        {
+          "activationRules": [
+            {
+              "type": "text"
+            },
+            {
+              "type": "url",
+              "max": 1
+            }
+          ],
+          "backgroundColor": {
+            "red": 246,
+            "green": 248,
+            "blue": 245,
+            "alpha": 1
+          },
+          "height": 260
+        }
       ]
     ],
     "extra": {

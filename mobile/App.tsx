@@ -1,3 +1,4 @@
+import * as Linking from 'expo-linking';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
 import { AppState, SafeAreaView, useWindowDimensions } from 'react-native';
@@ -18,6 +19,7 @@ import { HomeScreen } from '@/screens/home-screen';
 import { ReelDetailScreen } from '@/screens/reel-detail-screen';
 import { SignedOutScreen } from '@/screens/signed-out-screen';
 import { type AuthProvider, currentAccessToken, isSupabaseConfigured, signInWithProvider, supabase } from '@/supabase';
+import { sharedUrlFromMentionedDeepLink } from '@/utils/shared-source-url';
 import { spacing } from '@/theme';
 import { styles } from '@/styles';
 
@@ -58,6 +60,19 @@ export default function App() {
   } = useCaptures(isSignedIn);
 
   const tileWidth = (contentWidth - spacing.screen * 2 - spacing.md) / 2;
+
+  const handleIncomingShareLink = useCallback(
+    (url: string) => {
+      const sharedUrl = sharedUrlFromMentionedDeepLink(url);
+      if (!sharedUrl) {
+        return;
+      }
+
+      setPasteUrl(sharedUrl);
+      setSheet('paste');
+    },
+    [setPasteUrl],
+  );
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -110,6 +125,27 @@ export default function App() {
       clearAccessTokenProvider();
     };
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    void Linking.getInitialURL()
+      .then((url) => {
+        if (isMounted && url) {
+          handleIncomingShareLink(url);
+        }
+      })
+      .catch(() => undefined);
+
+    const subscription = Linking.addEventListener('url', (event) => {
+      handleIncomingShareLink(event.url);
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.remove();
+    };
+  }, [handleIncomingShareLink]);
 
   useEffect(() => {
     if (!isSignedIn) {
