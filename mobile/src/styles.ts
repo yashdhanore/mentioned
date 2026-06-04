@@ -393,21 +393,66 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: spacing.xl,
   },
-  detailHero: {
-    gap: spacing.lg,
-  },
-  previewPaper: {
+  sourceSummary: {
     alignItems: 'center',
-    alignSelf: 'center',
-    backgroundColor: 'transparent',
-    borderRadius: radius.lg,
-    padding: 0,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.md,
+    minHeight: 64,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
-  reelPreview: {
+  sourceSummaryImage: {
     aspectRatio: 9 / 16,
     backgroundColor: colors.surfaceMuted,
     borderColor: colors.hairline,
-    borderRadius: radius.lg,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    height: 46,
+    overflow: 'hidden',
+  },
+  sourceSummaryCopy: {
+    flex: 1,
+    gap: spacing.xxs,
+    minWidth: 0,
+  },
+  sourceSummaryLabel: {
+    ...typography.caption,
+    color: colors.onMuted,
+  },
+  sourceSummaryCreator: {
+    ...typography.labelLg,
+    color: colors.onSurface,
+  },
+  sourceSummaryAction: {
+    ...typography.labelMd,
+    color: colors.primary,
+  },
+  originalSourceSection: {
+    gap: spacing.md,
+    marginTop: spacing.lg,
+  },
+  originalSourceTitle: {
+    ...typography.titleLg,
+    color: colors.onSurface,
+  },
+  originalSourceModule: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.md,
+    padding: spacing.md,
+  },
+  originalSourcePreview: {
+    aspectRatio: 9 / 16,
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.hairline,
+    borderRadius: radius.md,
     borderWidth: 1,
     overflow: 'hidden',
   },
@@ -415,8 +460,11 @@ export const styles = StyleSheet.create({
     height: '100%',
     width: '100%',
   },
-  sourceBlock: {
+  originalSourceCopy: {
+    flex: 1,
     gap: spacing.md,
+    justifyContent: 'space-between',
+    minWidth: 0,
   },
   sourceCreator: {
     ...typography.labelLg,

@@ -216,7 +216,7 @@ Use these screen patterns:
 
 - **Signed out:** Asymmetric onboarding with the headline, one primary CTA, and a miniature source-to-books product preview. Do not use onboarding carousels, badges, or feature lists.
 - **Saved Reels home:** A two-column visual collection with one subtly featured latest tile when content exists. Tiles are browsable source memories, not equal marketing cards.
-- **Reel detail:** Source-first composition: navigation, creator/source, vertical preview, visible Open source action, source quote/snippet, then Books mentioned.
+- **Reel detail:** Ready screens are books-first: compact navigation, a small source memory strip, Books mentioned, then the richer Original source module with preview/context and Open on Instagram. Processing, failed, and no-books screens keep their state content near the top and leave source reopening secondary but reachable.
 - **Books mentioned:** Compact editorial rows with typographic spines. Do not use chevrons unless a row navigates or expands.
 - **States:** Loading uses skeletons. Empty uses a composed source-to-result preview. Failed and no-books states remain calm and recoverable.
 

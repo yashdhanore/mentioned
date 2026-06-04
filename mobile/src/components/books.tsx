@@ -50,7 +50,7 @@ export function BooksMentioned({ books }: { books: BookMention[] }) {
 function BookRow({ book }: { book: BookMention }) {
   return (
     <View style={styles.bookRow}>
-      <BookSpine color={book.color} initials={book.initials} title={book.title} />
+      <BookSpine color={book.color} initials={book.initials} />
       <View style={styles.bookCopy}>
         <Text style={styles.bookTitle}>{book.title}</Text>
         {book.author ? <Text style={styles.bookAuthor}>{book.author}</Text> : null}
