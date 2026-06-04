@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   extractSharedSourceUrl,
   isSupportedSharedSourceUrl,
+  parseMentionedShareDeepLink,
   sharedUrlFromMentionedDeepLink,
 } from '../src/utils/shared-source-url';
 
@@ -55,6 +56,9 @@ assert.equal(
 );
 
 assert.equal(sharedUrlFromMentionedDeepLink('mentioned://auth/callback?code=abc'), null);
+assert.deepEqual(parseMentionedShareDeepLink('mentioned://auth/callback?code=abc'), {
+  type: 'non-share-link',
+});
 assert.equal(
   sharedUrlFromMentionedDeepLink(
     `mentioned://share/extra?url=${encodeURIComponent('https://www.instagram.com/reel/DEEPLINK/')}`,
@@ -68,6 +72,9 @@ assert.equal(
   null,
 );
 assert.equal(sharedUrlFromMentionedDeepLink('mentioned://share?url=https%3A%2F%2Fexample.com'), null);
+assert.deepEqual(parseMentionedShareDeepLink('mentioned://share?url=https%3A%2F%2Fexample.com'), {
+  type: 'invalid-share-link',
+});
 
 assert.equal(
   sharedUrlFromMentionedDeepLink('mentioned://share?url=https%3A%2F%2Fwww.instagram.com%2Fp%2FHOSTAPP%2F'),
@@ -76,5 +83,20 @@ assert.equal(
 
 assert.equal(sharedUrlFromMentionedDeepLink('mentioned://share'), null);
 assert.equal(sharedUrlFromMentionedDeepLink('mentioned://share?url='), null);
+assert.deepEqual(parseMentionedShareDeepLink('mentioned://share'), { type: 'invalid-share-link' });
+assert.deepEqual(parseMentionedShareDeepLink('mentioned://share?url='), { type: 'invalid-share-link' });
+assert.deepEqual(parseMentionedShareDeepLink('mentioned://share?url=%'), { type: 'invalid-share-link' });
+
+assert.deepEqual(
+  parseMentionedShareDeepLink(
+    `mentioned://share?url=${encodeURIComponent(
+      'https://www.instagram.com/reel/PARAMS/?ref=feed&utm_source=ig_web_copy_link&tracking=kept&igsh=removed',
+    )}`,
+  ),
+  {
+    type: 'valid',
+    sourceUrl: 'https://www.instagram.com/reel/PARAMS/?ref=feed&tracking=kept',
+  },
+);
 
 console.log('share URL extraction tests passed');

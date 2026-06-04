@@ -1,6 +1,6 @@
 import * as Linking from 'expo-linking';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, SafeAreaView, useWindowDimensions } from 'react-native';
 
 import { clearAccessTokenProvider, errorMessage, PRIVACY_POLICY_URL, setAccessTokenProvider } from '@/api';
@@ -19,7 +19,7 @@ import { HomeScreen } from '@/screens/home-screen';
 import { ReelDetailScreen } from '@/screens/reel-detail-screen';
 import { SignedOutScreen } from '@/screens/signed-out-screen';
 import { type AuthProvider, currentAccessToken, isSupabaseConfigured, signInWithProvider, supabase } from '@/supabase';
-import { sharedUrlFromMentionedDeepLink } from '@/utils/shared-source-url';
+import { parseMentionedShareDeepLink } from '@/utils/shared-source-url';
 import { spacing } from '@/theme';
 import { styles } from '@/styles';
 
@@ -37,6 +37,8 @@ export default function App() {
   const [profileError, setProfileError] = useState<string | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [registeredPushToken, setRegisteredPushToken] = useState<string | null>(null);
+  const [pendingSharedUrl, setPendingSharedUrl] = useState<string | null>(null);
+  const handledShareDeepLinksRef = useRef<Set<string>>(new Set());
 
   const {
     captures,
@@ -47,14 +49,18 @@ export default function App() {
     retryingCaptureId,
     loadError,
     pasteError,
+    sharedCaptureError,
     actionError,
     setSelectedCaptureId,
     setPasteUrl,
     clearPasteError,
+    setSharedCaptureError,
+    clearSharedCaptureError,
     refreshCaptures,
     openCapture,
     openCaptureByJobId,
     submitPasteUrl,
+    submitSharedUrl,
     retryCapture,
     openSource,
   } = useCaptures(isSignedIn);
@@ -63,15 +69,28 @@ export default function App() {
 
   const handleIncomingShareLink = useCallback(
     (url: string) => {
-      const sharedUrl = sharedUrlFromMentionedDeepLink(url);
-      if (!sharedUrl) {
+      const result = parseMentionedShareDeepLink(url);
+      if (result.type === 'non-share-link') {
         return;
       }
 
-      setPasteUrl(sharedUrl);
-      setSheet('paste');
+      if (handledShareDeepLinksRef.current.has(url)) {
+        return;
+      }
+      handledShareDeepLinksRef.current.add(url);
+
+      if (result.type === 'invalid-share-link') {
+        setPendingSharedUrl(null);
+        setSelectedCaptureId(null);
+        setSharedCaptureError('Share an Instagram Reel or post link to save it.');
+        setSheet((currentSheet) => (currentSheet === 'paste' ? null : currentSheet));
+        return;
+      }
+
+      clearSharedCaptureError();
+      setPendingSharedUrl(result.sourceUrl);
     },
-    [setPasteUrl],
+    [clearSharedCaptureError, setSelectedCaptureId, setSharedCaptureError],
   );
 
   useEffect(() => {
@@ -146,6 +165,45 @@ export default function App() {
       subscription.remove();
     };
   }, [handleIncomingShareLink]);
+
+  useEffect(() => {
+    if (!pendingSharedUrl || isAuthLoading) {
+      return undefined;
+    }
+
+    if (!isSignedIn) {
+      setAuthError('Sign in to save shared Instagram links.');
+      return undefined;
+    }
+
+    let isMounted = true;
+    void submitSharedUrl(pendingSharedUrl).then((didSubmit) => {
+      if (!isMounted) {
+        return;
+      }
+
+      if (didSubmit) {
+        setPendingSharedUrl(null);
+        clearSharedCaptureError();
+        setSheet((currentSheet) => (currentSheet === 'paste' ? null : currentSheet));
+      } else {
+        setPendingSharedUrl(null);
+        setSelectedCaptureId(null);
+        setSheet((currentSheet) => (currentSheet === 'paste' ? null : currentSheet));
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    clearSharedCaptureError,
+    isAuthLoading,
+    isSignedIn,
+    pendingSharedUrl,
+    setSelectedCaptureId,
+    submitSharedUrl,
+  ]);
 
   useEffect(() => {
     if (!isSignedIn) {
@@ -256,6 +314,11 @@ export default function App() {
     setSheet(null);
   }, [clearPasteError]);
 
+  const openPasteSheet = useCallback(() => {
+    clearSharedCaptureError();
+    setSheet('paste');
+  }, [clearSharedCaptureError]);
+
   const submitPasteAndCloseOnSuccess = useCallback(async () => {
     const didSubmit = await submitPasteUrl();
     if (didSubmit) {
@@ -296,13 +359,14 @@ export default function App() {
       ) : (
         <HomeScreen
           captures={captures}
-          error={loadError}
+          error={sharedCaptureError ?? loadError}
+          errorActionLabel={sharedCaptureError ? undefined : 'Try again'}
+          onErrorAction={sharedCaptureError ? undefined : () => void refreshCaptures()}
           isLoading={isLoadingCaptures}
           tileWidth={tileWidth}
-          onOpenPaste={() => setSheet('paste')}
+          onOpenPaste={openPasteSheet}
           onOpenProfile={() => setSheet('profile')}
           onOpenCapture={openCapture}
-          onRefresh={() => void refreshCaptures()}
         />
       )}
 

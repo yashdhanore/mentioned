@@ -15,23 +15,35 @@ type JobEventRecord = {
   job_id?: string;
 };
 
+type SubmitSourceOptions = {
+  setSubmitting: (isSubmitting: boolean) => void;
+  setError: (message: string | null) => void;
+  fallbackError: string;
+  onSuccess?: () => void;
+};
+
 type UseCapturesResult = {
   captures: Capture[];
   selectedCapture: Capture | null;
   pasteUrl: string;
   isLoadingCaptures: boolean;
   isSubmittingUrl: boolean;
+  isSubmittingSharedUrl: boolean;
   retryingCaptureId: string | null;
   loadError: string | null;
   pasteError: string | null;
+  sharedCaptureError: string | null;
   actionError: string | null;
   setSelectedCaptureId: (captureId: string | null) => void;
   setPasteUrl: (url: string) => void;
   clearPasteError: () => void;
+  setSharedCaptureError: (message: string) => void;
+  clearSharedCaptureError: () => void;
   refreshCaptures: (options?: { silent?: boolean }) => Promise<void>;
   openCapture: (capture: Capture) => void;
   openCaptureByJobId: (jobId: string) => Promise<void>;
   submitPasteUrl: () => Promise<boolean>;
+  submitSharedUrl: (sourceUrl: string) => Promise<boolean>;
   retryCapture: (capture: Capture) => Promise<void>;
   openSource: (capture: Capture) => Promise<void>;
 };
@@ -42,9 +54,11 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
   const [pasteUrl, setPasteUrlState] = useState('');
   const [isLoadingCaptures, setIsLoadingCaptures] = useState(false);
   const [isSubmittingUrl, setIsSubmittingUrl] = useState(false);
+  const [isSubmittingSharedUrl, setIsSubmittingSharedUrl] = useState(false);
   const [retryingCaptureId, setRetryingCaptureId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pasteError, setPasteError] = useState<string | null>(null);
+  const [sharedCaptureError, setSharedCaptureErrorState] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const selectedCapture = useMemo(() => {
@@ -180,6 +194,37 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
     setPasteError(null);
   }, []);
 
+  const setSharedCaptureError = useCallback((message: string) => {
+    setSharedCaptureErrorState(message);
+  }, []);
+
+  const clearSharedCaptureError = useCallback(() => {
+    setSharedCaptureErrorState(null);
+  }, []);
+
+  const submitSourceUrl = useCallback(
+    async (sourceUrl: string, options: SubmitSourceOptions) => {
+      options.setError(null);
+      options.setSubmitting(true);
+
+      try {
+        const created = await createJob(sourceUrl);
+        const capture = captureFromJobCreated(created.job_id, sourceUrl);
+        setCaptures((current) => [capture, ...current.filter((item) => item.id !== capture.id)]);
+        setSelectedCaptureId(capture.id);
+        options.onSuccess?.();
+        void refreshCaptureById(created.job_id).catch(() => undefined);
+        return true;
+      } catch (error) {
+        options.setError(errorMessage(error, options.fallbackError));
+        return false;
+      } finally {
+        options.setSubmitting(false);
+      }
+    },
+    [refreshCaptureById],
+  );
+
   const submitPasteUrl = useCallback(async () => {
     const url = pasteUrl.trim();
     if (!url) {
@@ -187,24 +232,30 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
       return false;
     }
 
-    setPasteError(null);
-    setIsSubmittingUrl(true);
+    return submitSourceUrl(url, {
+      setSubmitting: setIsSubmittingUrl,
+      setError: setPasteError,
+      fallbackError: 'Could not submit that Reel.',
+      onSuccess: () => setPasteUrlState(''),
+    });
+  }, [pasteUrl, submitSourceUrl]);
 
-    try {
-      const created = await createJob(url);
-      const capture = captureFromJobCreated(created.job_id, url);
-      setCaptures((current) => [capture, ...current.filter((item) => item.id !== capture.id)]);
-      setSelectedCaptureId(capture.id);
-      setPasteUrlState('');
-      void refreshCaptureById(created.job_id).catch(() => undefined);
-      return true;
-    } catch (error) {
-      setPasteError(errorMessage(error, 'Could not submit that Reel.'));
-      return false;
-    } finally {
-      setIsSubmittingUrl(false);
-    }
-  }, [pasteUrl, refreshCaptureById]);
+  const submitSharedUrl = useCallback(
+    async (sourceUrl: string) => {
+      const url = sourceUrl.trim();
+      if (!url) {
+        setSharedCaptureErrorState('Share an Instagram Reel or post link to save it.');
+        return false;
+      }
+
+      return submitSourceUrl(url, {
+        setSubmitting: setIsSubmittingSharedUrl,
+        setError: setSharedCaptureErrorState,
+        fallbackError: 'Could not save that shared source.',
+      });
+    },
+    [submitSourceUrl],
+  );
 
   const retryCapture = useCallback(
     async (capture: Capture) => {
@@ -248,17 +299,22 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
     pasteUrl,
     isLoadingCaptures,
     isSubmittingUrl,
+    isSubmittingSharedUrl,
     retryingCaptureId,
     loadError,
     pasteError,
+    sharedCaptureError,
     actionError,
     setSelectedCaptureId,
     setPasteUrl,
     clearPasteError,
+    setSharedCaptureError,
+    clearSharedCaptureError,
     refreshCaptures,
     openCapture,
     openCaptureByJobId,
     submitPasteUrl,
+    submitSharedUrl,
     retryCapture,
     openSource,
   };

@@ -1,4 +1,8 @@
 export type SharedSourcePayload = { url?: string; text?: string };
+export type MentionedShareDeepLinkParseResult =
+  | { type: 'valid'; sourceUrl: string }
+  | { type: 'invalid-share-link' }
+  | { type: 'non-share-link' };
 
 const SUPPORTED_HOSTS = new Set(['instagram.com', 'www.instagram.com']);
 const URL_PATTERN = /https?:\/\/[^\s<>"']+/g;
@@ -76,17 +80,23 @@ export function extractSharedSourceUrl(payload: SharedSourcePayload): string | n
 }
 
 export function sharedUrlFromMentionedDeepLink(rawUrl: string): string | null {
+  const result = parseMentionedShareDeepLink(rawUrl);
+  return result.type === 'valid' ? result.sourceUrl : null;
+}
+
+export function parseMentionedShareDeepLink(rawUrl: string): MentionedShareDeepLinkParseResult {
   try {
     const deepLink = new URL(rawUrl);
 
     if (deepLink.protocol !== 'mentioned:' || mentionedRoute(deepLink) !== 'share') {
-      return null;
+      return { type: 'non-share-link' };
     }
 
     const sharedUrl = deepLink.searchParams.get('url');
-    return sharedUrl ? supportedNormalizedUrl(sharedUrl) : null;
+    const sourceUrl = sharedUrl ? supportedNormalizedUrl(sharedUrl) : null;
+    return sourceUrl ? { type: 'valid', sourceUrl } : { type: 'invalid-share-link' };
   } catch {
-    return null;
+    return { type: 'non-share-link' };
   }
 }
 

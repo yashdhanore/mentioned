@@ -18,7 +18,7 @@ export default function ShareExtension(props: InitialProps) {
       return;
     }
 
-    openHostApp(`share?url=${sourceUrl}`);
+    openHostApp(`share?url=${encodeURIComponent(sourceUrl)}`);
   };
 
   return (

@@ -12,21 +12,23 @@ import { spacing } from '@/theme';
 export function HomeScreen({
   captures,
   error,
+  errorActionLabel,
+  onErrorAction,
   isLoading,
   tileWidth,
   onOpenPaste,
   onOpenProfile,
   onOpenCapture,
-  onRefresh,
 }: {
   captures: Capture[];
   error: string | null;
+  errorActionLabel?: string;
+  onErrorAction?: () => void;
   isLoading: boolean;
   tileWidth: number;
   onOpenPaste: () => void;
   onOpenProfile: () => void;
   onOpenCapture: (capture: Capture) => void;
-  onRefresh: () => void;
 }) {
   return (
     <ScrollView
@@ -51,7 +53,14 @@ export function HomeScreen({
         <Text style={styles.screenSubtitle}>Items you have saved</Text>
       </View>
 
-      {error ? <InlineMessage tone="error" message={error} actionLabel="Try again" onAction={onRefresh} /> : null}
+      {error ? (
+        <InlineMessage
+          tone="error"
+          message={error}
+          actionLabel={errorActionLabel}
+          onAction={onErrorAction}
+        />
+      ) : null}
 
       {isLoading && captures.length === 0 ? <LoadingState tileWidth={tileWidth} /> : null}
       {!isLoading && captures.length === 0 ? <EmptyCaptures onOpenPaste={onOpenPaste} /> : null}
