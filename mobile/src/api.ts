@@ -1,4 +1,6 @@
 const DEFAULT_API_BASE_URL = 'http://127.0.0.1:8000';
+const DEFAULT_DEV_USER_ID = '00000000-0000-4000-8000-000000000001';
+const publicAuthMode = process.env.EXPO_PUBLIC_AUTH_MODE?.trim().toLowerCase() || '';
 
 export const API_BASE_URL = (
   process.env.EXPO_PUBLIC_API_BASE_URL?.trim() || DEFAULT_API_BASE_URL
@@ -6,6 +8,10 @@ export const API_BASE_URL = (
 
 export const PRIVACY_POLICY_URL =
   process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL?.trim().replace(/\/+$/, '') || null;
+
+export const isDevAuthEnabled = publicAuthMode === 'dev';
+export const DEV_USER_ID =
+  process.env.EXPO_PUBLIC_DEV_USER_ID?.trim() || DEFAULT_DEV_USER_ID;
 
 type AccessTokenProvider = () => Promise<string | null> | string | null;
 
@@ -19,6 +25,10 @@ export function clearAccessTokenProvider(): void {
   accessTokenProvider = null;
 }
 
+export function devAccessToken(): string {
+  return `dev:${DEV_USER_ID}`;
+}
+
 function isProductionBuild(): boolean {
   return process.env.EXPO_PUBLIC_APP_ENV?.trim().toLowerCase() === 'production';
 }
@@ -28,8 +38,16 @@ function isLocalHost(hostname: string): boolean {
 }
 
 function validateRuntimeConfig(): void {
+  if (publicAuthMode && publicAuthMode !== 'dev') {
+    throw new Error('EXPO_PUBLIC_AUTH_MODE must be "dev" or unset.');
+  }
+
   if (!isProductionBuild()) {
     return;
+  }
+
+  if (isDevAuthEnabled) {
+    throw new Error('Production mobile builds must not set EXPO_PUBLIC_AUTH_MODE=dev.');
   }
 
   if (process.env.EXPO_PUBLIC_DEV_USER_ID?.trim()) {

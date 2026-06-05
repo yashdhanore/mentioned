@@ -44,3 +44,14 @@ export function MoreIcon({ color = '#101A17', style }: IconProps) {
     </View>
   );
 }
+
+export function ExternalLinkIcon({ color = '#101A17', style }: IconProps) {
+  return (
+    <View style={[styles.iconCanvas, style]}>
+      <View style={[styles.iconExternalBox, { borderColor: color }]} />
+      <View style={[styles.iconStroke, styles.iconExternalShaft, { backgroundColor: color }]} />
+      <View style={[styles.iconStroke, styles.iconExternalArrowTop, { backgroundColor: color }]} />
+      <View style={[styles.iconStroke, styles.iconExternalArrowRight, { backgroundColor: color }]} />
+    </View>
+  );
+}

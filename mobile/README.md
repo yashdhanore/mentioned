@@ -20,6 +20,20 @@ The app talks to the local FastAPI backend by default:
 EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:8000 npm run ios
 ```
 
+For local visual inspection without Supabase OAuth, run the backend with `AUTH_MODE=dev` and start
+Expo with dev auth enabled. The mobile app will skip Supabase session restoration and send
+`Authorization: Bearer dev:<user-id>` to the API:
+
+```bash
+EXPO_PUBLIC_AUTH_MODE=dev \
+EXPO_PUBLIC_DEV_USER_ID=00000000-0000-4000-8000-000000000001 \
+EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:8000 \
+npm run web
+```
+
+`EXPO_PUBLIC_DEV_USER_ID` should match the backend `DEV_USER_ID` when you want to load seeded local
+data. Production builds reject `EXPO_PUBLIC_AUTH_MODE=dev` and `EXPO_PUBLIC_DEV_USER_ID`.
+
 Configure Supabase Auth before using the signed-in app flow:
 
 ```bash

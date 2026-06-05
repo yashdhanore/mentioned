@@ -1,4 +1,4 @@
-import { Text, View } from 'react-native';
+import { Image, Text, View } from 'react-native';
 
 import type { BookMention } from '@/captures';
 import { MoreIcon } from '@/components/icons';
@@ -16,6 +16,7 @@ type BooksMentionedProps = {
 type BookRowProps = {
   book: BookMention;
   isRemoving: boolean;
+  showDivider: boolean;
   onOpenRemoveBook?: (book: BookMention) => void;
 };
 
@@ -53,12 +54,13 @@ export function BooksMentioned({
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Books mentioned</Text>
-      <View style={styles.bookList}>
+      <View style={styles.bookListSurface}>
         {books.map((book, index) => (
           <FadeInView key={book.id} delay={Math.min(index * 55, 220)}>
             <BookRow
               book={book}
               isRemoving={removingBookId === book.id}
+              showDivider={index < books.length - 1}
               onOpenRemoveBook={onOpenRemoveBook}
             />
           </FadeInView>
@@ -68,26 +70,37 @@ export function BooksMentioned({
   );
 }
 
-function BookRow({ book, isRemoving, onOpenRemoveBook }: BookRowProps) {
+function BookRow({ book, isRemoving, showDivider, onOpenRemoveBook }: BookRowProps) {
   return (
-    <View style={styles.bookRow}>
-      <BookSpine color={book.color} initials={book.initials} />
-      <View style={styles.bookCopy}>
-        <Text style={styles.bookTitle}>{book.title}</Text>
-        {book.author ? <Text style={styles.bookAuthor}>{book.author}</Text> : null}
-        {book.synopsis ? <Text style={styles.bookSynopsis}>{book.synopsis}</Text> : null}
-      </View>
-      {onOpenRemoveBook ? (
-        <View style={styles.bookRowAction}>
-          <IconButton
-            accessibilityLabel={`Remove ${book.title}`}
-            disabled={isRemoving}
-            onPress={() => onOpenRemoveBook(book)}
-          >
-            <MoreIcon />
-          </IconButton>
+    <View>
+      <View style={styles.bookRow}>
+        {book.coverImageUrl ? (
+          <Image
+            source={{ uri: book.coverImageUrl }}
+            resizeMode="cover"
+            style={styles.bookCoverImage}
+          />
+        ) : (
+          <BookSpine color={book.color} initials={book.initials} />
+        )}
+        <View style={styles.bookCopy}>
+          <Text style={styles.bookTitle}>{book.title}</Text>
+          {book.author ? <Text style={styles.bookAuthor}>{book.author}</Text> : null}
+          {book.synopsis ? <Text style={styles.bookSynopsis}>{book.synopsis}</Text> : null}
         </View>
-      ) : null}
+        {onOpenRemoveBook ? (
+          <View style={styles.bookRowAction}>
+            <IconButton
+              accessibilityLabel={`Remove ${book.title}`}
+              disabled={isRemoving}
+              onPress={() => onOpenRemoveBook(book)}
+            >
+              <MoreIcon />
+            </IconButton>
+          </View>
+        ) : null}
+      </View>
+      {showDivider ? <View style={styles.bookRowDivider} /> : null}
     </View>
   );
 }
