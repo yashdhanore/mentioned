@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import * as Linking from 'expo-linking';
 
+import type { BookMention } from '@/captures';
 import { styles } from '@/styles';
 import { colors } from '@/theme';
 import { InlineMessage, PrimaryButton } from '@/components/ui';
@@ -108,6 +109,44 @@ export function ReelMenuSheet({
             onOpenSource?.();
             onClose();
           }}
+        />
+      </View>
+    </BottomSheet>
+  );
+}
+
+export function RemoveBookSheet({
+  visible,
+  book,
+  error,
+  isRemoving,
+  onClose,
+  onRemove,
+}: {
+  visible: boolean;
+  book: BookMention | null;
+  error: string | null;
+  isRemoving: boolean;
+  onClose: () => void;
+  onRemove: () => void;
+}) {
+  return (
+    <BottomSheet visible={visible} onClose={onClose}>
+      <Text style={styles.sheetTitle}>Remove book</Text>
+      <Text style={styles.sheetBody}>Remove this book from the saved source.</Text>
+      {book ? (
+        <View style={styles.sheetBookSummary}>
+          <Text style={styles.sheetBookTitle}>{book.title}</Text>
+          {book.author ? <Text style={styles.sheetBookAuthor}>{book.author}</Text> : null}
+        </View>
+      ) : null}
+      {error ? <InlineMessage tone="error" message={error} /> : null}
+      <View style={styles.sheetMenu}>
+        <SheetRow
+          label={isRemoving ? 'Removing...' : 'Remove book'}
+          destructive
+          disabled={isRemoving || !book}
+          onPress={onRemove}
         />
       </View>
     </BottomSheet>

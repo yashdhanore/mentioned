@@ -1,6 +1,6 @@
 import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 
-import type { Capture } from '@/captures';
+import type { BookMention, Capture } from '@/captures';
 import { BackIcon, MoreIcon } from '@/components/icons';
 import {
   BooksMentioned,
@@ -16,8 +16,10 @@ export function ReelDetailScreen({
   width,
   actionError,
   isRetrying,
+  removingBookId,
   onBack,
   onOpenMenu,
+  onOpenRemoveBook,
   onOpenSource,
   onRetry,
 }: {
@@ -25,8 +27,10 @@ export function ReelDetailScreen({
   width: number;
   actionError: string | null;
   isRetrying: boolean;
+  removingBookId: string | null;
   onBack: () => void;
   onOpenMenu: () => void;
+  onOpenRemoveBook: (book: BookMention) => void;
   onOpenSource: () => void;
   onRetry: () => void;
 }) {
@@ -55,7 +59,11 @@ export function ReelDetailScreen({
         <>
           <SourceSummary capture={capture} onOpenSource={onOpenSource} />
           {inlineError}
-          <BooksMentioned books={capture.books} />
+          <BooksMentioned
+            books={capture.books}
+            removingBookId={removingBookId}
+            onOpenRemoveBook={onOpenRemoveBook}
+          />
           <OriginalSourceSection
             capture={capture}
             previewWidth={sourcePreviewWidth}
