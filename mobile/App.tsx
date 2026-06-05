@@ -34,6 +34,7 @@ type PendingSharedSourceState = PendingSharedSource & {
   shouldAutoSubmit: boolean;
 };
 
+const INVALID_SHARED_SOURCE_MESSAGE = 'Share an Instagram Reel or post link to save it.';
 const pendingSharedSourceStore = createPendingSharedSourceStore(AsyncStorage);
 
 export default function App() {
@@ -44,6 +45,7 @@ export default function App() {
   const [accountLabel, setAccountLabel] = useState('Signed in');
   const [sheet, setSheet] = useState<Sheet>(null);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [shareLinkError, setShareLinkError] = useState<string | null>(null);
   const [authProviderInFlight, setAuthProviderInFlight] = useState<AuthProvider | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [selectedBook, setSelectedBook] = useState<BookMention | null>(null);
@@ -134,7 +136,8 @@ export default function App() {
 
       if (result.type === 'invalid-share-link') {
         setSelectedCaptureId(null);
-        setSharedCaptureError('Share an Instagram Reel or post link to save it.');
+        setShareLinkError(INVALID_SHARED_SOURCE_MESSAGE);
+        setSharedCaptureError(INVALID_SHARED_SOURCE_MESSAGE);
         setSheet((currentSheet) => (currentSheet === 'paste' ? null : currentSheet));
         return;
       }
@@ -148,6 +151,7 @@ export default function App() {
       }
 
       clearSharedCaptureError();
+      setShareLinkError(null);
       submittingSharedSourceKeysRef.current.add(sourceKey);
 
       if (!authStateRef.current.isAuthLoading && authStateRef.current.isSignedIn) {
@@ -377,6 +381,7 @@ export default function App() {
 
   const discardPendingSharedSource = useCallback(async () => {
     await clearPendingSharedSource(pendingSharedSourceRef.current?.sourceKey);
+    setShareLinkError(null);
     setAuthError(null);
     clearSharedCaptureError();
   }, [clearPendingSharedSource, clearSharedCaptureError]);
@@ -397,6 +402,7 @@ export default function App() {
     if (didSubmit) {
       handledSharedSourceKeysRef.current.add(source.sourceKey);
       await clearPendingSharedSource(source.sourceKey);
+      setShareLinkError(null);
       clearSharedCaptureError();
       setSheet((currentSheet) => (currentSheet === 'paste' ? null : currentSheet));
       return;
@@ -474,6 +480,7 @@ export default function App() {
   }, [clearPasteError]);
 
   const openPasteSheet = useCallback(() => {
+    setShareLinkError(null);
     clearSharedCaptureError();
     setSheet('paste');
   }, [clearSharedCaptureError]);
@@ -529,7 +536,7 @@ export default function App() {
   if (!isSignedIn) {
     return (
       <SignedOutScreen
-        error={authError}
+        error={shareLinkError ?? authError}
         pendingSharedSourceUrl={pendingSharedSource?.sourceUrl ?? null}
         isGoogleLoading={authProviderInFlight === 'google'}
         isDisabled={authProviderInFlight !== null}
