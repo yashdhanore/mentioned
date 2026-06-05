@@ -1,10 +1,23 @@
 import { Text, View } from 'react-native';
 
 import type { BookMention } from '@/captures';
+import { MoreIcon } from '@/components/icons';
 import { FadeInView } from '@/components/motion';
 import { SourceToBooksPreview } from '@/components/product-preview';
-import { BookSpine, BookSpineSkeleton, PrimaryButton, SecondaryButton } from '@/components/ui';
+import { BookSpine, BookSpineSkeleton, IconButton, PrimaryButton, SecondaryButton } from '@/components/ui';
 import { styles } from '@/styles';
+
+type BooksMentionedProps = {
+  books: BookMention[];
+  removingBookId?: string | null;
+  onOpenRemoveBook?: (book: BookMention) => void;
+};
+
+type BookRowProps = {
+  book: BookMention;
+  isRemoving: boolean;
+  onOpenRemoveBook?: (book: BookMention) => void;
+};
 
 export function ProcessingBooks() {
   return (
@@ -32,14 +45,22 @@ function SkeletonBookRow() {
   );
 }
 
-export function BooksMentioned({ books }: { books: BookMention[] }) {
+export function BooksMentioned({
+  books,
+  removingBookId = null,
+  onOpenRemoveBook,
+}: BooksMentionedProps) {
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Books mentioned</Text>
       <View style={styles.bookList}>
         {books.map((book, index) => (
           <FadeInView key={book.id} delay={Math.min(index * 55, 220)}>
-            <BookRow book={book} />
+            <BookRow
+              book={book}
+              isRemoving={removingBookId === book.id}
+              onOpenRemoveBook={onOpenRemoveBook}
+            />
           </FadeInView>
         ))}
       </View>
@@ -47,7 +68,7 @@ export function BooksMentioned({ books }: { books: BookMention[] }) {
   );
 }
 
-function BookRow({ book }: { book: BookMention }) {
+function BookRow({ book, isRemoving, onOpenRemoveBook }: BookRowProps) {
   return (
     <View style={styles.bookRow}>
       <BookSpine color={book.color} initials={book.initials} />
@@ -56,6 +77,17 @@ function BookRow({ book }: { book: BookMention }) {
         {book.author ? <Text style={styles.bookAuthor}>{book.author}</Text> : null}
         {book.synopsis ? <Text style={styles.bookSynopsis}>{book.synopsis}</Text> : null}
       </View>
+      {onOpenRemoveBook ? (
+        <View style={styles.bookRowAction}>
+          <IconButton
+            accessibilityLabel={`Remove ${book.title}`}
+            disabled={isRemoving}
+            onPress={() => onOpenRemoveBook(book)}
+          >
+            <MoreIcon />
+          </IconButton>
+        </View>
+      ) : null}
     </View>
   );
 }

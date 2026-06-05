@@ -5,7 +5,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, SafeAreaView, useWindowDimensions } from 'react-native';
 
 import { clearAccessTokenProvider, errorMessage, PRIVACY_POLICY_URL, setAccessTokenProvider } from '@/api';
-import { PasteSheet, ProfileSheet, ReelMenuSheet } from '@/components/sheets';
+import type { BookMention } from '@/captures';
+import { PasteSheet, ProfileSheet, ReelMenuSheet, RemoveBookSheet } from '@/components/sheets';
 import {
   createPendingSharedSourceStore,
   type PendingSharedSource,
@@ -28,7 +29,7 @@ import { parseMentionedShareDeepLink } from '@/utils/shared-source-url';
 import { spacing } from '@/theme';
 import { styles } from '@/styles';
 
-type Sheet = 'profile' | 'paste' | 'reelMenu' | null;
+type Sheet = 'profile' | 'paste' | 'reelMenu' | 'removeBook' | null;
 type PendingSharedSourceState = PendingSharedSource & {
   shouldAutoSubmit: boolean;
 };
@@ -45,6 +46,8 @@ export default function App() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [authProviderInFlight, setAuthProviderInFlight] = useState<AuthProvider | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [selectedBook, setSelectedBook] = useState<BookMention | null>(null);
+  const [bookRemovalError, setBookRemovalError] = useState<string | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [registeredPushToken, setRegisteredPushToken] = useState<string | null>(null);
   const [pendingSharedSource, setPendingSharedSource] = useState<PendingSharedSourceState | null>(null);
@@ -62,6 +65,7 @@ export default function App() {
     isSubmittingUrl,
     isSubmittingSharedUrl,
     retryingCaptureId,
+    removingBookId,
     loadError,
     pasteError,
     sharedCaptureError,
@@ -77,6 +81,7 @@ export default function App() {
     submitPasteUrl,
     submitSharedUrl,
     retryCapture,
+    removeBookMention,
     openSource,
   } = useCaptures(isSignedIn);
 
@@ -480,6 +485,43 @@ export default function App() {
     }
   }, [submitPasteUrl]);
 
+  const openRemoveBook = useCallback((book: BookMention) => {
+    setSelectedBook(book);
+    setBookRemovalError(null);
+    setSheet('removeBook');
+  }, []);
+
+  const closeRemoveBookSheet = useCallback(() => {
+    setBookRemovalError(null);
+    setSelectedBook(null);
+    setSheet((currentSheet) => (currentSheet === 'removeBook' ? null : currentSheet));
+  }, []);
+
+  const removeSelectedBook = useCallback(async () => {
+    if (!selectedCapture || !selectedBook) {
+      return;
+    }
+
+    setBookRemovalError(null);
+    const result = await removeBookMention(selectedCapture, selectedBook.id);
+    if (result.ok) {
+      closeRemoveBookSheet();
+      return;
+    }
+    setBookRemovalError(result.message);
+  }, [closeRemoveBookSheet, removeBookMention, selectedBook, selectedCapture]);
+
+  useEffect(() => {
+    if (!selectedBook) {
+      return;
+    }
+
+    const selectedBookStillExists = selectedCapture?.books.some((book) => book.id === selectedBook.id);
+    if (!selectedBookStillExists) {
+      closeRemoveBookSheet();
+    }
+  }, [closeRemoveBookSheet, selectedBook, selectedCapture]);
+
   if (isAuthLoading) {
     return <AuthLoadingScreen />;
   }
@@ -507,8 +549,10 @@ export default function App() {
           width={contentWidth}
           actionError={actionError}
           isRetrying={retryingCaptureId === selectedCapture.id}
+          removingBookId={removingBookId}
           onBack={() => setSelectedCaptureId(null)}
           onOpenMenu={() => setSheet('reelMenu')}
+          onOpenRemoveBook={openRemoveBook}
           onOpenSource={() => void openSource(selectedCapture)}
           onRetry={() => void retryCapture(selectedCapture)}
         />
@@ -552,6 +596,14 @@ export default function App() {
         visible={sheet === 'reelMenu'}
         onClose={() => setSheet(null)}
         onOpenSource={selectedCapture ? () => void openSource(selectedCapture) : undefined}
+      />
+      <RemoveBookSheet
+        visible={sheet === 'removeBook'}
+        book={selectedBook}
+        error={bookRemovalError}
+        isRemoving={selectedBook ? removingBookId === selectedBook.id : false}
+        onClose={closeRemoveBookSheet}
+        onRemove={() => void removeSelectedBook()}
       />
     </SafeAreaView>
   );

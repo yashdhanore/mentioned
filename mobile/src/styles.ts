@@ -562,6 +562,10 @@ export const styles = StyleSheet.create({
   bookCopy: {
     flex: 1,
     gap: spacing.xs,
+    minWidth: 0,
+  },
+  bookRowAction: {
+    flexShrink: 0,
   },
   bookTitle: {
     ...typography.titleMd,
@@ -742,6 +746,22 @@ export const styles = StyleSheet.create({
   accountEmail: {
     ...typography.bodySm,
     color: colors.onMuted,
+  },
+  sheetBookSummary: {
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    gap: spacing.xs,
+    padding: spacing.md,
+  },
+  sheetBookTitle: {
+    ...typography.labelLg,
+    color: colors.onSurface,
+  },
+  sheetBookAuthor: {
+    ...typography.bodySm,
+    color: colors.secondary,
   },
   sheetMenu: {
     borderColor: colors.border,

@@ -99,6 +99,11 @@ export type JobListItem = {
 
 export type PushPlatform = 'ios' | 'android';
 
+export type DeleteMentionResponse = {
+  id: string;
+  deleted: boolean;
+};
+
 type ApiErrorPayload = {
   error_code?: string;
   message?: string;
@@ -192,6 +197,14 @@ export async function listAllJobs(): Promise<JobListItem[]> {
 
 export async function getJob(jobId: string): Promise<JobResponse> {
   return requestJson<JobResponse>(`/v1/jobs/${jobId}`);
+}
+
+// --- Mentions ---
+
+export async function deleteMention(mentionId: string): Promise<DeleteMentionResponse> {
+  return requestJson<DeleteMentionResponse>(`/v1/mentions/${mentionId}`, {
+    method: 'DELETE',
+  });
 }
 
 // --- Push notifications ---

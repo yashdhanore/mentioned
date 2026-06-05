@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Linking } from 'react-native';
 
-import { createJob, errorMessage, getJob, listAllJobs } from '@/api';
+import { createJob, deleteMention, errorMessage, getJob, listAllJobs } from '@/api';
 import {
   buildCaptures,
   captureFromJobCreated,
@@ -22,6 +22,8 @@ type SubmitSourceOptions = {
   onSuccess?: () => void;
 };
 
+type RemoveBookResult = { ok: true } | { ok: false; message: string };
+
 type UseCapturesResult = {
   captures: Capture[];
   selectedCapture: Capture | null;
@@ -30,6 +32,7 @@ type UseCapturesResult = {
   isSubmittingUrl: boolean;
   isSubmittingSharedUrl: boolean;
   retryingCaptureId: string | null;
+  removingBookId: string | null;
   loadError: string | null;
   pasteError: string | null;
   sharedCaptureError: string | null;
@@ -45,6 +48,7 @@ type UseCapturesResult = {
   submitPasteUrl: () => Promise<boolean>;
   submitSharedUrl: (sourceUrl: string) => Promise<boolean>;
   retryCapture: (capture: Capture) => Promise<void>;
+  removeBookMention: (capture: Capture, bookId: string) => Promise<RemoveBookResult>;
   openSource: (capture: Capture) => Promise<void>;
 };
 
@@ -56,6 +60,7 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
   const [isSubmittingUrl, setIsSubmittingUrl] = useState(false);
   const [isSubmittingSharedUrl, setIsSubmittingSharedUrl] = useState(false);
   const [retryingCaptureId, setRetryingCaptureId] = useState<string | null>(null);
+  const [removingBookId, setRemovingBookId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pasteError, setPasteError] = useState<string | null>(null);
   const [sharedCaptureError, setSharedCaptureErrorState] = useState<string | null>(null);
@@ -280,6 +285,26 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
     [refreshCaptureById],
   );
 
+  const removeBookMention = useCallback(
+    async (capture: Capture, bookId: string): Promise<RemoveBookResult> => {
+      setActionError(null);
+      setRemovingBookId(bookId);
+
+      try {
+        await deleteMention(bookId);
+        await refreshCaptureById(capture.id);
+        return { ok: true };
+      } catch (error) {
+        const message = errorMessage(error, 'Could not remove this book.');
+        setActionError(message);
+        return { ok: false, message };
+      } finally {
+        setRemovingBookId(null);
+      }
+    },
+    [refreshCaptureById],
+  );
+
   const openSource = useCallback(async (capture: Capture) => {
     setActionError(null);
     if (!isAllowedInstagramUrl(capture.sourceUrl)) {
@@ -301,6 +326,7 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
     isSubmittingUrl,
     isSubmittingSharedUrl,
     retryingCaptureId,
+    removingBookId,
     loadError,
     pasteError,
     sharedCaptureError,
@@ -316,6 +342,7 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
     submitPasteUrl,
     submitSharedUrl,
     retryCapture,
+    removeBookMention,
     openSource,
   };
 }
