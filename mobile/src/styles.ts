@@ -260,6 +260,17 @@ export const styles = StyleSheet.create({
   reelSkeletonTileFeatured: {
     aspectRatio: 1.46,
   },
+  loadingSources: {
+    gap: spacing.md,
+  },
+  loadingSourcesTitle: {
+    ...typography.labelLg,
+    color: colors.onSurface,
+  },
+  loadingSourcesBody: {
+    ...typography.bodySm,
+    color: colors.onMuted,
+  },
   loadingState: {
     alignItems: 'center',
     backgroundColor: colors.surface,
