@@ -6,25 +6,30 @@ This backend deploys as two Render services backed by one Supabase project:
 - `mentioned-worker`: private background worker on Render Starter that processes queued jobs.
 - Supabase: Postgres, Supabase Auth, and the production user database.
 
+For the App Store/TestFlight backend gate, use
+[`docs/release-1-backend-readiness.md`](release-1-backend-readiness.md) as the final checklist.
+
 For beta, keep the worker at exactly one instance until worker claiming uses atomic `SKIP LOCKED`.
 This keeps Render compute to the worker cost only, currently about $7/month.
 
 ## 1. Create Supabase roles
 
-In Supabase SQL editor, run the role setup from `docs/beta-rls-option-b.md` with strong passwords:
+Run role setup and role verification from a secure local shell. Use Supabase CLI commands for
+migration and role-state verification, and keep any role-password SQL in an untracked temporary file
+outside the repository. Do not paste role passwords into the Supabase Dashboard, commit role SQL
+with real passwords, or store role setup files in the repository.
 
-```sql
-create role mentioned_api
-  login
-  password 'replace-with-strong-api-password'
-  nosuperuser
-  nobypassrls;
+Use the role setup SQL from `docs/beta-rls-option-b.md` with strong passwords. The local CLI checked
+during planning was `2.98.2`, and it reported an update notice for `2.105.0`; run help commands
+before executing migration or query commands because CLI behavior changes.
 
-create role mentioned_worker
-  login
-  password 'replace-with-strong-worker-password'
-  nosuperuser
-  nobypassrls;
+```bash
+supabase --help
+supabase db --help
+supabase migration list --linked
+supabase db push --dry-run
+supabase db push
+supabase db query --linked "select current_user;"
 ```
 
 Use separate connection strings for the two roles:
@@ -82,9 +87,11 @@ MEDIA_TRANSCODE_VIDEO_BITRATE=1100k
 MEDIA_TRANSCODE_AUDIO_BITRATE=96k
 ```
 
-Apply Supabase migrations before deploying the worker so the public thumbnail bucket exists:
+Apply Supabase migrations before deploying the worker so the public thumbnail bucket exists. Run the
+dry run first and verify the linked project is the intended target before applying:
 
 ```bash
+supabase migration list --linked
 supabase db push --dry-run
 supabase db push
 ```
@@ -132,8 +139,15 @@ After Render deploys, run the full job smoke test:
 TOKEN='user-a-access-token' \
 SECOND_TOKEN='user-b-access-token' \
 SOURCE_URL='https://www.instagram.com/reel/SHORTCODE/' \
-python scripts/smoke_job_flow.py --api-base-url https://mentioned-api.onrender.com
+python scripts/smoke_job_flow.py \
+  --api-base-url https://mentioned-api.onrender.com \
+  --require-mentions
 ```
+
+In Render, inspect deploy status, runtime logs, health checks, service configuration, and recent
+deploy/error events. Capture evidence that both services deployed from the intended commit, the API
+health check passed, the worker has one instance, migrations ran through the worker predeploy, and
+worker logs show queue message read, claim, retry/failure, and archive paths clearly.
 
 ## 4. Mobile app configuration
 

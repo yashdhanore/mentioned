@@ -66,6 +66,16 @@ def _assert_status(client: httpx.Client, method: str, path: str, expected_status
     return payload
 
 
+def _saved_mentions_for_smoke(client: httpx.Client) -> list[dict[str, Any]]:
+    payload = _request_json(client, "GET", "/v1/mentions", params={"limit": 100})
+    items = payload.get("items")
+    if not isinstance(items, list):
+        raise SmokeError("GET /v1/mentions response did not include an items list")
+    if any(not isinstance(item, dict) for item in items):
+        raise SmokeError("GET /v1/mentions items must be JSON objects")
+    return items
+
+
 def _required(value: str | None, message: str) -> str:
     if value:
         return value
@@ -112,6 +122,26 @@ def run(args: argparse.Namespace) -> int:
             raise SmokeError("GET /v1/jobs/{job_id} response did not include a mentions list")
         _print_json("job mentions", {"count": len(mentions), "items": mentions})
 
+        if args.require_mentions and not mentions:
+            raise SmokeError("Job completed but returned no mentions")
+
+        saved_mentions = _saved_mentions_for_smoke(client)
+        _print_json("saved mentions", {"count": len(saved_mentions), "items": saved_mentions})
+
+        job_mention_ids = {
+            item.get("id")
+            for item in mentions
+            if isinstance(item, dict) and isinstance(item.get("id"), str)
+        }
+        saved_mention_ids = {
+            item.get("id")
+            for item in saved_mentions
+            if isinstance(item.get("id"), str)
+        }
+        if job_mention_ids and not job_mention_ids.issubset(saved_mention_ids):
+            missing = sorted(job_mention_ids - saved_mention_ids)
+            raise SmokeError(f"Saved mentions did not include job mention IDs: {missing}")
+
         if second_token:
             second_headers = {"Authorization": f"Bearer {second_token}"}
             with httpx.Client(base_url=args.api_base_url.rstrip("/"), headers=second_headers, timeout=timeout) as second_client:
@@ -140,6 +170,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--timeout-seconds", type=float, default=300.0)
     parser.add_argument("--request-timeout-seconds", type=float, default=30.0)
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument(
+        "--require-mentions",
+        action="store_true",
+        help="Fail if the completed job returns no mentions. Use for Release 1 real-source smoke tests.",
+    )
     return parser.parse_args()
 
 

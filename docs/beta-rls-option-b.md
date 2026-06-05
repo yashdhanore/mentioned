@@ -4,7 +4,8 @@ Option B is the v1 beta default: the public FastAPI service uses a database role
 Postgres RLS, and workers use a separate internal database role for cross-user queue work.
 
 Run the role setup with a database admin connection, not from the application migration role.
-Replace passwords before running.
+Replace passwords before running, and keep role passwords, connection strings, and temporary setup
+SQL outside the repository.
 
 ```sql
 create role mentioned_api
@@ -54,6 +55,20 @@ rolbypassrls = false
 Verify the worker role with the exact connection string planned for `mentioned-worker`; the expected
 `rolsuper` and `rolbypassrls` values are also both `false`.
 
+## CLI Verification
+
+Run role-state checks from a secure local shell with the exact API and worker connection strings:
+
+```bash
+supabase --help
+supabase db query --db-url "$POSTGRES_TEST_API_DATABASE_URL" \
+  "select current_user, rolsuper, rolbypassrls from pg_roles where rolname = current_user;"
+supabase db query --db-url "$POSTGRES_TEST_WORKER_DATABASE_URL" \
+  "select current_user, rolsuper, rolbypassrls from pg_roles where rolname = current_user;"
+```
+
+Expected `rolsuper` and `rolbypassrls` are both `false` for both roles.
+
 Run the release proof:
 
 ```bash
@@ -69,7 +84,9 @@ Run the deployed beta smoke with two different Supabase user tokens:
 TOKEN='user-a-access-token' \
 SECOND_TOKEN='user-b-access-token' \
 SOURCE_URL='https://www.instagram.com/reel/SHORTCODE/' \
-python scripts/smoke_job_flow.py --api-base-url https://your-beta-api.example
+python scripts/smoke_job_flow.py \
+  --api-base-url https://your-beta-api.example \
+  --require-mentions
 ```
 
 For v1 beta, the frontend may use Supabase Auth only. Direct frontend or mobile reads from Supabase
