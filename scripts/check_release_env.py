@@ -17,6 +17,12 @@ REQUIRED_VALUES = {
     "SOURCE_REQUIRE_HTTPS": "true",
 }
 
+GUARDRAILS = {
+    "MAX_JOB_CREATE_BURST_PER_MINUTE": (3, 1, 10),
+    "MAX_JOBS_CREATED_PER_DAY": (25, 1, 100),
+    "MAX_ACTIVE_JOBS_PER_USER": (5, 1, 10),
+}
+
 
 def _env(name: str) -> str | None:
     value = os.getenv(name)
@@ -58,6 +64,16 @@ def _csv(name: str) -> list[str]:
     if not value:
         return []
     return [part.strip() for part in value.split(",") if part.strip()]
+
+
+def _env_int_with_default(name: str, default: int) -> tuple[int | None, str | None]:
+    raw = _env(name)
+    if raw is None:
+        return default, None
+    try:
+        return int(raw), None
+    except ValueError:
+        return None, f"{name} must be an integer"
 
 
 def _check_release_env(worker_replicas: str | None) -> list[str]:
@@ -105,6 +121,14 @@ def _check_release_env(worker_replicas: str | None) -> list[str]:
             errors.append("GEMINI_VERTEX_PROJECT or GOOGLE_CLOUD_PROJECT must be set for Vertex AI")
     elif not _env("GEMINI_API_KEY"):
         errors.append("GEMINI_API_KEY must be set when Vertex AI is disabled")
+
+    for name, (default, low, high) in GUARDRAILS.items():
+        value, error = _env_int_with_default(name, default)
+        if error:
+            errors.append(error)
+            continue
+        if value is None or value < low or value > high:
+            errors.append(f"{name} must be between {low} and {high}")
 
     if worker_replicas != "1":
         errors.append("worker replicas must be exactly 1 for beta")

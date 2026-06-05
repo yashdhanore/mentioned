@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import logging
 from uuid import UUID, uuid4
 
 from sqlmodel import Session, SQLModel, create_engine
@@ -41,10 +42,11 @@ def test_worker_archives_missing_queue_job(monkeypatch):
     assert archived == [10]
 
 
-def test_worker_leaves_locked_pending_queue_job_unarchived(monkeypatch):
+def test_worker_leaves_locked_pending_queue_job_unarchived(monkeypatch, caplog):
     engine = _engine()
     archived = []
     processed = []
+    caplog.set_level(logging.INFO, logger="src.worker")
 
     def fake_archive(_session: Session, msg_id: int) -> None:
         archived.append(msg_id)
@@ -70,7 +72,7 @@ def test_worker_leaves_locked_pending_queue_job_unarchived(monkeypatch):
             session.refresh(job)
 
         process_extract_job_message(
-            ExtractJobMessage(msg_id=11, job_id=job.id, read_count=1),
+            ExtractJobMessage(msg_id=11, job_id=job.id, read_count=2),
             engine,
             Settings(worker_id="worker-queue"),
         )
@@ -79,12 +81,16 @@ def test_worker_leaves_locked_pending_queue_job_unarchived(monkeypatch):
 
     assert archived == []
     assert processed == []
+    assert "queue message 11" in caplog.text
+    assert str(job.id) in caplog.text
+    assert "read_count=2" in caplog.text
 
 
-def test_worker_archives_queue_message_after_job_status_is_saved(monkeypatch):
+def test_worker_archives_queue_message_after_job_status_is_saved(monkeypatch, caplog):
     engine = _engine()
     archived = []
     order = []
+    caplog.set_level(logging.INFO, logger="src.worker")
 
     def fake_process(job: Job, session: Session) -> None:
         order.append(("process", job.locked_by))
@@ -124,3 +130,5 @@ def test_worker_archives_queue_message_after_job_status_is_saved(monkeypatch):
 
     assert archived == [12]
     assert order == [("process", "worker-queue"), ("archive", JobStatus.DONE)]
+    assert "Archived queue message 12" in caplog.text
+    assert str(job.id) in caplog.text

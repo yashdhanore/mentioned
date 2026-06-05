@@ -58,6 +58,9 @@ Before a beta deploy, validate the production environment shape without printing
 python scripts/check_release_env.py --env-file .env --worker-replicas 1
 ```
 
+For the full App Store/TestFlight backend gate, follow
+[`docs/release-1-backend-readiness.md`](docs/release-1-backend-readiness.md).
+
 Deploy exactly one worker replica for beta until worker claiming uses atomic `SKIP LOCKED`.
 
 ## Deploy to Render + Supabase
@@ -69,14 +72,14 @@ required environment variables, role setup, and mobile app configuration.
 
 ## Smoke test the full job flow
 
-With the API and worker running, submit a real job, poll until terminal, and list saved mentions
-returned by the job detail endpoint:
+With the API and worker running, submit a real job, poll until terminal, verify job-detail mentions,
+and verify saved mentions through `/v1/mentions`:
 
 ```bash
 TOKEN='paste-supabase-access-token'
 SECOND_TOKEN='paste-second-user-supabase-access-token'
 SOURCE_URL='https://www.instagram.com/reel/SHORTCODE/'
-python scripts/smoke_job_flow.py
+python scripts/smoke_job_flow.py --require-mentions
 ```
 
 Optional overrides:
@@ -86,7 +89,8 @@ python scripts/smoke_job_flow.py \
   --api-base-url http://127.0.0.1:8000 \
   --source-url "$SOURCE_URL" \
   --token "$TOKEN" \
-  --timeout-seconds 600
+  --timeout-seconds 600 \
+  --require-mentions
 ```
 
 ## API
