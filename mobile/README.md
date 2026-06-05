@@ -35,8 +35,9 @@ The mobile client persists the Supabase session locally and sends the session ac
 auth variables are missing. Add the app callback URL, `mentioned://auth/callback`, to the allowed
 redirect URLs in the Supabase Auth provider configuration.
 Production mobile builds reject local or non-HTTPS Supabase URLs, Supabase secret/service-role
-keys, and `EXPO_PUBLIC_AUTH_REDIRECT_URL`. Use `EXPO_PUBLIC_AUTH_REDIRECT_URL` only for
-development sessions such as Expo Go or tunnel testing.
+keys, local or non-HTTPS privacy policy URLs, `EXPO_PUBLIC_DEV_USER_ID`, and
+`EXPO_PUBLIC_AUTH_REDIRECT_URL`. Use `EXPO_PUBLIC_AUTH_REDIRECT_URL` only for development sessions
+such as Expo Go or tunnel testing.
 
 Native iOS builds and development builds use `mentioned://auth/callback` for Supabase OAuth. Expo Go
 uses an `exp://.../--/auth/callback` URL instead; if Safari says it cannot connect to the server
@@ -58,14 +59,20 @@ EXPO_PUBLIC_APP_ENV=production
 EXPO_PUBLIC_API_BASE_URL=https://mentioned-api.onrender.com
 EXPO_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
 EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<publishable-or-anon-key>
+EXPO_PUBLIC_PRIVACY_POLICY_URL=https://...
+EXPO_PUBLIC_EAS_PROJECT_ID=2ca4c235-717e-48a1-aee8-173bf247f1b0
 ```
 
 Native iOS and Android builds work with the deployed backend over HTTPS. CORS only affects browser
 clients such as Expo web.
 
+For the Release 1 iOS EAS/TestFlight runbook, see
+[`../docs/release-1-ios-eas-testflight.md`](../docs/release-1-ios-eas-testflight.md).
+
 ## Validate
 
 ```bash
+npm run check:ios-release-config
 npm run typecheck
 ```
 
@@ -82,4 +89,5 @@ This prototype implements the v1 user-facing flow:
 - Profile/settings bottom sheet.
 
 It intentionally does not expose confidence, evidence, jobs, stages, artifacts, or worker state in
-the normal UI. Native iOS share extension work is a separate iOS integration step.
+the normal UI. The app includes an iOS share-extension path for supported shared URL/text payloads,
+while release validation still needs an EAS/native iOS build.

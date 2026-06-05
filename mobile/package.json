@@ -7,6 +7,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "check:ios-release-config": "tsx scripts/check-ios-release-config.ts",
     "test:share-url": "tsx scripts/test-share-url-extraction.ts",
     "test:pending-shared-source": "tsx scripts/test-pending-shared-source.ts",
     "test:supabase-config": "tsx scripts/test-supabase-config.ts",
