@@ -4,7 +4,14 @@ import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, SafeAreaView, useWindowDimensions } from 'react-native';
 
-import { clearAccessTokenProvider, errorMessage, PRIVACY_POLICY_URL, setAccessTokenProvider } from '@/api';
+import {
+  clearAccessTokenProvider,
+  devAccessToken,
+  errorMessage,
+  isDevAuthEnabled,
+  PRIVACY_POLICY_URL,
+  setAccessTokenProvider,
+} from '@/api';
 import type { BookMention } from '@/captures';
 import { PasteSheet, ProfileSheet, ReelMenuSheet, RemoveBookSheet } from '@/components/sheets';
 import {
@@ -197,7 +204,18 @@ export default function App() {
   );
 
   useEffect(() => {
+    if (isDevAuthEnabled) {
+      setAccessTokenProvider(devAccessToken);
+      setIsSignedIn(true);
+      setAccountLabel('Dev User');
+      setIsAuthLoading(false);
+      return () => {
+        clearAccessTokenProvider();
+      };
+    }
+
     if (!isSupabaseConfigured) {
+      clearAccessTokenProvider();
       setIsSignedIn(true);
       setAccountLabel('Dev User');
       setIsAuthLoading(false);
@@ -460,6 +478,12 @@ export default function App() {
     setProfileError(null);
     setIsSigningOut(true);
     try {
+      if (isDevAuthEnabled) {
+        setRegisteredPushToken(null);
+        setSheet(null);
+        return;
+      }
+
       await disableRegisteredPushToken(registeredPushToken);
       const { error } = await supabase.auth.signOut();
       if (error) {

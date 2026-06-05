@@ -1,7 +1,7 @@
 import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 
 import type { BookMention, Capture } from '@/captures';
-import { BackIcon, MoreIcon } from '@/components/icons';
+import { BackIcon, ExternalLinkIcon, MoreIcon } from '@/components/icons';
 import {
   BooksMentioned,
   FailedState,
@@ -35,6 +35,7 @@ export function ReelDetailScreen({
   onRetry: () => void;
 }) {
   const sourcePreviewWidth = Math.min(Math.max(width * 0.32, 96), 124);
+  const sourceHeroWidth = Math.min(Math.max(width * 0.58, 210), 260);
   const inlineError = actionError ? <InlineMessage tone="error" message={actionError} /> : null;
 
   return (
@@ -57,17 +58,16 @@ export function ReelDetailScreen({
 
       {capture.status === 'ready' ? (
         <>
-          <SourceSummary capture={capture} onOpenSource={onOpenSource} />
+          <SourceHero
+            capture={capture}
+            previewWidth={sourceHeroWidth}
+            onOpenSource={onOpenSource}
+          />
           {inlineError}
           <BooksMentioned
             books={capture.books}
             removingBookId={removingBookId}
             onOpenRemoveBook={onOpenRemoveBook}
-          />
-          <OriginalSourceSection
-            capture={capture}
-            previewWidth={sourcePreviewWidth}
-            onOpenSource={onOpenSource}
           />
         </>
       ) : null}
@@ -108,32 +108,87 @@ export function ReelDetailScreen({
   );
 }
 
-function SourceSummary({
+function SourceHero({
   capture,
+  previewWidth,
   onOpenSource,
 }: {
   capture: Capture;
+  previewWidth: number;
   onOpenSource: () => void;
 }) {
+  const savedLabel = savedAtLabel(capture.createdAt);
+
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="Open original source"
-      style={({ pressed }) => [styles.sourceSummary, pressed && styles.pressed]}
-      onPress={onOpenSource}
-    >
-      <Image source={{ uri: capture.thumbnailUrl }} style={styles.sourceSummaryImage} />
-      <View style={styles.sourceSummaryCopy}>
-        <Text numberOfLines={1} style={styles.sourceSummaryLabel}>
-          Saved source
-        </Text>
-        <Text numberOfLines={1} style={styles.sourceSummaryCreator}>
-          {capture.creator}
-        </Text>
+    <View style={styles.sourceHero}>
+      <View style={styles.sourceHeroStage}>
+        <View style={styles.sourceHeroPaper} />
+        <View style={[styles.sourceHeroCard, { width: previewWidth }]}>
+          <Image
+            source={{ uri: capture.thumbnailUrl }}
+            resizeMode="cover"
+            style={styles.sourceHeroImage}
+          />
+        </View>
       </View>
-      <Text style={styles.sourceSummaryAction}>Open</Text>
-    </Pressable>
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Open original source"
+        style={({ pressed }) => [styles.sourceHeroAction, pressed && styles.pressed]}
+        onPress={onOpenSource}
+      >
+        <Text style={styles.sourceHeroActionText}>Open source</Text>
+        <ExternalLinkIcon color="#0E6F68" style={styles.sourceHeroActionIcon} />
+      </Pressable>
+
+      <View style={styles.sourceHeroMeta}>
+        <View style={styles.sourceHeroIdentity}>
+          <Text numberOfLines={1} style={styles.sourceHeroCreator}>
+            {capture.creator}
+          </Text>
+          {savedLabel ? (
+            <Text numberOfLines={1} style={styles.sourceHeroSavedAt}>
+              {savedLabel}
+            </Text>
+          ) : null}
+        </View>
+        {capture.sourceContextSnippet ? (
+          <SourceQuote quote={capture.sourceContextSnippet} attribution="From source" />
+        ) : null}
+      </View>
+    </View>
   );
+}
+
+function savedAtLabel(createdAt: string): string | null {
+  const timestamp = Date.parse(createdAt);
+  if (!Number.isFinite(timestamp)) {
+    return null;
+  }
+
+  const diffMs = Math.max(0, Date.now() - timestamp);
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+
+  if (diffMs < minute) {
+    return 'Saved just now';
+  }
+  if (diffMs < hour) {
+    return `Saved ${Math.floor(diffMs / minute)}m ago`;
+  }
+  if (diffMs < day) {
+    return `Saved ${Math.floor(diffMs / hour)}h ago`;
+  }
+  if (diffMs < 7 * day) {
+    return `Saved ${Math.floor(diffMs / day)}d ago`;
+  }
+
+  return `Saved ${new Date(timestamp).toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+  })}`;
 }
 
 function OriginalSourceSection({

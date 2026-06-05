@@ -8,12 +8,15 @@ SIGNED_OUT_PREVIEW = (
 )
 APP = REPO_ROOT / "mobile" / "App.tsx"
 HOME_SCREEN = REPO_ROOT / "mobile" / "src" / "screens" / "home-screen.tsx"
+DETAIL_SCREEN = REPO_ROOT / "mobile" / "src" / "screens" / "reel-detail-screen.tsx"
 BOOKS = REPO_ROOT / "mobile" / "src" / "components" / "books.tsx"
+CAPTURES = REPO_ROOT / "mobile" / "src" / "captures.ts"
 PENDING_SOURCE = REPO_ROOT / "mobile" / "src" / "features" / "captures" / "pending-shared-source.ts"
 SUPABASE = REPO_ROOT / "mobile" / "src" / "supabase.ts"
 AUTH_ORBIT_REEL_PREVIEW = (
     REPO_ROOT / "mobile" / "assets" / "auth-orbit-reel-preview.png"
 )
+API = REPO_ROOT / "mobile" / "src" / "api.ts"
 
 
 def test_signed_out_screen_does_not_offer_unsupported_apple_auth() -> None:
@@ -70,6 +73,29 @@ def test_release_one_state_copy_is_book_first() -> None:
     assert "Saved items" not in home_source
 
 
+def test_ready_detail_uses_source_hero_before_books() -> None:
+    detail_source = DETAIL_SCREEN.read_text()
+    books_source = BOOKS.read_text()
+    captures_source = CAPTURES.read_text()
+
+    ready_index = detail_source.index("capture.status === 'ready'")
+    processing_index = detail_source.index("capture.status === 'processing'")
+    source_hero_index = detail_source.index("<SourceHero")
+    books_index = detail_source.index("<BooksMentioned")
+    ready_block = detail_source[ready_index:processing_index]
+
+    assert ready_index < source_hero_index < books_index
+    assert "OriginalSourceSection" not in ready_block
+    assert "SourceSummary" not in detail_source
+    assert "Open source" in detail_source
+    assert "sourceHeroPaper" in detail_source
+    assert "coverImageUrl" in captures_source
+    assert "cover_image_url" in captures_source
+    assert "bookListSurface" in books_source
+    assert "bookCoverImage" in books_source
+    assert "showDivider" in books_source
+
+
 def test_invalid_shared_content_has_visible_message() -> None:
     app_source = APP.read_text()
     screen_source = SIGNED_OUT_SCREEN.read_text()
@@ -93,3 +119,17 @@ def test_signed_out_preview_uses_native_reduced_motion_safe_orbit() -> None:
     assert "authPreviewConnector" not in preview_source
     assert "gsap" not in preview_source.lower()
     assert "remotion" not in preview_source.lower()
+
+
+def test_mobile_dev_auth_bypass_is_explicit_and_production_blocked() -> None:
+    app_source = APP.read_text()
+    api_source = API.read_text()
+    captures_source = (REPO_ROOT / "mobile" / "src" / "features" / "captures" / "use-captures.ts").read_text()
+
+    assert "EXPO_PUBLIC_AUTH_MODE" in api_source
+    assert "isDevAuthEnabled" in api_source
+    assert "devAccessToken" in api_source
+    assert "Production mobile builds must not set EXPO_PUBLIC_AUTH_MODE=dev." in api_source
+    assert "Production mobile builds must not define EXPO_PUBLIC_DEV_USER_ID." in api_source
+    assert "setAccessTokenProvider(devAccessToken)" in app_source
+    assert "isDevAuthEnabled" in captures_source

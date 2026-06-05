@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Linking } from 'react-native';
 
-import { createJob, deleteMention, errorMessage, getJob, listAllJobs } from '@/api';
+import {
+  createJob,
+  deleteMention,
+  errorMessage,
+  getJob,
+  isDevAuthEnabled,
+  listAllJobs,
+} from '@/api';
 import {
   buildCaptures,
   captureFromJobCreated,
@@ -122,7 +129,7 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
   }, [isSignedIn, refreshCaptures]);
 
   useEffect(() => {
-    if (!isSignedIn || !isSupabaseConfigured) {
+    if (!isSignedIn || !isSupabaseConfigured || isDevAuthEnabled) {
       return undefined;
     }
 

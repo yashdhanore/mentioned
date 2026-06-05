@@ -7,6 +7,7 @@ export type BookMention = {
   title: string;
   author: string | null;
   synopsis: string | null;
+  coverImageUrl: string | null;
   initials: string;
   color: string;
 };
@@ -17,6 +18,7 @@ export type Capture = {
   status: CaptureStatus;
   thumbnailUrl: string;
   sourceUrl: string;
+  createdAt: string;
   sourceContextSnippet: string | null;
   books: BookMention[];
   errorMessage: string | null;
@@ -70,6 +72,7 @@ function visibleBookMentions(mentions: MentionInJob[]): BookMention[] {
       title: mention.title.trim(),
       author: compact(mention.author),
       synopsis: null,
+      coverImageUrl: compact(mention.cover_image_url),
       initials: initialsFor(mention.title),
       color: colorFor(mention.id),
     }));
@@ -96,6 +99,7 @@ export function captureFromJobCreated(jobId: string, sourceUrl: string): Capture
     status: 'processing',
     thumbnailUrl: placeholderThumbnail(jobId),
     sourceUrl,
+    createdAt: new Date().toISOString(),
     sourceContextSnippet: null,
     books: [],
     errorMessage: null,
@@ -110,6 +114,7 @@ export function captureFromJobDetail(job: JobResponse): Capture {
     status: statusFor(job.status, books),
     thumbnailUrl: thumbnailForJob(job),
     sourceUrl: job.source_url,
+    createdAt: job.created_at,
     sourceContextSnippet: null,
     books,
     errorMessage: job.error_message,
