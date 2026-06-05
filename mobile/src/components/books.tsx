@@ -23,7 +23,7 @@ export function ProcessingBooks() {
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Finding books...</Text>
-      <Text style={styles.sectionSubtitle}>Mentioned is reading the Instagram post and preparing the list.</Text>
+      <Text style={styles.sectionSubtitle}>Mentioned is checking the saved source for book mentions.</Text>
       <View style={styles.skeletonList}>
         <SkeletonBookRow />
         <SkeletonBookRow />
@@ -95,9 +95,9 @@ function BookRow({ book, isRemoving, onOpenRemoveBook }: BookRowProps) {
 export function NoBooks({ onOpenSource }: { onOpenSource: () => void }) {
   return (
     <View style={styles.stateCard}>
-      <Text style={styles.stateTitle}>No books found in this Reel</Text>
+      <Text style={styles.stateTitle}>No books found in this source</Text>
       <Text style={styles.stateBody}>
-        We saved the Reel, but did not find a useful book mention to show here.
+        The source is still saved. Mentioned did not find a clear book mention to show here.
       </Text>
       <View style={styles.statePreviewWrap}>
         <SourceToBooksPreview />
@@ -120,9 +120,9 @@ export function FailedState({
 }) {
   return (
     <View style={styles.stateCard}>
-      <Text style={styles.stateTitle}>Could not find books from this Reel</Text>
+      <Text style={styles.stateTitle}>Could not find books from this source</Text>
       <Text style={styles.stateBody}>
-        The item is still saved. Try again, or open it on Instagram.
+        The source is still saved. Try again, or open the original source.
       </Text>
       <View style={styles.stateActions}>
         <PrimaryButton
