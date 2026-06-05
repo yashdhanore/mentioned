@@ -3,11 +3,17 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SIGNED_OUT_SCREEN = REPO_ROOT / "mobile" / "src" / "screens" / "signed-out-screen.tsx"
+SIGNED_OUT_PREVIEW = (
+    REPO_ROOT / "mobile" / "src" / "components" / "signed-out-product-preview.tsx"
+)
 APP = REPO_ROOT / "mobile" / "App.tsx"
 HOME_SCREEN = REPO_ROOT / "mobile" / "src" / "screens" / "home-screen.tsx"
 BOOKS = REPO_ROOT / "mobile" / "src" / "components" / "books.tsx"
 PENDING_SOURCE = REPO_ROOT / "mobile" / "src" / "features" / "captures" / "pending-shared-source.ts"
 SUPABASE = REPO_ROOT / "mobile" / "src" / "supabase.ts"
+AUTH_ORBIT_REEL_PREVIEW = (
+    REPO_ROOT / "mobile" / "assets" / "auth-orbit-reel-preview.png"
+)
 
 
 def test_signed_out_screen_does_not_offer_unsupported_apple_auth() -> None:
@@ -73,3 +79,17 @@ def test_invalid_shared_content_has_visible_message() -> None:
     assert "shareLinkError" in app_source
     assert "shareLinkError ?? authError" in app_source
     assert "InlineMessage" in screen_source
+
+
+def test_signed_out_preview_uses_native_reduced_motion_safe_orbit() -> None:
+    preview_source = SIGNED_OUT_PREVIEW.read_text()
+
+    assert AUTH_ORBIT_REEL_PREVIEW.exists()
+    assert "AccessibilityInfo.isReduceMotionEnabled()" in preview_source
+    assert "reduceMotionChanged" in preview_source
+    assert "Animated.loop" in preview_source
+    assert "useNativeDriver: true" in preview_source
+    assert "authOrbitBook" in preview_source
+    assert "authPreviewConnector" not in preview_source
+    assert "gsap" not in preview_source.lower()
+    assert "remotion" not in preview_source.lower()
