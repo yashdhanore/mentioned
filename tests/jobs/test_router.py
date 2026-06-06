@@ -108,6 +108,7 @@ async def test_list_jobs_returns_thumbnail_url(client, session):
         owner_id=TEST_USER_UUID,
         source_url="https://www.instagram.com/reel/LIST123/",
         thumbnail_url="https://instagram.example/list-thumb.jpg",
+        source_creator_handle="jamesclear",
         status=JobStatus.DONE,
     )
     session.add(job)
@@ -119,6 +120,7 @@ async def test_list_jobs_returns_thumbnail_url(client, session):
     data = resp.json()
     assert data[0]["job_id"] == str(job.id)
     assert data[0]["thumbnail_url"] == "https://instagram.example/list-thumb.jpg"
+    assert data[0]["source_creator_handle"] == "jamesclear"
 
 
 async def test_get_job(client):
@@ -149,6 +151,7 @@ async def test_get_job_returns_linked_book_id_and_existing_flat_fields(client, s
         owner_id=TEST_USER_UUID,
         source_url="https://www.instagram.com/reel/BOOK123/",
         thumbnail_url="https://instagram.example/thumb.jpg",
+        source_creator_handle="jamesclear",
         status=JobStatus.DONE,
     )
     session.add(job)
@@ -176,6 +179,7 @@ async def test_get_job_returns_linked_book_id_and_existing_flat_fields(client, s
     assert resp.status_code == 200
     data = resp.json()
     assert data["thumbnail_url"] == "https://instagram.example/thumb.jpg"
+    assert data["source_creator_handle"] == "jamesclear"
     mention = data["mentions"][0]
     assert mention["book_id"] == str(book.id)
     assert mention["title"] == "Atomic Habits"

@@ -59,6 +59,7 @@ def _find_google_book_sync(title: str, author: str | None) -> GoogleBook | None:
 def process_job(job: Job, session: Session) -> None:
     logger.info("Starting pipeline for job %s → %s", job.id, job.source_url)
     result = run_pipeline(job.source_url)
+    job.source_creator_handle = result.source_creator_handle
     job.thumbnail_url = store_job_thumbnail(
         result.thumbnail_url,
         owner_id=job.owner_id,

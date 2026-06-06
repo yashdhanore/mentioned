@@ -33,6 +33,7 @@ class JobResponse(BaseModel):
     status: str
     source_url: str
     thumbnail_url: Optional[str] = None
+    source_creator_handle: Optional[str] = None
     error_message: Optional[str] = None
     created_at: datetime
     finished_at: Optional[datetime] = None
@@ -44,4 +45,5 @@ class JobListItem(BaseModel):
     status: str
     source_url: str
     thumbnail_url: Optional[str] = None
+    source_creator_handle: Optional[str] = None
     created_at: datetime

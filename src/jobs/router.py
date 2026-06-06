@@ -78,6 +78,7 @@ async def list_jobs(
             status=j.status,
             source_url=j.source_url,
             thumbnail_url=j.thumbnail_url,
+            source_creator_handle=j.source_creator_handle,
             created_at=j.created_at,
         )
         for j in jobs
@@ -99,6 +100,7 @@ async def get_job(
         status=job.status,
         source_url=job.source_url,
         thumbnail_url=job.thumbnail_url,
+        source_creator_handle=job.source_creator_handle,
         error_message=job.error_message,
         created_at=job.created_at,
         finished_at=job.finished_at,

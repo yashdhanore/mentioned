@@ -48,9 +48,7 @@ export function ReelDetailScreen({
         <IconButton accessibilityLabel="Back to saved items" onPress={onBack}>
           <BackIcon />
         </IconButton>
-        <Text numberOfLines={1} style={styles.detailNavTitle}>
-          {capture.creator}
-        </Text>
+        <SourceNavIdentity capture={capture} />
         <IconButton accessibilityLabel="Open Reel actions" onPress={onOpenMenu}>
           <MoreIcon />
         </IconButton>
@@ -108,6 +106,28 @@ export function ReelDetailScreen({
   );
 }
 
+function SourceNavIdentity({ capture }: { capture: Capture }) {
+  const label = sourceIdentityLabel(capture);
+
+  return (
+    <View style={styles.detailNavIdentity}>
+      {capture.creatorHandle ? (
+        <Image
+          source={{ uri: capture.thumbnailUrl }}
+          resizeMode="cover"
+          style={styles.detailNavAvatar}
+        />
+      ) : null}
+      <Text
+        numberOfLines={1}
+        style={capture.creatorHandle ? styles.detailNavHandle : styles.detailNavTitle}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+}
+
 function SourceHero({
   capture,
   previewWidth,
@@ -145,7 +165,7 @@ function SourceHero({
       <View style={styles.sourceHeroMeta}>
         <View style={styles.sourceHeroIdentity}>
           <Text numberOfLines={1} style={styles.sourceHeroCreator}>
-            {capture.creator}
+            {sourceIdentityLabel(capture)}
           </Text>
           {savedLabel ? (
             <Text numberOfLines={1} style={styles.sourceHeroSavedAt}>
@@ -191,6 +211,10 @@ function savedAtLabel(createdAt: string): string | null {
   })}`;
 }
 
+function sourceIdentityLabel(capture: Capture): string {
+  return capture.creatorHandle ? `@${capture.creatorHandle}` : capture.creator;
+}
+
 function OriginalSourceSection({
   capture,
   previewWidth,
@@ -209,7 +233,7 @@ function OriginalSourceSection({
         </View>
         <View style={styles.originalSourceCopy}>
           <Text numberOfLines={1} style={styles.sourceCreator}>
-            {capture.creator}
+            {sourceIdentityLabel(capture)}
           </Text>
           {capture.sourceContextSnippet ? (
             <SourceQuote quote={capture.sourceContextSnippet} attribution="From Instagram" />

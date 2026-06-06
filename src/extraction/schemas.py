@@ -16,6 +16,7 @@ class ExtractedMention:
 class PipelineResult:
     mentions: list[ExtractedMention] = field(default_factory=list)
     thumbnail_url: str | None = None
+    source_creator_handle: str | None = None
     error: str | None = None
 
 

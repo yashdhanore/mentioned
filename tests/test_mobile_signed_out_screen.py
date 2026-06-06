@@ -77,6 +77,7 @@ def test_ready_detail_uses_source_hero_before_books() -> None:
     detail_source = DETAIL_SCREEN.read_text()
     books_source = BOOKS.read_text()
     captures_source = CAPTURES.read_text()
+    api_source = API.read_text()
 
     ready_index = detail_source.index("capture.status === 'ready'")
     processing_index = detail_source.index("capture.status === 'processing'")
@@ -91,6 +92,12 @@ def test_ready_detail_uses_source_hero_before_books() -> None:
     assert "sourceHeroPaper" in detail_source
     assert "coverImageUrl" in captures_source
     assert "cover_image_url" in captures_source
+    assert "creatorHandle" in captures_source
+    assert "source_creator_handle" in captures_source
+    assert "source_creator_handle" in api_source
+    assert "SourceNavIdentity" in detail_source
+    assert "`@${capture.creatorHandle}`" in detail_source
+    assert "detailNavAvatar" in detail_source
     assert "bookListSurface" in books_source
     assert "bookCoverImage" in books_source
     assert "showDivider" in books_source
