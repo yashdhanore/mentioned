@@ -9,6 +9,7 @@ __pycache__/
 .claude/settings.local.json
 .codex/plugins/
 .cursor/hooks/state/
+.playwright-mcp/
 app.db
 data/artifacts/
 supabase/.temp/

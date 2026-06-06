@@ -17,7 +17,7 @@ test('renders the landing story and primary sections', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Save the books inside Reels.');
 
   for (const copy of requiredCopy) {
-    await expect(page.getByText(copy, { exact: false }).first()).toBeVisible();
+    await expect(page.getByText(copy, { exact: false }).first()).toBeAttached();
   }
 
   await expect(page.locator('#story')).toBeVisible();

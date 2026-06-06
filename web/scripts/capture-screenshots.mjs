@@ -33,7 +33,10 @@ for (const viewport of viewports) {
 
   for (const checkpoint of checkpoints) {
     if (checkpoint.selector) {
-      await page.locator(checkpoint.selector).scrollIntoViewIfNeeded();
+      const targetTop = await page.locator(checkpoint.selector).evaluate((element) => {
+        return element.getBoundingClientRect().top + window.scrollY;
+      });
+      await page.evaluate((y) => window.scrollTo({ top: Math.max(y - 118, 0), behavior: 'instant' }), targetTop);
     } else {
       await page.evaluate((y) => window.scrollTo({ top: y, behavior: 'instant' }), checkpoint.y);
     }

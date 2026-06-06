@@ -110,3 +110,30 @@ to `AUTH_MODE=dev`; omit `Authorization` to use `DEV_USER_ID`, or pass
 
 Extraction uses `yt-dlp` to download Instagram media and Gemini to identify mentioned books,
 products, and places. Configure `GEMINI_API_KEY` or Vertex AI settings before running the worker.
+
+## Run the Landing Page
+
+The consumer landing page lives in `web/` as a static Astro app. It is separate from the FastAPI API and the Expo mobile app.
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+Useful checks:
+
+```bash
+cd web
+npm run verify:content
+npm run typecheck
+npm run build
+npm run test:e2e
+```
+
+To capture local review screenshots, start the dev server in one terminal and run:
+
+```bash
+cd web
+npm run capture:screens
+```

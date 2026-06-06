@@ -23,7 +23,7 @@ export default defineConfig({
     },
     {
       name: 'mobile',
-      use: { ...devices['iPhone 15'], viewport: { width: 390, height: 844 } }
+      use: { ...devices['iPhone 15'], browserName: 'chromium', viewport: { width: 390, height: 844 } }
     }
   ]
 });

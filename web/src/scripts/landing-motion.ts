@@ -81,6 +81,7 @@ function initStoryTimeline() {
 
   const cards = gsap.utils.toArray<HTMLElement>('[data-story-card]');
   gsap.set(cards, { autoAlpha: 0, y: 44, scale: 0.96 });
+  gsap.set(cards[0], { autoAlpha: 1, y: 0, scale: 1 });
 
   const timeline = gsap.timeline({
     scrollTrigger: {
