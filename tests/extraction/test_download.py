@@ -88,6 +88,32 @@ def test_download_assets_with_metadata_returns_largest_thumbnail(monkeypatch, tm
     assert assets.source_creator_handle == "jamesclear"
 
 
+def test_download_assets_with_metadata_prefers_channel_over_numeric_uploader_id(monkeypatch, tmp_path):
+    media_file = tmp_path / "media_001.mp4"
+
+    def fake_run(args, **kwargs):
+        if "--dump-single-json" in args:
+            return _completed(
+                json.dumps(
+                    {
+                        "duration": 8,
+                        "uploader": "Adam",
+                        "uploader_id": "70438693285",
+                        "channel": "lit.by.adam",
+                    }
+                )
+            )
+        media_file.write_bytes(b"12345")
+        return _completed(str(media_file))
+
+    monkeypatch.setattr("src.extraction.download.is_available", lambda: True)
+    monkeypatch.setattr("src.extraction.download.subprocess.run", fake_run)
+
+    assets = download_assets_with_metadata("https://instagram.com/reel/DW9GWYTjOqx/", tmp_path)
+
+    assert assets.source_creator_handle == "lit.by.adam"
+
+
 def test_download_assets_with_metadata_does_not_infer_handle_from_display_name(monkeypatch, tmp_path):
     media_file = tmp_path / "media_001.mp4"
 

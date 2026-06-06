@@ -144,15 +144,18 @@ def _handle_from_text(value: Any, *, allow_plain: bool) -> str | None:
     return None
 
 
+def _handle_from_id(value: Any) -> str | None:
+    handle = _handle_from_text(value, allow_plain=True)
+    if handle and not handle.isdigit():
+        return handle
+    return None
+
+
 def _source_creator_handle(metadata: dict[str, Any]) -> str | None:
     for field in (
-        "uploader_id",
-        "channel_id",
-        "creator_id",
-        "author_id",
         "username",
         "owner_username",
-        "account_id",
+        "channel",
     ):
         handle = _handle_from_text(metadata.get(field), allow_plain=True)
         if handle:
@@ -163,8 +166,24 @@ def _source_creator_handle(metadata: dict[str, Any]) -> str | None:
         "channel_url",
         "creator_url",
         "author_url",
+    ):
+        handle = _handle_from_text(metadata.get(field), allow_plain=False)
+        if handle:
+            return handle
+
+    for field in (
+        "uploader_id",
+        "channel_id",
+        "creator_id",
+        "author_id",
+        "account_id",
+    ):
+        handle = _handle_from_id(metadata.get(field))
+        if handle:
+            return handle
+
+    for field in (
         "uploader",
-        "channel",
         "creator",
         "author",
     ):
