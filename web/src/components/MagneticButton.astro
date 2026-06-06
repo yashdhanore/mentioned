@@ -1,0 +1,14 @@
+---
+type Props = {
+  href: string;
+  label: string;
+  variant?: 'primary' | 'quiet';
+};
+
+const { href, label, variant = 'primary' } = Astro.props;
+---
+
+<a class:list={['magnetic-button', `magnetic-button--${variant}`]} href={href}>
+  <span class="magnetic-button__label">{label}</span>
+  <span class="magnetic-button__orb" aria-hidden="true">&#8599;</span>
+</a>

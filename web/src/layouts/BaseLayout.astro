@@ -1,0 +1,27 @@
+---
+import '../styles/global.css';
+
+type Props = {
+  title: string;
+  description: string;
+};
+
+const { title, description } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en" data-motion="static">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#F7F5F0" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <slot />
+    <script>
+      import '../scripts/landing-motion';
+    </script>
+  </body>
+</html>
