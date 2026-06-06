@@ -159,7 +159,7 @@ function SourceHero({
         onPress={onOpenSource}
       >
         <Text style={styles.sourceHeroActionText}>Open source</Text>
-        <ExternalLinkIcon color="#0E6F68" style={styles.sourceHeroActionIcon} />
+        <ExternalLinkIcon color="#0E6F68" size={18} />
       </Pressable>
 
       <View style={styles.sourceHeroMeta}>

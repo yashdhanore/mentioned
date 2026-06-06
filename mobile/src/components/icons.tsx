@@ -1,57 +1,46 @@
-import { View, type StyleProp, type ViewStyle } from 'react-native';
-
-import { styles } from '@/styles';
+import {
+  ArrowLeft,
+  Ellipsis,
+  ExternalLink,
+  Plus,
+  User,
+  type LucideProps,
+} from 'lucide-react-native';
 
 type IconProps = {
   color?: string;
-  style?: StyleProp<ViewStyle>;
+  size?: number;
 };
 
-export function PlusIcon({ color = '#101A17', style }: IconProps) {
-  return (
-    <View style={[styles.iconCanvas, style]}>
-      <View style={[styles.iconStroke, styles.iconPlusHorizontal, { backgroundColor: color }]} />
-      <View style={[styles.iconStroke, styles.iconPlusVertical, { backgroundColor: color }]} />
-    </View>
-  );
+const defaultIconProps = {
+  absoluteStrokeWidth: true,
+  strokeWidth: 2,
+} satisfies Pick<LucideProps, 'absoluteStrokeWidth' | 'strokeWidth'>;
+
+function iconProps(color: string, size = 22): LucideProps {
+  return {
+    ...defaultIconProps,
+    color,
+    size,
+  };
 }
 
-export function UserIcon({ color = '#101A17', style }: IconProps) {
-  return (
-    <View style={[styles.iconCanvas, style]}>
-      <View style={[styles.iconUserHead, { borderColor: color }]} />
-      <View style={[styles.iconUserBody, { borderColor: color }]} />
-    </View>
-  );
+export function PlusIcon({ color = '#101A17', size }: IconProps) {
+  return <Plus {...iconProps(color, size)} />;
 }
 
-export function BackIcon({ color = '#101A17', style }: IconProps) {
-  return (
-    <View style={[styles.iconCanvas, style]}>
-      <View style={[styles.iconStroke, styles.iconBackShaft, { backgroundColor: color }]} />
-      <View style={[styles.iconStroke, styles.iconBackUpper, { backgroundColor: color }]} />
-      <View style={[styles.iconStroke, styles.iconBackLower, { backgroundColor: color }]} />
-    </View>
-  );
+export function UserIcon({ color = '#101A17', size }: IconProps) {
+  return <User {...iconProps(color, size)} />;
 }
 
-export function MoreIcon({ color = '#101A17', style }: IconProps) {
-  return (
-    <View style={[styles.iconCanvas, styles.iconMoreCanvas, style]}>
-      <View style={[styles.iconDot, { backgroundColor: color }]} />
-      <View style={[styles.iconDot, { backgroundColor: color }]} />
-      <View style={[styles.iconDot, { backgroundColor: color }]} />
-    </View>
-  );
+export function BackIcon({ color = '#101A17', size }: IconProps) {
+  return <ArrowLeft {...iconProps(color, size)} />;
 }
 
-export function ExternalLinkIcon({ color = '#101A17', style }: IconProps) {
-  return (
-    <View style={[styles.iconCanvas, style]}>
-      <View style={[styles.iconExternalBox, { borderColor: color }]} />
-      <View style={[styles.iconStroke, styles.iconExternalShaft, { backgroundColor: color }]} />
-      <View style={[styles.iconStroke, styles.iconExternalArrowTop, { backgroundColor: color }]} />
-      <View style={[styles.iconStroke, styles.iconExternalArrowRight, { backgroundColor: color }]} />
-    </View>
-  );
+export function MoreIcon({ color = '#101A17', size }: IconProps) {
+  return <Ellipsis {...iconProps(color, size)} />;
+}
+
+export function ExternalLinkIcon({ color = '#101A17', size }: IconProps) {
+  return <ExternalLink {...iconProps(color, size)} />;
 }
