@@ -1,4 +1,4 @@
-import type { JobResponse, JobStatus, MentionInJob } from './api';
+import type { JobListItem, JobResponse, JobStatus, MentionInJob } from './api';
 
 export type CaptureStatus = 'ready' | 'processing' | 'no_books' | 'failed';
 
@@ -59,7 +59,7 @@ function placeholderThumbnail(jobId: string) {
   return `https://picsum.photos/seed/mentioned-${seed}/900/1600`;
 }
 
-function thumbnailForJob(job: JobResponse) {
+function thumbnailForJob(job: Pick<JobResponse, 'job_id' | 'thumbnail_url'>) {
   return compact(job.thumbnail_url) ?? placeholderThumbnail(job.job_id);
 }
 
@@ -89,8 +89,22 @@ function statusFor(jobStatus: JobStatus, books: BookMention[]): CaptureStatus {
   return 'failed';
 }
 
+function statusForJobListItem(jobStatus: JobStatus): CaptureStatus {
+  if (jobStatus === 'pending') {
+    return 'processing';
+  }
+  if (jobStatus === 'failed') {
+    return 'failed';
+  }
+  return 'ready';
+}
+
 export function buildCaptures(jobs: JobResponse[]): Capture[] {
   return jobs.map(captureFromJobDetail);
+}
+
+export function buildCapturesFromJobList(jobs: JobListItem[]): Capture[] {
+  return jobs.map(captureFromJobListItem);
 }
 
 export function captureFromJobCreated(jobId: string, sourceUrl: string): Capture {
@@ -102,6 +116,21 @@ export function captureFromJobCreated(jobId: string, sourceUrl: string): Capture
     thumbnailUrl: placeholderThumbnail(jobId),
     sourceUrl,
     createdAt: new Date().toISOString(),
+    sourceContextSnippet: null,
+    books: [],
+    errorMessage: null,
+  };
+}
+
+export function captureFromJobListItem(job: JobListItem): Capture {
+  return {
+    id: job.job_id,
+    creator: 'Instagram',
+    creatorHandle: compact(job.source_creator_handle),
+    status: statusForJobListItem(job.status),
+    thumbnailUrl: thumbnailForJob(job),
+    sourceUrl: job.source_url,
+    createdAt: job.created_at,
     sourceContextSnippet: null,
     books: [],
     errorMessage: null,
