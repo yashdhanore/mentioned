@@ -67,8 +67,8 @@ export function PasteSheet({
     <BottomSheet visible={visible} onClose={onClose}>
       <KeyboardAvoidingView behavior={process.env.EXPO_OS === 'ios' ? 'padding' : undefined}>
         <Text style={styles.sheetTitle}>Paste link</Text>
-        <Text style={styles.sheetBody}>Use this when sharing from Instagram is not available.</Text>
-        <Text style={styles.inputLabel}>Reel URL</Text>
+        <Text style={styles.sheetBody}>Use this when sharing from another app is not available.</Text>
+        <Text style={styles.inputLabel}>Post URL</Text>
         <TextInput
           autoCapitalize="none"
           autoCorrect={false}
@@ -101,10 +101,10 @@ export function ReelMenuSheet({
 }) {
   return (
     <BottomSheet visible={visible} onClose={onClose}>
-      <Text style={styles.sheetTitle}>Reel actions</Text>
+      <Text style={styles.sheetTitle}>Post actions</Text>
       <View style={styles.sheetMenu}>
         <SheetRow
-          label="Open on Instagram"
+          label="Open original"
           onPress={() => {
             onOpenSource?.();
             onClose();
@@ -133,7 +133,7 @@ export function RemoveBookSheet({
   return (
     <BottomSheet visible={visible} onClose={onClose}>
       <Text style={styles.sheetTitle}>Remove book</Text>
-      <Text style={styles.sheetBody}>Remove this book from the saved source.</Text>
+      <Text style={styles.sheetBody}>Remove this book from the saved post.</Text>
       {book ? (
         <View style={styles.sheetBookSummary}>
           <Text style={styles.sheetBookTitle}>{book.title}</Text>

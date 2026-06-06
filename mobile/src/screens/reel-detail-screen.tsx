@@ -49,7 +49,7 @@ export function ReelDetailScreen({
           <BackIcon />
         </IconButton>
         <SourceNavIdentity capture={capture} />
-        <IconButton accessibilityLabel="Open Reel actions" onPress={onOpenMenu}>
+        <IconButton accessibilityLabel="Open post actions" onPress={onOpenMenu}>
           <MoreIcon />
         </IconButton>
       </View>
@@ -154,11 +154,11 @@ function SourceHero({
 
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Open original source"
+        accessibilityLabel="Open original post"
         style={({ pressed }) => [styles.sourceHeroAction, pressed && styles.pressed]}
         onPress={onOpenSource}
       >
-        <Text style={styles.sourceHeroActionText}>Open source</Text>
+        <Text style={styles.sourceHeroActionText}>Open post</Text>
         <ExternalLinkIcon color="#0E6F68" size={18} />
       </Pressable>
 
@@ -174,7 +174,7 @@ function SourceHero({
           ) : null}
         </View>
         {capture.sourceContextSnippet ? (
-          <SourceQuote quote={capture.sourceContextSnippet} attribution="From source" />
+          <SourceQuote quote={capture.sourceContextSnippet} attribution="From post" />
         ) : null}
       </View>
     </View>
@@ -226,7 +226,7 @@ function OriginalSourceSection({
 }) {
   return (
     <View style={styles.originalSourceSection}>
-      <Text style={styles.originalSourceTitle}>Original source</Text>
+      <Text style={styles.originalSourceTitle}>Original post</Text>
       <View style={styles.originalSourceModule}>
         <View style={[styles.originalSourcePreview, { width: previewWidth }]}>
           <Image source={{ uri: capture.thumbnailUrl }} style={styles.reelPreviewImage} />
@@ -236,10 +236,10 @@ function OriginalSourceSection({
             {sourceIdentityLabel(capture)}
           </Text>
           {capture.sourceContextSnippet ? (
-            <SourceQuote quote={capture.sourceContextSnippet} attribution="From Instagram" />
+            <SourceQuote quote={capture.sourceContextSnippet} attribution="From post" />
           ) : null}
           <View style={styles.detailSourceAction}>
-            <SecondaryButton label="Open on Instagram" onPress={onOpenSource} compact />
+            <SecondaryButton label="Open original" onPress={onOpenSource} compact />
           </View>
         </View>
       </View>

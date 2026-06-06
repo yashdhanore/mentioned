@@ -25,7 +25,7 @@ export function ProcessingBooks() {
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Finding books...</Text>
-      <Text style={styles.sectionSubtitle}>Mentioned is checking the saved source for book mentions.</Text>
+      <Text style={styles.sectionSubtitle}>Mentioned is checking this post for book recommendations.</Text>
       <View style={styles.skeletonList}>
         <SkeletonBookRow />
         <SkeletonBookRow />
@@ -117,15 +117,15 @@ function BookRow({ book, isRemoving, showDivider, onOpenRemoveBook }: BookRowPro
 export function NoBooks({ onOpenSource }: { onOpenSource: () => void }) {
   return (
     <View style={styles.stateCard}>
-      <Text style={styles.stateTitle}>No books found in this source</Text>
+      <Text style={styles.stateTitle}>No books found in this post</Text>
       <Text style={styles.stateBody}>
-        The source is still saved. Mentioned did not find a clear book mention to show here.
+        The post is still saved. Mentioned did not find a clear book mention to show here.
       </Text>
       <View style={styles.statePreviewWrap}>
         <SourceToBooksPreview />
       </View>
       <View style={styles.stateActions}>
-        <SecondaryButton label="Open on Instagram" onPress={onOpenSource} compact />
+        <SecondaryButton label="Open original" onPress={onOpenSource} compact />
       </View>
     </View>
   );
@@ -142,9 +142,9 @@ export function FailedState({
 }) {
   return (
     <View style={styles.stateCard}>
-      <Text style={styles.stateTitle}>Could not find books from this source</Text>
+      <Text style={styles.stateTitle}>Could not find books in this post</Text>
       <Text style={styles.stateBody}>
-        The source is still saved. Try again, or open the original source.
+        The post is still saved. Try again, or open the original.
       </Text>
       <View style={styles.stateActions}>
         <PrimaryButton
@@ -153,7 +153,7 @@ export function FailedState({
           compact
           disabled={isRetrying}
         />
-        <SecondaryButton label="Open on Instagram" onPress={onOpenSource} compact />
+        <SecondaryButton label="Open original" onPress={onOpenSource} compact />
       </View>
     </View>
   );

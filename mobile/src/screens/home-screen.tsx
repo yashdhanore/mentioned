@@ -57,8 +57,8 @@ export function HomeScreen({
       </View>
 
       <View style={styles.homeHeader}>
-        <Text style={styles.screenTitle}>Saved Reels</Text>
-        <Text style={styles.screenSubtitle}>Sources you saved so Mentioned can find the books inside.</Text>
+        <Text style={styles.screenTitle}>Saved posts</Text>
+        <Text style={styles.screenSubtitle}>Posts you save so Mentioned can find the books inside.</Text>
       </View>
 
       {pendingSharedSourceUrl ? (
@@ -71,7 +71,7 @@ export function HomeScreen({
           </View>
           <View style={styles.pendingSourceActions}>
             <PrimaryButton
-              label={isSubmittingPendingSharedSource ? 'Saving...' : 'Save source'}
+              label={isSubmittingPendingSharedSource ? 'Saving...' : 'Save post'}
               onPress={onSavePendingSharedSource}
               compact
               disabled={isSubmittingPendingSharedSource}
@@ -122,8 +122,8 @@ export function HomeScreen({
 function LoadingState({ tileWidth }: { tileWidth: number }) {
   return (
     <View style={styles.loadingSources}>
-      <Text style={styles.loadingSourcesTitle}>Loading saved sources</Text>
-      <Text style={styles.loadingSourcesBody}>Your saved Reels will appear here when they are ready.</Text>
+      <Text style={styles.loadingSourcesTitle}>Loading saved posts</Text>
+      <Text style={styles.loadingSourcesBody}>Your saved posts will appear here when they are ready.</Text>
       <View style={styles.grid}>
         <View style={[styles.reelSkeletonTile, styles.reelSkeletonTileFeatured, { width: tileWidth * 2 + spacing.md }]} />
         <View style={[styles.reelSkeletonTile, { width: tileWidth }]} />
@@ -136,8 +136,8 @@ function LoadingState({ tileWidth }: { tileWidth: number }) {
 function EmptyCaptures({ onOpenPaste }: { onOpenPaste: () => void }) {
   return (
     <View style={styles.stateCard}>
-      <Text style={styles.stateTitle}>No saved Reels yet</Text>
-      <Text style={styles.stateBody}>Share a Reel to keep the source and start finding books mentioned inside.</Text>
+      <Text style={styles.stateTitle}>No saved posts yet</Text>
+      <Text style={styles.stateBody}>Share a post to save it here and start finding books mentioned inside.</Text>
       <View style={styles.emptyPreviewWrap}>
         <SourceToBooksPreview />
       </View>

@@ -41,26 +41,26 @@ export function SignedOutScreen({
           <View style={styles.authCopy}>
             {hasPendingSharedSource ? (
               <Text style={styles.authTitle}>
-                <Text style={styles.authTitleSlot}>1 Reel</Text> ready to save.
+                <Text style={styles.authTitleSlot}>1 post</Text> ready to save.
               </Text>
             ) : (
               <Text style={styles.authTitle}>
                 Save the{'\n'}
                 <Text style={styles.authTitleSlot}>books inside</Text>
-                {'\n'}Reels.
+                {'\n'}posts.
               </Text>
             )}
             <Text style={styles.authBody}>
               {hasPendingSharedSource
-                ? 'Continue to find the books inside and keep the source for later.'
-                : 'Share a Reel, keep the source, find the books later.'}
+                ? 'Continue to find the books inside and keep the post for later.'
+                : 'Share a post, keep it here, find the books later.'}
             </Text>
           </View>
 
           {pendingSharedSourceUrl ? (
             <View style={styles.authPendingRow}>
               <View style={styles.authPendingCopy}>
-                <Text style={styles.authPendingTitle}>Sign in to save this shared source.</Text>
+                <Text style={styles.authPendingTitle}>Sign in to save this shared post.</Text>
                 <Text ellipsizeMode="middle" numberOfLines={1} style={styles.authPendingUrl}>
                   {pendingSharedSourceUrl}
                 </Text>
