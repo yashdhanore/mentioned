@@ -1,0 +1,52 @@
+---
+import { workflowChapters } from '../data/landing-content';
+
+const [passing, capture, processing, result, recovery] = workflowChapters;
+---
+
+<section id="story" class="section-band workflow-section">
+  <div class="section-inner workflow-section__inner">
+    <div class="workflow-section__copy" data-reveal>
+      <span class="eyebrow">{passing.eyebrow}</span>
+      <h2>{passing.title}</h2>
+      <p>{passing.body}</p>
+    </div>
+
+    <div class="workflow-stage double-bezel" data-story-stage>
+      <div class="double-bezel__core workflow-stage__core">
+        <svg class="workflow-stage__path" viewBox="0 0 760 420" aria-hidden="true">
+          <path data-story-path d="M38 326 C180 326 170 116 328 116 S490 328 702 198" />
+        </svg>
+
+        <article class="source-fragment source-fragment--video" data-story-card>
+          <span>Source</span>
+          <strong>This book changed how I think about attention.</strong>
+        </article>
+
+        <article class="source-fragment source-fragment--comment" data-story-card>
+          <span>Caption</span>
+          <strong>{capture.title}</strong>
+          <p>{capture.body}</p>
+        </article>
+
+        <article class="source-fragment source-fragment--processing" data-story-card>
+          <span>{processing.eyebrow}</span>
+          <strong>{processing.title}</strong>
+          <p>{processing.body}</p>
+        </article>
+
+        <article class="source-fragment source-fragment--result" data-story-card>
+          <span>{result.eyebrow}</span>
+          <strong>{result.title}</strong>
+          <p>{result.body}</p>
+        </article>
+
+        <article class="source-fragment source-fragment--recovery" data-story-card>
+          <span>{recovery.eyebrow}</span>
+          <strong>{recovery.title}</strong>
+          <p>{recovery.body}</p>
+        </article>
+      </div>
+    </div>
+  </div>
+</section>

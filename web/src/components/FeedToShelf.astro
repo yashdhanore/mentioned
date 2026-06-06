@@ -1,0 +1,52 @@
+---
+import { shelfBooks } from '../data/landing-content';
+---
+
+<section id="shelf" class="section-band shelf-section">
+  <div class="section-inner shelf-section__inner">
+    <div class="shelf-section__copy" data-reveal>
+      <span class="eyebrow">Mentioned catches it</span>
+      <h2>From chaos to clarity.</h2>
+      <p>We scan the noise, save the signal, and keep the source with it.</p>
+    </div>
+
+    <div class="shelf-stage" data-shelf-stage>
+      <div class="shelf-stage__fragments" aria-hidden="true">
+        <article class="feed-fragment feed-fragment--one" data-shelf-fragment>Don't walk. Read this.</article>
+        <article class="feed-fragment feed-fragment--two" data-shelf-fragment>based on a true story</article>
+        <article class="feed-fragment feed-fragment--three" data-shelf-fragment>saved for later</article>
+      </div>
+
+      <div class="phone-shell double-bezel" data-shelf-phone>
+        <div class="double-bezel__core phone-shell__core">
+          <div class="phone-shell__status">9:41</div>
+          <h3>My Shelf</h3>
+          <div class="phone-shell__tabs">
+            <span>All</span>
+            <span>To Read</span>
+            <span>Reading</span>
+          </div>
+          <div class="phone-shell__books">
+            {shelfBooks.map((book) => (
+              <article>
+                <span class:list={['book-spine', `book-spine--${book.tone}`]}>{book.title.slice(0, 2)}</span>
+                <div>
+                  <strong>{book.title}</strong>
+                  <small>{book.author}</small>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <article class="source-memory double-bezel" data-shelf-memory>
+        <div class="double-bezel__core source-memory__core">
+          <span>Source</span>
+          <p>The original post stays saved, so the book still has context.</p>
+          <small>Saved from a Reel</small>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>

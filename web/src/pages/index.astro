@@ -1,0 +1,62 @@
+---
+import BrandNav from '../components/BrandNav.astro';
+import FeedToShelf from '../components/FeedToShelf.astro';
+import HeroCollage from '../components/HeroCollage.astro';
+import MagneticButton from '../components/MagneticButton.astro';
+import ReaderMemory from '../components/ReaderMemory.astro';
+import WorkflowArtifacts from '../components/WorkflowArtifacts.astro';
+import { finalCta, hero } from '../data/landing-content';
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="Mentioned - Save the books inside Reels"
+  description="Mentioned helps readers save the books recommended inside social posts and keep the original source context."
+>
+  <div class="page-shell">
+    <BrandNav />
+
+    <main>
+      <section class="section-band hero-section">
+        <div class="section-inner hero-section__inner">
+          <div class="hero-section__copy" data-reveal>
+            <span class="eyebrow">Mentioned for readers</span>
+            <h1>{hero.title}</h1>
+            <p>{hero.body}</p>
+            <div class="hero-section__actions">
+              <MagneticButton href={hero.primaryCta.href} label={hero.primaryCta.label} />
+              <MagneticButton href={hero.secondaryCta.href} label={hero.secondaryCta.label} variant="quiet" />
+            </div>
+          </div>
+          <HeroCollage />
+        </div>
+      </section>
+
+      <WorkflowArtifacts />
+      <FeedToShelf />
+      <ReaderMemory />
+
+      <section id="final-cta" class="section-band final-cta-section">
+        <div class="section-inner final-cta-section__inner double-bezel" data-reveal>
+          <div class="double-bezel__core final-cta-section__core">
+            <div>
+              <span class="eyebrow">Keep the trail</span>
+              <h2>{finalCta.title}</h2>
+              <p>{finalCta.body}</p>
+            </div>
+            <div class="final-cta-section__actions">
+              <MagneticButton href={finalCta.primaryCta.href} label={finalCta.primaryCta.label} />
+              <MagneticButton href={finalCta.secondaryCta.href} label={finalCta.secondaryCta.label} variant="quiet" />
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>Mentioned</span>
+      <a href="/privacy">Privacy</a>
+      <a href="/support">Support</a>
+    </footer>
+  </div>
+</BaseLayout>

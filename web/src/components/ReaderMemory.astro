@@ -1,0 +1,28 @@
+---
+import { readerMemory } from '../data/landing-content';
+---
+
+<section id="reader-memory" class="section-band reader-section">
+  <div class="section-inner reader-section__inner">
+    <div class="reader-section__image double-bezel" data-reveal>
+      <div class="double-bezel__core reader-section__image-core">
+        <img src="/assets/reader-preview.jpg" alt="A reader in a calm library setting" width="700" height="980" loading="lazy" />
+      </div>
+    </div>
+
+    <div class="reader-section__copy" data-reveal>
+      <span class="eyebrow">{readerMemory.eyebrow}</span>
+      <h2>{readerMemory.title}</h2>
+      <p>{readerMemory.body}</p>
+      <blockquote>{readerMemory.quote}</blockquote>
+    </div>
+
+    <article class="reader-section__card double-bezel" data-reveal>
+      <div class="double-bezel__core reader-section__card-core">
+        <span>Books mentioned</span>
+        <strong>The Shallows</strong>
+        <p>Source context stays attached to the saved book.</p>
+      </div>
+    </article>
+  </div>
+</section>
