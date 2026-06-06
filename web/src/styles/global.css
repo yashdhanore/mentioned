@@ -928,3 +928,31 @@ html[data-motion="enhanced"] [data-reveal] {
     transform: none;
   }
 }
+
+html[data-motion="enhanced"] [data-hero-reel],
+html[data-motion="enhanced"] [data-hero-artifact] {
+  opacity: 0;
+}
+
+html[data-motion="enhanced"] [data-story-stage],
+html[data-motion="enhanced"] [data-shelf-stage] {
+  contain: layout paint style;
+}
+
+html[data-motion="enhanced"] [data-story-card],
+html[data-motion="enhanced"] [data-shelf-fragment],
+html[data-motion="enhanced"] [data-shelf-phone],
+html[data-motion="enhanced"] [data-shelf-memory] {
+  will-change: transform, opacity;
+}
+
+html[data-motion="reduced"] [data-reveal],
+html[data-motion="reduced"] [data-hero-reel],
+html[data-motion="reduced"] [data-hero-artifact],
+html[data-motion="reduced"] [data-story-card],
+html[data-motion="reduced"] [data-shelf-fragment],
+html[data-motion="reduced"] [data-shelf-phone],
+html[data-motion="reduced"] [data-shelf-memory] {
+  opacity: 1 !important;
+  transform: none !important;
+}
