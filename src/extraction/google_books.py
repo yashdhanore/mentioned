@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
 import logging
+from typing import Any
+from urllib.parse import urlparse, urlunparse
 
 import httpx
 
@@ -51,10 +52,31 @@ def _image_links(volume_info: dict[str, Any]) -> dict[str, str]:
     return {str(key): str(value) for key, value in links.items() if value}
 
 
+def _normalize_cover_image_url(value: str) -> str | None:
+    raw_url = value.strip()
+    if not raw_url:
+        return None
+
+    try:
+        parsed = urlparse(raw_url)
+    except ValueError:
+        return None
+
+    scheme = parsed.scheme.casefold()
+    hostname = (parsed.hostname or "").casefold()
+    if scheme == "http" and hostname == "books.google.com":
+        return urlunparse(parsed._replace(scheme="https"))
+    if scheme == "https" and parsed.netloc:
+        return raw_url
+    return None
+
+
 def _cover_image_url(image_links: dict[str, str]) -> str | None:
     for key in ("thumbnail", "smallThumbnail", "small", "medium", "large", "extraLarge"):
         if image_links.get(key):
-            return image_links[key]
+            normalized_url = _normalize_cover_image_url(image_links[key])
+            if normalized_url:
+                return normalized_url
     return None
 
 

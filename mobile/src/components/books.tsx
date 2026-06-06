@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Image, Text, View } from 'react-native';
 
 import type { BookMention } from '@/captures';
@@ -71,14 +72,22 @@ export function BooksMentioned({
 }
 
 function BookRow({ book, isRemoving, showDivider, onOpenRemoveBook }: BookRowProps) {
+  const [didFailCoverLoad, setDidFailCoverLoad] = useState(false);
+  const shouldShowCoverImage = Boolean(book.coverImageUrl) && !didFailCoverLoad;
+
+  useEffect(() => {
+    setDidFailCoverLoad(false);
+  }, [book.coverImageUrl]);
+
   return (
     <View>
       <View style={styles.bookRow}>
-        {book.coverImageUrl ? (
+        {shouldShowCoverImage && book.coverImageUrl ? (
           <Image
             source={{ uri: book.coverImageUrl }}
             resizeMode="cover"
             style={styles.bookCoverImage}
+            onError={() => setDidFailCoverLoad(true)}
           />
         ) : (
           <BookSpine color={book.color} initials={book.initials} />

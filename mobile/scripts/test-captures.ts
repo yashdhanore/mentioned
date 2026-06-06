@@ -75,5 +75,6 @@ assert.deepEqual(
   detailedBookCapture.books.map((book) => book.title),
   ['The Left Hand of Darkness'],
 );
+assert.equal(detailedBookCapture.books[0].coverImageUrl, 'https://example.com/cover.jpg');
 
 console.log('capture mapping tests passed');

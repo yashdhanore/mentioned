@@ -48,6 +48,40 @@ async def test_enrich_book_found():
 
 
 @respx.mock
+async def test_enrich_book_normalizes_google_books_cover_url_to_https():
+    respx.get(GOOGLE_BOOKS_API).mock(
+        return_value=Response(
+            200,
+            json={
+                "totalItems": 1,
+                "items": [
+                    {
+                        "id": "abc123",
+                        "volumeInfo": {
+                            "title": "Atomic Habits",
+                            "authors": ["James Clear"],
+                            "imageLinks": {
+                                "thumbnail": (
+                                    "http://books.google.com/books/content"
+                                    "?id=abc123&printsec=frontcover&img=1&zoom=1&source=gbs_api"
+                                )
+                            },
+                        },
+                    }
+                ],
+            },
+        )
+    )
+
+    result = await enrich_book("Atomic Habits", "James Clear")
+
+    assert result.cover_image_url == (
+        "https://books.google.com/books/content"
+        "?id=abc123&printsec=frontcover&img=1&zoom=1&source=gbs_api"
+    )
+
+
+@respx.mock
 async def test_enrich_book_sends_api_key(monkeypatch):
     monkeypatch.setenv("GOOGLE_BOOKS_API_KEY", "test-books-key")
     route = respx.get(GOOGLE_BOOKS_API).mock(
