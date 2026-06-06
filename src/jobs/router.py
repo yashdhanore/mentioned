@@ -14,6 +14,7 @@ from src.jobs.exceptions import JobNotFound, QuotaExceeded, RateLimited
 from src.jobs.models import Job
 from src.jobs.schemas import (
     CreateJobRequest,
+    DeleteJobResponse,
     JobCreatedResponse,
     JobListItem,
     JobResponse,
@@ -118,3 +119,13 @@ async def get_job(
             for m in mentions
         ],
     )
+
+
+@router.delete("/v1/jobs/{job_id}")
+async def delete_job(
+    job: ValidJobDep,
+    session: SessionDep,
+) -> DeleteJobResponse:
+    job_id = str(job.id)
+    job_service.delete_job(session, job)
+    return DeleteJobResponse(job_id=job_id)

@@ -75,6 +75,7 @@ export default function App() {
     isSubmittingSharedUrl,
     retryingCaptureId,
     removingBookId,
+    deletingCaptureId,
     loadError,
     pasteError,
     sharedCaptureError,
@@ -91,6 +92,7 @@ export default function App() {
     submitSharedUrl,
     retryCapture,
     removeBookMention,
+    deleteCapture,
     openSource,
   } = useCaptures(isSignedIn);
 
@@ -542,6 +544,17 @@ export default function App() {
     setBookRemovalError(result.message);
   }, [closeRemoveBookSheet, removeBookMention, selectedBook, selectedCapture]);
 
+  const deleteSelectedCapture = useCallback(async () => {
+    if (!selectedCapture) {
+      return;
+    }
+
+    const result = await deleteCapture(selectedCapture);
+    if (result.ok) {
+      setSheet(null);
+    }
+  }, [deleteCapture, selectedCapture]);
+
   useEffect(() => {
     if (!selectedBook) {
       return;
@@ -625,7 +638,10 @@ export default function App() {
       />
       <ReelMenuSheet
         visible={sheet === 'reelMenu'}
+        error={sheet === 'reelMenu' ? actionError : null}
+        isDeleting={selectedCapture ? deletingCaptureId === selectedCapture.id : false}
         onClose={() => setSheet(null)}
+        onDeletePost={selectedCapture ? () => void deleteSelectedCapture() : undefined}
         onOpenSource={selectedCapture ? () => void openSource(selectedCapture) : undefined}
       />
       <RemoveBookSheet

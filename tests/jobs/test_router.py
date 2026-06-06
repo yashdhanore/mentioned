@@ -191,3 +191,42 @@ async def test_get_job_returns_linked_book_id_and_existing_flat_fields(client, s
 async def test_get_job_not_found(client):
     resp = await client.get("/v1/jobs/00000000-0000-0000-0000-000000000099")
     assert resp.status_code == 404
+
+
+async def test_delete_job_removes_saved_post_and_mentions(client, session):
+    job = Job(
+        owner_id=TEST_USER_UUID,
+        source_url="https://www.instagram.com/reel/DELETE123/",
+        status=JobStatus.DONE,
+    )
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+
+    mention = Mention(
+        owner_id=TEST_USER_UUID,
+        job_id=job.id,
+        title="Atomic Habits",
+        author="James Clear",
+        category="book",
+        source_url=job.source_url,
+    )
+    session.add(mention)
+    session.commit()
+    session.refresh(mention)
+
+    resp = await client.delete(f"/v1/jobs/{job.id}")
+
+    assert resp.status_code == 200
+    assert resp.json() == {"job_id": str(job.id), "deleted": True}
+    assert session.get(Job, job.id) is None
+    assert session.get(Mention, mention.id) is None
+
+    list_resp = await client.get("/v1/jobs")
+    assert list_resp.status_code == 200
+    assert list_resp.json() == []
+
+
+async def test_delete_job_not_found(client):
+    resp = await client.delete("/v1/jobs/00000000-0000-0000-0000-000000000099")
+    assert resp.status_code == 404

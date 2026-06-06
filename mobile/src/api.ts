@@ -124,6 +124,11 @@ export type DeleteMentionResponse = {
   deleted: boolean;
 };
 
+export type DeleteJobResponse = {
+  job_id: string;
+  deleted: boolean;
+};
+
 type ApiErrorPayload = {
   error_code?: string;
   message?: string;
@@ -217,6 +222,12 @@ export async function listAllJobs(): Promise<JobListItem[]> {
 
 export async function getJob(jobId: string): Promise<JobResponse> {
   return requestJson<JobResponse>(`/v1/jobs/${jobId}`);
+}
+
+export async function deleteJob(jobId: string): Promise<DeleteJobResponse> {
+  return requestJson<DeleteJobResponse>(`/v1/jobs/${jobId}`, {
+    method: 'DELETE',
+  });
 }
 
 // --- Mentions ---

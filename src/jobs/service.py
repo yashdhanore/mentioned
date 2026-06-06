@@ -49,6 +49,17 @@ def get_job(session: Session, job_id: str | UUID) -> Job | None:
     return session.get(Job, parse_uuid(job_id))
 
 
+def delete_job(session: Session, job: Job) -> None:
+    mentions = list(session.exec(select(Mention).where(Mention.job_id == job.id)).all())
+    events = list(session.exec(select(JobEvent).where(JobEvent.job_id == job.id)).all())
+    for mention in mentions:
+        session.delete(mention)
+    for event in events:
+        session.delete(event)
+    session.delete(job)
+    session.commit()
+
+
 def list_jobs(session: Session, owner_id: str, limit: int = 50) -> list[Job]:
     owner_uuid = parse_uuid(owner_id)
     stmt = (

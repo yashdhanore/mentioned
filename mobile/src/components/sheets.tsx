@@ -92,23 +92,37 @@ export function PasteSheet({
 
 export function ReelMenuSheet({
   visible,
+  error,
+  isDeleting,
   onClose,
+  onDeletePost,
   onOpenSource,
 }: {
   visible: boolean;
+  error: string | null;
+  isDeleting: boolean;
   onClose: () => void;
+  onDeletePost?: () => void;
   onOpenSource?: () => void;
 }) {
   return (
     <BottomSheet visible={visible} onClose={onClose}>
       <Text style={styles.sheetTitle}>Post actions</Text>
+      {error ? <InlineMessage tone="error" message={error} /> : null}
       <View style={styles.sheetMenu}>
         <SheetRow
           label="Open original"
+          disabled={isDeleting}
           onPress={() => {
             onOpenSource?.();
             onClose();
           }}
+        />
+        <SheetRow
+          label={isDeleting ? 'Deleting...' : 'Delete post'}
+          destructive
+          disabled={isDeleting}
+          onPress={onDeletePost}
         />
       </View>
     </BottomSheet>

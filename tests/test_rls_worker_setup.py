@@ -248,3 +248,20 @@ def test_push_notifications_migration_has_private_tokens_and_worker_queue() -> N
     assert "GRANT EXECUTE ON FUNCTION pgmq.archive(text, bigint) TO mentioned_worker" in migration
     assert "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE pgmq.q_push_notifications TO mentioned_worker" in migration
     assert "GRANT SELECT, INSERT ON TABLE pgmq.a_push_notifications TO mentioned_worker" in migration
+
+
+def test_delete_saved_posts_migration_grants_api_delete_under_rls() -> None:
+    migration = (
+        Path(__file__).resolve().parents[1]
+        / "migrations"
+        / "versions"
+        / "20260606_0012_delete_saved_posts.py"
+    ).read_text()
+
+    assert "GRANT DELETE ON TABLE public.jobs, public.mentions TO mentioned_api" in migration
+    assert "GRANT SELECT, DELETE ON TABLE public.job_events TO mentioned_api" in migration
+    assert "CREATE POLICY jobs_api_owner_delete ON public.jobs" in migration
+    assert "CREATE POLICY mentions_api_owner_delete ON public.mentions" in migration
+    assert "CREATE POLICY job_events_api_owner_select ON public.job_events" in migration
+    assert "CREATE POLICY job_events_api_owner_delete ON public.job_events" in migration
+    assert "current_setting('app.current_user_id', true)::uuid" in migration

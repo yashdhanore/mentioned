@@ -17,6 +17,11 @@ class JobCreatedResponse(BaseModel):
     status: str
 
 
+class DeleteJobResponse(BaseModel):
+    job_id: str
+    deleted: bool = True
+
+
 class MentionInJob(BaseModel):
     id: str
     book_id: Optional[str] = None
