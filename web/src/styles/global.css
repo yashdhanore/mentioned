@@ -823,10 +823,11 @@ a {
 
 .final-cta-section__core {
   display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: end;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 410px);
+  align-items: center;
   gap: 34px;
-  padding: clamp(38px, 6vw, 72px);
+  overflow: hidden;
+  padding: clamp(38px, 5.8vw, 70px);
   background: var(--color-paper);
 }
 
@@ -834,8 +835,39 @@ a {
   min-width: 0;
 }
 
+.final-cta-section__copy {
+  display: grid;
+  gap: 18px;
+}
+
+.final-cta-section h2 {
+  font-size: clamp(52px, 4.6vw, 68px);
+}
+
 .final-cta-section p {
-  margin-top: 18px;
+  margin: 0;
+}
+
+.book-bloom {
+  justify-self: end;
+  width: min(100%, 410px);
+  background: rgba(9, 76, 72, 0.07);
+  box-shadow: 0 28px 80px rgba(3, 28, 25, 0.18);
+}
+
+.book-bloom__core {
+  position: relative;
+  overflow: hidden;
+  min-height: 310px;
+  background:
+    linear-gradient(135deg, rgba(255, 254, 250, 0.9), rgba(244, 239, 229, 0.68)),
+    var(--color-surface-elevated);
+}
+
+.book-bloom__canvas {
+  display: block;
+  width: 100%;
+  height: 310px;
 }
 
 .site-footer {
@@ -939,7 +971,21 @@ a {
   }
 
   .final-cta-section__core {
+    gap: 26px;
     padding: 24px;
+  }
+
+  .book-bloom {
+    justify-self: stretch;
+    width: 100%;
+  }
+
+  .book-bloom__core {
+    min-height: 260px;
+  }
+
+  .book-bloom__canvas {
+    height: 260px;
   }
 
   .final-cta-section h2 {
