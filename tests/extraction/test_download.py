@@ -58,6 +58,7 @@ def test_download_assets_with_metadata_returns_largest_thumbnail(monkeypatch, tm
                 json.dumps(
                     {
                         "duration": 8,
+                        "uploader_id": "jamesclear",
                         "thumbnail": "https://example.com/default.jpg",
                         "thumbnails": [
                             {
@@ -84,6 +85,24 @@ def test_download_assets_with_metadata_returns_largest_thumbnail(monkeypatch, tm
 
     assert assets.paths == [media_file]
     assert assets.thumbnail_url == "https://example.com/large.jpg"
+    assert assets.source_creator_handle == "jamesclear"
+
+
+def test_download_assets_with_metadata_does_not_infer_handle_from_display_name(monkeypatch, tmp_path):
+    media_file = tmp_path / "media_001.mp4"
+
+    def fake_run(args, **kwargs):
+        if "--dump-single-json" in args:
+            return _completed(json.dumps({"duration": 8, "uploader": "OpenAI"}))
+        media_file.write_bytes(b"12345")
+        return _completed(str(media_file))
+
+    monkeypatch.setattr("src.extraction.download.is_available", lambda: True)
+    monkeypatch.setattr("src.extraction.download.subprocess.run", fake_run)
+
+    assets = download_assets_with_metadata("https://instagram.com/reel/ABC123/", tmp_path)
+
+    assert assets.source_creator_handle is None
 
 
 def test_download_assets_rejects_duration_over_limit(monkeypatch, tmp_path):

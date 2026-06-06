@@ -23,7 +23,11 @@ def run_pipeline(source_url: str) -> PipelineResult:
 
         paths = assets.paths
         if not paths:
-            return PipelineResult(error="No media downloaded")
+            return PipelineResult(
+                thumbnail_url=assets.thumbnail_url,
+                source_creator_handle=assets.source_creator_handle,
+                error="No media downloaded",
+            )
 
         total_size_mb = sum(path.stat().st_size for path in paths) / 1024 / 1024
         logger.info("Downloaded %d media file(s) (%.1f MB)", len(paths), total_size_mb)
@@ -35,6 +39,7 @@ def run_pipeline(source_url: str) -> PipelineResult:
             logger.warning("Gemini extraction failed: %s", exc)
             return PipelineResult(
                 thumbnail_url=assets.thumbnail_url,
+                source_creator_handle=assets.source_creator_handle,
                 error=f"Extraction failed: {exc}",
             )
 
@@ -54,4 +59,8 @@ def run_pipeline(source_url: str) -> PipelineResult:
                 )
             )
 
-        return PipelineResult(mentions=mentions, thumbnail_url=assets.thumbnail_url)
+        return PipelineResult(
+            mentions=mentions,
+            thumbnail_url=assets.thumbnail_url,
+            source_creator_handle=assets.source_creator_handle,
+        )

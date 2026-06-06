@@ -2,23 +2,27 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 import shutil
 import subprocess
 from typing import Any
+from urllib.parse import urlparse
 
 from src.config import get_settings
 
 logger = logging.getLogger(__name__)
 
 VIDEO_SUFFIXES = {".mp4", ".mov", ".m4v", ".webm", ".mkv"}
+INSTAGRAM_HANDLE_RE = re.compile(r"[A-Za-z0-9._]{1,30}")
 
 
 @dataclass(frozen=True)
 class DownloadedAssets:
     paths: list[Path]
     thumbnail_url: str | None = None
+    source_creator_handle: str | None = None
 
 
 def is_available() -> bool:
@@ -115,6 +119,69 @@ def _thumbnail_url(metadata: dict[str, Any]) -> str | None:
     if best_url:
         return best_url
     return _text_or_none(metadata.get("thumbnail"))
+
+
+def _handle_from_text(value: Any, *, allow_plain: bool) -> str | None:
+    raw = _text_or_none(value)
+    if not raw:
+        return None
+
+    candidate = raw
+    has_handle_prefix = candidate.startswith("@")
+    if candidate.startswith("@"):
+        candidate = candidate[1:]
+
+    parsed = urlparse(candidate)
+    is_instagram_url = parsed.netloc.endswith("instagram.com")
+    if is_instagram_url:
+        candidate = parsed.path.strip("/").split("/", maxsplit=1)[0]
+    elif not allow_plain and not has_handle_prefix:
+        return None
+
+    candidate = candidate.strip().strip("/")
+    if INSTAGRAM_HANDLE_RE.fullmatch(candidate):
+        return candidate
+    return None
+
+
+def _source_creator_handle(metadata: dict[str, Any]) -> str | None:
+    for field in (
+        "uploader_id",
+        "channel_id",
+        "creator_id",
+        "author_id",
+        "username",
+        "owner_username",
+        "account_id",
+    ):
+        handle = _handle_from_text(metadata.get(field), allow_plain=True)
+        if handle:
+            return handle
+
+    for field in (
+        "uploader_url",
+        "channel_url",
+        "creator_url",
+        "author_url",
+        "uploader",
+        "channel",
+        "creator",
+        "author",
+    ):
+        handle = _handle_from_text(metadata.get(field), allow_plain=False)
+        if handle:
+            return handle
+
+    entries = metadata.get("entries")
+    if isinstance(entries, list):
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            handle = _source_creator_handle(entry)
+            if handle:
+                return handle
+
+    return None
 
 
 def _check_size_limits(paths: list[Path], *, max_file_bytes: int, max_total_bytes: int) -> None:
@@ -239,6 +306,7 @@ def download_assets_with_metadata(url: str, output_dir: Path) -> DownloadedAsset
     settings = get_settings()
     metadata = _preflight_metadata(url, timeout_seconds=settings.media_download_timeout_seconds)
     thumbnail_url = _thumbnail_url(metadata)
+    source_creator_handle = _source_creator_handle(metadata)
     _check_duration_limit(
         metadata,
         max_duration_seconds=settings.max_media_duration_seconds,
@@ -286,7 +354,11 @@ def download_assets_with_metadata(url: str, output_dir: Path) -> DownloadedAsset
         max_file_bytes=settings.max_media_file_bytes,
         max_total_bytes=settings.max_media_total_bytes,
     )
-    return DownloadedAssets(paths=paths, thumbnail_url=thumbnail_url)
+    return DownloadedAssets(
+        paths=paths,
+        thumbnail_url=thumbnail_url,
+        source_creator_handle=source_creator_handle,
+    )
 
 
 def download_assets(url: str, output_dir: Path) -> list[Path]:

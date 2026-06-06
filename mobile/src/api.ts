@@ -89,6 +89,7 @@ export type JobResponse = {
   job_id: string;
   source_url: string;
   thumbnail_url: string | null;
+  source_creator_handle: string | null;
   status: JobStatus;
   error_message: string | null;
   created_at: string;
@@ -112,6 +113,7 @@ export type JobListItem = {
   status: JobStatus;
   source_url: string;
   thumbnail_url: string | null;
+  source_creator_handle: string | null;
   created_at: string;
 };
 
