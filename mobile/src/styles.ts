@@ -494,6 +494,20 @@ export const styles = StyleSheet.create({
     gap: spacing.md,
     justifyContent: 'space-between',
   },
+  detailNavIdentity: {
+    alignItems: 'center',
+    flex: 1,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    justifyContent: 'center',
+    minWidth: 0,
+  },
+  detailNavAvatar: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: 14,
+    height: 28,
+    width: 28,
+  },
   backButton: {
     alignItems: 'center',
     backgroundColor: colors.surface,
@@ -513,6 +527,12 @@ export const styles = StyleSheet.create({
     color: colors.secondary,
     flex: 1,
     textAlign: 'center',
+  },
+  detailNavHandle: {
+    ...typography.labelLg,
+    color: colors.secondary,
+    flexShrink: 1,
+    minWidth: 0,
   },
   previewWrap: {
     alignItems: 'center',

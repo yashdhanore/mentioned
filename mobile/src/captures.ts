@@ -15,6 +15,7 @@ export type BookMention = {
 export type Capture = {
   id: string;
   creator: string;
+  creatorHandle: string | null;
   status: CaptureStatus;
   thumbnailUrl: string;
   sourceUrl: string;
@@ -96,6 +97,7 @@ export function captureFromJobCreated(jobId: string, sourceUrl: string): Capture
   return {
     id: jobId,
     creator: 'Instagram',
+    creatorHandle: null,
     status: 'processing',
     thumbnailUrl: placeholderThumbnail(jobId),
     sourceUrl,
@@ -111,6 +113,7 @@ export function captureFromJobDetail(job: JobResponse): Capture {
   return {
     id: job.job_id,
     creator: 'Instagram',
+    creatorHandle: compact(job.source_creator_handle),
     status: statusFor(job.status, books),
     thumbnailUrl: thumbnailForJob(job),
     sourceUrl: job.source_url,

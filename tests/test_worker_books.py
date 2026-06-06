@@ -40,6 +40,7 @@ def test_worker_links_book_mentions_to_deduplicated_google_book(monkeypatch):
             "src.worker.run_pipeline",
             lambda _url: PipelineResult(
                 thumbnail_url="https://instagram.example/reel.jpg",
+                source_creator_handle="jamesclear",
                 mentions=[
                     ExtractedMention(
                         title="Atomic Habits",
@@ -83,6 +84,7 @@ def test_worker_links_book_mentions_to_deduplicated_google_book(monkeypatch):
         assert books[0].isbn_13 == "9780735211292"
         assert len(mentions) == 2
         assert refreshed_job.thumbnail_url == "https://example.supabase.co/storage/v1/object/public/job-thumbnails/reel.jpg"
+        assert refreshed_job.source_creator_handle == "jamesclear"
         assert {mention.book_id for mention in mentions} == {books[0].id}
         assert {mention.google_books_url for mention in mentions} == {books[0].info_link}
         assert {mention.cover_image_url for mention in mentions} == {books[0].cover_image_url}
@@ -98,6 +100,7 @@ def test_worker_persists_thumbnail_when_pipeline_fails(monkeypatch):
             "src.worker.run_pipeline",
             lambda _url: PipelineResult(
                 thumbnail_url="https://instagram.example/reel.jpg",
+                source_creator_handle="jamesclear",
                 error="Extraction failed",
             ),
         )
@@ -123,6 +126,7 @@ def test_worker_persists_thumbnail_when_pipeline_fails(monkeypatch):
 
         assert refreshed_job.status == JobStatus.FAILED
         assert refreshed_job.thumbnail_url == "https://example.supabase.co/storage/v1/object/public/job-thumbnails/reel.jpg"
+        assert refreshed_job.source_creator_handle == "jamesclear"
         assert mentions == []
     finally:
         SQLModel.metadata.drop_all(engine)

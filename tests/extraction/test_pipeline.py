@@ -14,6 +14,7 @@ def test_pipeline_success(mock_extract, mock_download, tmp_path):
     mock_download.return_value = DownloadedAssets(
         paths=[media_file],
         thumbnail_url="https://example.com/reel.jpg",
+        source_creator_handle="jamesclear",
     )
     mock_extract.return_value = {
         "mentions": [
@@ -27,6 +28,7 @@ def test_pipeline_success(mock_extract, mock_download, tmp_path):
     mock_extract.assert_called_once_with([media_file])
     assert result.error is None
     assert result.thumbnail_url == "https://example.com/reel.jpg"
+    assert result.source_creator_handle == "jamesclear"
     assert len(result.mentions) == 2
     assert result.mentions[0].title == "Atomic Habits"
     assert result.mentions[0].author == "James Clear"
@@ -71,6 +73,7 @@ def test_pipeline_extraction_failure(mock_extract, mock_download, tmp_path):
     mock_download.return_value = DownloadedAssets(
         paths=[media_file],
         thumbnail_url="https://example.com/reel.jpg",
+        source_creator_handle="jamesclear",
     )
     mock_extract.side_effect = RuntimeError("Gemini API error")
 
@@ -79,6 +82,7 @@ def test_pipeline_extraction_failure(mock_extract, mock_download, tmp_path):
     assert result.error is not None
     assert "Extraction failed" in result.error
     assert result.thumbnail_url == "https://example.com/reel.jpg"
+    assert result.source_creator_handle == "jamesclear"
 
 
 @patch("src.extraction.pipeline.download_assets_with_metadata")
