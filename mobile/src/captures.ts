@@ -89,14 +89,14 @@ function statusFor(jobStatus: JobStatus, books: BookMention[]): CaptureStatus {
   return 'failed';
 }
 
-function statusForJobListItem(jobStatus: JobStatus): CaptureStatus {
+function listStatusFor(jobStatus: JobStatus): CaptureStatus {
   if (jobStatus === 'pending') {
     return 'processing';
   }
-  if (jobStatus === 'failed') {
-    return 'failed';
+  if (jobStatus === 'done') {
+    return 'ready';
   }
-  return 'ready';
+  return 'failed';
 }
 
 export function buildCaptures(jobs: JobResponse[]): Capture[] {
@@ -127,7 +127,7 @@ export function captureFromJobListItem(job: JobListItem): Capture {
     id: job.job_id,
     creator: 'Instagram',
     creatorHandle: compact(job.source_creator_handle),
-    status: statusForJobListItem(job.status),
+    status: listStatusFor(job.status),
     thumbnailUrl: thumbnailForJob(job),
     sourceUrl: job.source_url,
     createdAt: job.created_at,
@@ -135,6 +135,32 @@ export function captureFromJobListItem(job: JobListItem): Capture {
     books: [],
     errorMessage: null,
   };
+}
+
+export function mergeJobListItemsWithCaptures(
+  jobs: JobListItem[],
+  existingCaptures: Capture[],
+): Capture[] {
+  const existingById = new Map(existingCaptures.map((capture) => [capture.id, capture]));
+
+  return jobs.map((job) => {
+    const listedCapture = captureFromJobListItem(job);
+    const existingCapture = existingById.get(job.job_id);
+    if (!existingCapture) {
+      return listedCapture;
+    }
+
+    return {
+      ...listedCapture,
+      books: existingCapture.books,
+      errorMessage: existingCapture.errorMessage,
+      sourceContextSnippet: existingCapture.sourceContextSnippet,
+      status:
+        listedCapture.status === 'ready' && existingCapture.status === 'no_books'
+          ? 'no_books'
+          : listedCapture.status,
+    };
+  });
 }
 
 export function captureFromJobDetail(job: JobResponse): Capture {

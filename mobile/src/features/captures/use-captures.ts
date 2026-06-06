@@ -10,9 +10,9 @@ import {
   listAllJobs,
 } from '@/api';
 import {
-  buildCapturesFromJobList,
   captureFromJobCreated,
   captureFromJobDetail,
+  mergeJobListItemsWithCaptures,
   type Capture,
 } from '@/captures';
 import { isSupabaseConfigured, supabase } from '@/supabase';
@@ -105,7 +105,7 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
 
       try {
         const jobs = await listAllJobs();
-        setCaptures(buildCapturesFromJobList(jobs));
+        setCaptures((current) => mergeJobListItemsWithCaptures(jobs, current));
       } catch (error) {
         setLoadError(errorMessage(error, 'Could not load saved items.'));
       } finally {
@@ -180,10 +180,7 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
     (capture: Capture) => {
       setActionError(null);
       setSelectedCaptureId(capture.id);
-
-      if (capture.status !== 'processing') {
-        void refreshCaptureById(capture.id).catch(() => undefined);
-      }
+      void refreshCaptureById(capture.id).catch(() => undefined);
     },
     [refreshCaptureById],
   );
