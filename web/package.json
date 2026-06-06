@@ -1,0 +1,26 @@
+{
+  "name": "mentioned-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev --host 127.0.0.1 --port 4321",
+    "build": "astro build",
+    "preview": "astro preview --host 127.0.0.1 --port 4321",
+    "typecheck": "astro check",
+    "verify:content": "node scripts/verify-content.mjs",
+    "test:e2e": "playwright test",
+    "capture:screens": "node scripts/capture-screenshots.mjs",
+    "test": "npm run verify:content && npm run typecheck && npm run build && npm run test:e2e"
+  },
+  "dependencies": {
+    "astro": "^5.0.0",
+    "gsap": "^3.12.5"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.4",
+    "@playwright/test": "^1.49.0",
+    "@types/node": "^22.19.20",
+    "typescript": "^5.9.0"
+  }
+}

@@ -14,3 +14,6 @@ mentioned_backend.egg-info/
 mobile/.expo/
 mobile/node_modules/
 mobile/package-lock.json
+web/.astro/
+web/dist/
+web/node_modules/
