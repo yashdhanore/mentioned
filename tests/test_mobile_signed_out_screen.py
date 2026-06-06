@@ -17,6 +17,7 @@ AUTH_ORBIT_REEL_PREVIEW = (
     REPO_ROOT / "mobile" / "assets" / "auth-orbit-reel-preview.png"
 )
 API = REPO_ROOT / "mobile" / "src" / "api.ts"
+USE_CAPTURES = REPO_ROOT / "mobile" / "src" / "features" / "captures" / "use-captures.ts"
 
 
 def test_signed_out_screen_does_not_offer_unsupported_apple_auth() -> None:
@@ -131,7 +132,7 @@ def test_signed_out_preview_uses_native_reduced_motion_safe_orbit() -> None:
 def test_mobile_dev_auth_bypass_is_explicit_and_production_blocked() -> None:
     app_source = APP.read_text()
     api_source = API.read_text()
-    captures_source = (REPO_ROOT / "mobile" / "src" / "features" / "captures" / "use-captures.ts").read_text()
+    captures_source = USE_CAPTURES.read_text()
 
     assert "EXPO_PUBLIC_AUTH_MODE" in api_source
     assert "isDevAuthEnabled" in api_source
@@ -140,3 +141,17 @@ def test_mobile_dev_auth_bypass_is_explicit_and_production_blocked() -> None:
     assert "Production mobile builds must not define EXPO_PUBLIC_DEV_USER_ID." in api_source
     assert "setAccessTokenProvider(devAccessToken)" in app_source
     assert "isDevAuthEnabled" in captures_source
+
+
+def test_saved_reels_home_refresh_uses_job_list_only() -> None:
+    captures_source = USE_CAPTURES.read_text()
+
+    refresh_start = captures_source.index("const refreshCaptures = useCallback")
+    refresh_end = captures_source.index("useEffect(() => {", refresh_start)
+    refresh_block = captures_source[refresh_start:refresh_end]
+
+    assert "listAllJobs()" in refresh_block
+    assert "buildCapturesFromJobList" in refresh_block
+    assert "Promise.all" not in refresh_block
+    assert "getJob(" not in refresh_block
+    assert "const job = await getJob(jobId)" in captures_source

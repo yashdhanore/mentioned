@@ -10,7 +10,7 @@ import {
   listAllJobs,
 } from '@/api';
 import {
-  buildCaptures,
+  buildCapturesFromJobList,
   captureFromJobCreated,
   captureFromJobDetail,
   type Capture,
@@ -105,8 +105,7 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
 
       try {
         const jobs = await listAllJobs();
-        const jobDetails = await Promise.all(jobs.map((job) => getJob(job.job_id)));
-        setCaptures(buildCaptures(jobDetails));
+        setCaptures(buildCapturesFromJobList(jobs));
       } catch (error) {
         setLoadError(errorMessage(error, 'Could not load saved items.'));
       } finally {
