@@ -273,19 +273,22 @@ a {
 
 .hero-section {
   min-height: 100dvh;
-  padding-top: clamp(132px, 14vw, 188px);
+  display: grid;
+  align-items: center;
+  padding-top: clamp(112px, 12vh, 150px);
+  padding-bottom: clamp(52px, 7vh, 86px);
 }
 
 .hero-section__inner {
   display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(420px, 1.1fr);
+  grid-template-columns: minmax(0, 0.92fr) minmax(360px, 1.08fr);
   align-items: center;
-  gap: clamp(48px, 8vw, 110px);
+  gap: clamp(32px, 5vw, 72px);
 }
 
 .hero-section__copy {
   display: grid;
-  gap: 24px;
+  gap: clamp(14px, 2.2vh, 22px);
 }
 
 .hero-section h1 {
@@ -293,10 +296,10 @@ a {
   margin: 0;
   color: var(--color-ink);
   font-family: var(--font-display);
-  font-size: clamp(64px, 8.6vw, 132px);
+  font-size: clamp(58px, min(7vw, 10vh), 112px);
   font-weight: 850;
   letter-spacing: 0;
-  line-height: 0.94;
+  line-height: 0.92;
 }
 
 .hero-section__copy p {
@@ -316,14 +319,14 @@ a {
 
 .hero-collage {
   position: relative;
-  min-height: 620px;
+  min-height: min(560px, calc(100dvh - 220px));
 }
 
 .hero-collage__reel {
   position: absolute;
-  top: 32px;
+  top: 16px;
   left: 20%;
-  width: min(330px, 54vw);
+  width: min(310px, 48vw, calc((100dvh - 210px) * 0.52));
   transform: rotate(-1.5deg);
 }
 

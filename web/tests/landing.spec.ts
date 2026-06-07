@@ -50,6 +50,29 @@ test('mobile layout has no horizontal overflow', async ({ page }) => {
   await expect(page.locator('.hero-collage')).toBeVisible();
 });
 
+test('desktop hero keeps subtext and CTAs in the first viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 921, height: 909 });
+  await page.goto('/');
+
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  await expect(page.locator('.hero-section__copy p')).toBeVisible();
+  await expect(page.locator('.hero-section__actions')).toBeVisible();
+
+  const heroFit = await page.evaluate(() => {
+    const actions = document.querySelector('.hero-section__actions')?.getBoundingClientRect();
+    const subtext = document.querySelector('.hero-section__copy p')?.getBoundingClientRect();
+
+    return Boolean(
+      actions &&
+        subtext &&
+        subtext.bottom <= window.innerHeight &&
+        actions.bottom <= window.innerHeight
+    );
+  });
+
+  expect(heroFit).toBe(true);
+});
+
 test('reduced motion uses the non-pinned story path', async ({ browser }) => {
   const context = await browser.newContext({
     reducedMotion: 'reduce',
