@@ -24,7 +24,6 @@ test('renders the landing story and primary sections', async ({ page }) => {
   await expect(page.locator('#shelf')).toBeVisible();
   await expect(page.locator('#reader-memory')).toBeVisible();
   await expect(page.locator('#final-cta')).toBeVisible();
-  await expect(page.locator('[data-final-book]')).toBeAttached();
 });
 
 test('primary CTA scroll target is present and reachable', async ({ page }) => {
@@ -63,36 +62,6 @@ test('reduced motion uses the non-pinned story path', async ({ browser }) => {
 
   await expect(page.locator('html')).toHaveAttribute('data-motion', 'reduced');
   await expect(page.locator('#shelf')).toBeVisible();
-  await page.locator('[data-final-book]').scrollIntoViewIfNeeded();
-  await expect(page.locator('[data-final-book]')).toBeVisible();
 
   await context.close();
-});
-
-test('final book bloom renders a non-empty canvas', async ({ page }) => {
-  await page.goto('/');
-  await page.locator('#final-cta').scrollIntoViewIfNeeded();
-  await expect(page.locator('[data-final-book]')).toBeVisible();
-  await expect(page.locator('[data-final-book-canvas]')).toBeVisible();
-
-  const hasPaintedPixels = await page.waitForFunction(() => {
-    const canvas = document.querySelector<HTMLCanvasElement>('[data-final-book-canvas]');
-    const context = canvas?.getContext('2d');
-
-    if (!canvas || !context || canvas.width === 0 || canvas.height === 0) {
-      return false;
-    }
-
-    const image = context.getImageData(0, 0, canvas.width, canvas.height);
-
-    for (let index = 3; index < image.data.length; index += 64) {
-      if (image.data[index] > 0) {
-        return true;
-      }
-    }
-
-    return false;
-  });
-
-  expect(await hasPaintedPixels.jsonValue()).toBe(true);
 });

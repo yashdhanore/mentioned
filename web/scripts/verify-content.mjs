@@ -6,7 +6,6 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 const requiredFiles = [
-  'src/components/FinalBookBloom.astro',
   'src/data/landing-content.ts',
   'src/pages/index.astro',
   'src/styles/global.css',
@@ -55,12 +54,10 @@ for (const [pattern, label] of bannedPatterns) {
 }
 
 assert.match(css, /\.double-bezel/, 'global CSS must define double-bezel card architecture');
-assert.match(css, /\.book-bloom/, 'global CSS must define final book bloom visual');
 assert.match(css, /\.magnetic-button__orb/, 'CTA must use nested icon orb architecture');
 assert.match(css, /prefers-reduced-motion:\s*reduce/, 'CSS must include reduced-motion handling');
 assert.match(css, /cubic-bezier\(0\.32,\s*0\.72,\s*0,\s*1\)/, 'CSS must use custom spring-like easing');
 assert.match(motion, /ScrollTrigger/, 'motion script must use ScrollTrigger for desktop scroll choreography');
-assert.match(motion, /data-final-book/, 'motion script must initialize final book bloom canvas');
 assert.match(motion, /matchMedia/, 'motion script must use media queries for desktop-only behavior');
 assert.match(motion, /prefers-reduced-motion/, 'motion script must respect reduced-motion preferences');
 assert.match(motion, /autoAlpha/, 'motion should animate opacity with GSAP autoAlpha');

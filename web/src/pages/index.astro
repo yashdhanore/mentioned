@@ -1,7 +1,6 @@
 ---
 import BrandNav from '../components/BrandNav.astro';
 import FeedToShelf from '../components/FeedToShelf.astro';
-import FinalBookBloom from '../components/FinalBookBloom.astro';
 import HeroCollage from '../components/HeroCollage.astro';
 import MagneticButton from '../components/MagneticButton.astro';
 import ReaderMemory from '../components/ReaderMemory.astro';
@@ -40,16 +39,15 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       <section id="final-cta" class="section-band final-cta-section">
         <div class="section-inner final-cta-section__inner double-bezel" data-reveal>
           <div class="double-bezel__core final-cta-section__core">
-            <div class="final-cta-section__copy">
+            <div>
               <span class="eyebrow">Keep the trail</span>
               <h2>{finalCta.title}</h2>
               <p>{finalCta.body}</p>
-              <div class="final-cta-section__actions">
-                <MagneticButton href={finalCta.primaryCta.href} label={finalCta.primaryCta.label} />
-                <MagneticButton href={finalCta.secondaryCta.href} label={finalCta.secondaryCta.label} variant="quiet" />
-              </div>
             </div>
-            <FinalBookBloom />
+            <div class="final-cta-section__actions">
+              <MagneticButton href={finalCta.primaryCta.href} label={finalCta.primaryCta.label} />
+              <MagneticButton href={finalCta.secondaryCta.href} label={finalCta.secondaryCta.label} variant="quiet" />
+            </div>
           </div>
         </div>
       </section>
