@@ -7,7 +7,6 @@ import { SourceToBooksPreview } from '@/components/product-preview';
 import { ReelTile } from '@/components/reel-tile';
 import { IconButton, InlineMessage, PrimaryButton, SecondaryButton } from '@/components/ui';
 import { styles } from '@/styles';
-import { spacing } from '@/theme';
 
 export function HomeScreen({
   captures,
@@ -100,19 +99,15 @@ export function HomeScreen({
 
       {captures.length > 0 ? (
         <View style={styles.grid}>
-          {captures.map((capture, index) => {
-            const isFeatured = index === 0;
-            return (
-              <FadeInView key={capture.id} delay={Math.min(index * 40, 240)}>
-                <ReelTile
-                  capture={capture}
-                  featured={isFeatured}
-                  width={isFeatured ? tileWidth * 2 + spacing.md : tileWidth}
-                  onPress={() => onOpenCapture(capture)}
-                />
-              </FadeInView>
-            );
-          })}
+          {captures.map((capture, index) => (
+            <FadeInView key={capture.id} delay={Math.min(index * 40, 240)}>
+              <ReelTile
+                capture={capture}
+                width={tileWidth}
+                onPress={() => onOpenCapture(capture)}
+              />
+            </FadeInView>
+          ))}
         </View>
       ) : null}
     </ScrollView>
@@ -125,7 +120,7 @@ function LoadingState({ tileWidth }: { tileWidth: number }) {
       <Text style={styles.loadingSourcesTitle}>Loading saved posts</Text>
       <Text style={styles.loadingSourcesBody}>Your saved posts will appear here when they are ready.</Text>
       <View style={styles.grid}>
-        <View style={[styles.reelSkeletonTile, styles.reelSkeletonTileFeatured, { width: tileWidth * 2 + spacing.md }]} />
+        <View style={[styles.reelSkeletonTile, { width: tileWidth }]} />
         <View style={[styles.reelSkeletonTile, { width: tileWidth }]} />
         <View style={[styles.reelSkeletonTile, { width: tileWidth }]} />
       </View>
