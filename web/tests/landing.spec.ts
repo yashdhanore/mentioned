@@ -1,20 +1,22 @@
 import { expect, test } from '@playwright/test';
 
 const requiredCopy = [
-  'Save the books inside Reels.',
-  'A recommendation passes by once.',
-  'Share the source. Keep the trail.',
+  'Turn BookTok into your reading list.',
+  'FROM THE REEL',
+  'A short list of books I keep coming back to.',
+  'A book rec passes by once.',
+  'Send the Reel. Keep the reason.',
   'Finding books...',
-  'Books mentioned',
+  'Books found',
   'The post is still saved.',
-  'Never lose the book recommendation again.'
+  'Never lose a book rec in the feed again.'
 ];
 
 test('renders the landing story and primary sections', async ({ page }) => {
   await page.goto('/');
 
   await expect(page.getByRole('banner')).toBeVisible();
-  await expect(page.getByRole('heading', { level: 1 })).toContainText('Save the books inside Reels.');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Turn BookTok into your reading list.');
 
   for (const copy of requiredCopy) {
     await expect(page.getByText(copy, { exact: false }).first()).toBeAttached();

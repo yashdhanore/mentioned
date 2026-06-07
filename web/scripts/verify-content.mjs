@@ -22,14 +22,15 @@ const css = read('src/styles/global.css');
 const motion = read('src/scripts/landing-motion.ts');
 
 const requiredCopy = [
-  'Save the books inside Reels.',
-  'Share a Reel, keep the source, find the books later.',
-  'A recommendation passes by once.',
-  'Share the source. Keep the trail.',
+  'Turn BookTok into your reading list.',
+  'Send Mentioned a Reel or TikTok.',
+  'A book rec passes by once.',
+  'Send the Reel. Keep the reason.',
   'Finding books...',
-  'Books mentioned',
+  'Books found',
   'The post is still saved.',
-  'Never lose the book recommendation again.'
+  'The Reel stays with the book.',
+  'Never lose a book rec in the feed again.'
 ];
 
 for (const copy of requiredCopy) {

@@ -17,15 +17,15 @@ export type WorkflowChapter = {
 
 export const navItems: NavItem[] = [
   { label: 'How it works', href: '#story' },
-  { label: 'Source memory', href: '#shelf' },
+  { label: 'Saved with the Reel', href: '#shelf' },
   { label: 'For readers', href: '#reader-memory' }
 ];
 
 export const hero = {
-  title: 'Save the books inside Reels.',
-  body: 'Share a Reel, keep the source, find the books later.',
+  title: 'Turn BookTok into your reading list.',
+  body: 'Send Mentioned a Reel or TikTok. We find the books and save them with the post that made you want to read them.',
   primaryCta: { label: 'See how it works', href: '#story' },
-  secondaryCta: { label: 'Follow the trail', href: '#shelf' }
+  secondaryCta: { label: 'See saved posts', href: '#shelf' }
 };
 
 export const heroBooks: BookArtifact[] = [
@@ -37,28 +37,28 @@ export const heroBooks: BookArtifact[] = [
 export const workflowChapters: WorkflowChapter[] = [
   {
     eyebrow: 'It happens fast',
-    title: 'A recommendation passes by once.',
-    body: 'A title in a caption. A book held up for two seconds. A post you meant to come back to.'
+    title: 'A book rec passes by once.',
+    body: 'A title in a caption. A book held up for two seconds. A comment asking for the list.'
   },
   {
     eyebrow: 'Capture',
-    title: 'Share the source. Keep the trail.',
-    body: 'Mentioned saves the post first, then looks for the books inside.'
+    title: 'Send the Reel. Keep the reason.',
+    body: 'Mentioned saves the post, then looks for the books inside.'
   },
   {
     eyebrow: 'Processing',
     title: 'Finding books...',
-    body: 'Mentioned is checking this post for book recommendations.'
+    body: 'Mentioned is checking the post for titles and authors.'
   },
   {
     eyebrow: 'Result',
-    title: 'Books mentioned',
-    body: 'The title, author when available, and the original post stay together.'
+    title: 'Books found',
+    body: 'The title, author when available, and the post stay together.'
   },
   {
     eyebrow: 'Recovery',
     title: 'The post is still saved.',
-    body: 'No clear book? Open the original or try again.'
+    body: 'No clear book? Keep the post anyway and come back later.'
   }
 ];
 
@@ -69,15 +69,15 @@ export const shelfBooks: BookArtifact[] = [
 ];
 
 export const readerMemory = {
-  eyebrow: 'Reader memory',
-  title: 'The source stays attached to the book.',
-  body: 'Mentioned keeps the post, the recommendation, and the path back to where you found it.',
-  quote: 'I used to screenshot everything. Now the post and the book stay together.'
+  eyebrow: 'Saved with the Reel',
+  title: 'The Reel stays with the book.',
+  body: 'Mentioned keeps the recommendation with the post that made you want to read it.',
+  quote: 'I used to screenshot every book rec. Now the book and the Reel stay together.'
 };
 
 export const finalCta = {
-  title: 'Never lose the book recommendation again.',
-  body: 'Mentioned keeps the post, the books, and the path back to where you found them.',
+  title: 'Never lose a book rec in the feed again.',
+  body: 'Mentioned turns BookTok and Reels into a reading list you can actually come back to.',
   primaryCta: { label: 'See how it works', href: '#story' },
-  secondaryCta: { label: 'Source memory', href: '#shelf' }
+  secondaryCta: { label: 'Saved with the Reel', href: '#shelf' }
 };
