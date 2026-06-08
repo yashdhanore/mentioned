@@ -58,6 +58,7 @@ a {
 }
 
 .page-shell {
+  isolation: isolate;
   position: relative;
   overflow: hidden;
 }
