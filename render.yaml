@@ -3,7 +3,6 @@ services:
     name: mentioned-web
     runtime: static
     plan: free
-    region: frankfurt
     buildCommand: cd web && npm ci && npm run build
     staticPublishPath: web/dist
     autoDeployTrigger: commit
