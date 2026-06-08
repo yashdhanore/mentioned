@@ -225,6 +225,22 @@ def test_job_events_migration_has_realtime_rls_and_role_scoped_permissions() -> 
     assert "pg_publication_tables" in migration
 
 
+def test_waitlist_supabase_migration_has_rls_and_role_scoped_permissions() -> None:
+    migration_path = next(
+        (
+            Path(__file__).resolve().parents[1] / "supabase" / "migrations"
+        ).glob("*_create_waitlist_signups.sql")
+    )
+    migration = migration_path.read_text()
+
+    assert "create table if not exists public.waitlist_signups" in migration
+    assert "create unique index if not exists waitlist_signups_email_lower_idx" in migration
+    assert "alter table public.waitlist_signups enable row level security" in migration
+    assert "revoke all on table public.waitlist_signups from anon, authenticated" in migration
+    assert "create policy waitlist_signups_app_manage" in migration
+    assert "grant select, insert, update on table public.waitlist_signups to mentioned_api" in migration
+
+
 def test_push_notifications_migration_has_private_tokens_and_worker_queue() -> None:
     migration = (
         Path(__file__).resolve().parents[1]

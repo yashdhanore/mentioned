@@ -1,5 +1,24 @@
 services:
   - type: web
+    name: mentioned-web
+    runtime: static
+    plan: free
+    region: frankfurt
+    buildCommand: cd web && npm ci && npm run build
+    staticPublishPath: web/dist
+    autoDeployTrigger: commit
+    envVars:
+      - key: PUBLIC_API_BASE_URL
+        value: https://mentioned-api.onrender.com
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+
+  - type: web
     name: mentioned-api
     runtime: docker
     plan: free

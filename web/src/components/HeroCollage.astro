@@ -1,0 +1,37 @@
+---
+import { heroBooks } from '../data/landing-content';
+---
+
+<div class="hero-collage" aria-label="A Reel recommendation becoming saved books" data-reveal>
+  <div class="hero-collage__reel double-bezel" data-hero-reel>
+    <div class="double-bezel__core hero-collage__reel-core">
+      <img src="/assets/reader-preview.jpg" alt="" width="420" height="746" loading="eager" />
+      <div class="hero-collage__reel-scrim">
+        <p>A short list of books I keep coming back to.</p>
+        <span>Saved from the Reel</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="hero-collage__quote paper-note" data-hero-artifact>
+    <span>FROM THE REEL</span>
+    <p>"A short list of books I keep coming back to."</p>
+  </div>
+
+  <div class="hero-collage__books" data-hero-artifact>
+    {heroBooks.map((book) => (
+      <article class:list={['book-card', `book-card--${book.tone}`]}>
+        <strong>{book.title}</strong>
+        <span>{book.author}</span>
+      </article>
+    ))}
+  </div>
+
+  <div class="hero-collage__tiles" aria-hidden="true" data-hero-artifact>
+    <span></span>
+    <span></span>
+    <span></span>
+    <span></span>
+    <span></span>
+  </div>
+</div>

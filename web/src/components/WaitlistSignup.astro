@@ -1,0 +1,109 @@
+---
+const defaultApiBaseUrl = import.meta.env.DEV ? 'http://127.0.0.1:8000' : '';
+const configuredApiBaseUrl = import.meta.env.PUBLIC_API_BASE_URL ?? defaultApiBaseUrl;
+const apiBaseUrl = configuredApiBaseUrl.replace(/\/$/, '');
+const waitlistEndpoint = `${apiBaseUrl}/v1/waitlist`;
+---
+
+<section id="waitlist" class="section-band waitlist-section">
+  <div class="section-inner waitlist-section__inner">
+    <div class="waitlist-section__copy" data-reveal>
+      <span class="eyebrow">Early access</span>
+      <h2>Join the BookTok-to-TBR waitlist.</h2>
+      <p>Get the iOS share-sheet build first. Mentioned starts with books from Reels and TikToks, then grows into a memory layer for saved recommendations.</p>
+
+      <ul class="waitlist-section__proof" aria-label="Early access includes">
+        <li>Share a Reel from the iOS share sheet</li>
+        <li>Find books from the video, caption, and comments</li>
+        <li>Keep the original post attached to every rec</li>
+      </ul>
+    </div>
+
+    <form class="waitlist-card double-bezel" data-waitlist-form data-waitlist-endpoint={waitlistEndpoint}>
+      <div class="double-bezel__core waitlist-card__core">
+        <span>Private beta</span>
+        <h3>Save your first Reel when invites open.</h3>
+
+        <label class="waitlist-field">
+          <span>Email</span>
+          <input type="email" name="email" placeholder="reader@example.com" autocomplete="email" required />
+        </label>
+
+        <button class="waitlist-submit" type="submit">
+          <span>Join waitlist</span>
+          <span aria-hidden="true">&#8599;</span>
+        </button>
+
+        <p class="waitlist-status" data-waitlist-status aria-live="polite">Early invites and product updates only.</p>
+      </div>
+    </form>
+  </div>
+</section>
+
+<script>
+  const waitlistForms = document.querySelectorAll<HTMLFormElement>('[data-waitlist-form]');
+
+  waitlistForms.forEach((form) => {
+    const emailInput = form.querySelector<HTMLInputElement>('input[name="email"]');
+    const submitButton = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+    const status = form.querySelector<HTMLElement>('[data-waitlist-status]');
+    const endpoint = form.dataset.waitlistEndpoint || '/v1/waitlist';
+    const storedEmail = window.localStorage.getItem('mentioned.waitlist.email');
+
+    if (storedEmail && emailInput && status) {
+      emailInput.value = storedEmail;
+      status.textContent = `${storedEmail} is already on this browser's waitlist.`;
+      form.dataset.state = 'submitted';
+    }
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      if (!emailInput || !status) {
+        return;
+      }
+
+      if (!emailInput.checkValidity()) {
+        emailInput.reportValidity();
+        return;
+      }
+
+      const email = emailInput.value.trim();
+      form.dataset.state = 'loading';
+      status.textContent = 'Saving your spot...';
+
+      if (submitButton) {
+        submitButton.disabled = true;
+      }
+
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            email,
+            source: 'landing-page'
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Waitlist request failed with ${response.status}`);
+        }
+
+        window.localStorage.setItem('mentioned.waitlist.email', email);
+        status.textContent = "You're on the waitlist. We'll email when invites open.";
+        form.dataset.state = 'submitted';
+      } catch {
+        window.localStorage.setItem('mentioned.waitlist.email', email);
+        status.textContent = `${email} is saved in this browser. The waitlist endpoint is not reachable right now.`;
+        form.dataset.state = 'submitted';
+      } finally {
+        if (submitButton) {
+          submitButton.disabled = false;
+        }
+      }
+    });
+  });
+</script>
