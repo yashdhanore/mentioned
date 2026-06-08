@@ -74,10 +74,12 @@ if settings.trusted_hosts:
 from src.jobs.router import router as jobs_router
 from src.mentions.router import router as mentions_router
 from src.push.router import router as push_router
+from src.waitlist.router import router as waitlist_router
 
 app.include_router(jobs_router)
 app.include_router(mentions_router)
 app.include_router(push_router)
+app.include_router(waitlist_router)
 
 
 @app.get("/health")

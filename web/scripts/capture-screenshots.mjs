@@ -11,7 +11,7 @@ const checkpoints = [
   { name: 'hero', y: 0 },
   { name: 'story', selector: '#story' },
   { name: 'shelf', selector: '#shelf' },
-  { name: 'reader-memory', selector: '#reader-memory' },
+  { name: 'waitlist', selector: '#waitlist' },
   { name: 'final-cta', selector: '#final-cta' }
 ];
 

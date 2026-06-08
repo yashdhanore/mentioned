@@ -67,36 +67,27 @@ function initEnhancedMotion() {
 
 function initStoryTimeline() {
   const stage = document.querySelector<HTMLElement>('[data-story-stage]');
-  const path = document.querySelector<SVGPathElement>('[data-story-path]');
 
-  if (!stage || !path) {
+  if (!stage) {
     return;
   }
 
-  const pathLength = path.getTotalLength();
-  gsap.set(path, {
-    strokeDasharray: pathLength,
-    strokeDashoffset: pathLength
-  });
-
   const cards = gsap.utils.toArray<HTMLElement>('[data-story-card]');
-  gsap.set(cards, { autoAlpha: 0, y: 44, scale: 0.96 });
-  gsap.set(cards[0], { autoAlpha: 1, y: 0, scale: 1 });
+  gsap.set(cards, { autoAlpha: 0, y: 28, scale: 0.98 });
 
-  const timeline = gsap.timeline({
+  gsap.to(cards, {
+    autoAlpha: 1,
+    y: 0,
+    scale: 1,
+    stagger: 0.12,
+    duration: 0.68,
+    ease: 'power3.out',
     scrollTrigger: {
       trigger: stage,
-      start: 'top 16%',
-      end: '+=950',
-      pin: true,
-      scrub: 0.5,
-      anticipatePin: 1
+      start: 'top 76%',
+      once: true
     }
   });
-
-  timeline
-    .to(path, { strokeDashoffset: 0, duration: 1.5, ease: 'power1.out' })
-    .to(cards, { autoAlpha: 1, y: 0, scale: 1, stagger: 0.18, duration: 0.9, ease: 'power3.out' }, 0.08);
 }
 
 function initShelfTimeline() {
@@ -111,7 +102,7 @@ function initShelfTimeline() {
   const memory = document.querySelector<HTMLElement>('[data-shelf-memory]');
 
   gsap.set(fragments, { autoAlpha: 1 });
-  gsap.set([phone, memory], { autoAlpha: 0, y: 44, scale: 0.96 });
+  gsap.set([phone, memory], { autoAlpha: 1, y: 0, scale: 1 });
 
   const timeline = gsap.timeline({
     scrollTrigger: {
@@ -129,6 +120,5 @@ function initShelfTimeline() {
     .to(fragments[1], { x: 220, y: -42, rotation: 1, scale: 0.88, duration: 1, ease: 'power1.out' }, 0)
     .to(fragments[2], { x: -180, y: -94, rotation: 2, scale: 0.9, duration: 1, ease: 'power1.out' }, 0)
     .to(fragments, { autoAlpha: 0.18, duration: 0.35, ease: 'power1.out' }, 0.55)
-    .to(phone, { autoAlpha: 1, y: 0, scale: 1, duration: 0.45, ease: 'power3.out' }, 0.38)
-    .to(memory, { autoAlpha: 1, y: 0, scale: 1, duration: 0.42, ease: 'power3.out' }, 0.58);
+    .to([phone, memory], { scale: 1.015, duration: 0.3, ease: 'power3.out' }, 0.5);
 }

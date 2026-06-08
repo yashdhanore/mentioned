@@ -7,6 +7,8 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 const requiredFiles = [
   'src/data/landing-content.ts',
+  'src/components/FeedToShelf.astro',
+  'src/components/WaitlistSignup.astro',
   'src/pages/index.astro',
   'src/styles/global.css',
   'src/scripts/landing-motion.ts'
@@ -24,12 +26,16 @@ const motion = read('src/scripts/landing-motion.ts');
 const requiredCopy = [
   'Turn BookTok into your reading list.',
   'Send Mentioned a Reel or TikTok.',
-  'A book rec passes by once.',
-  'Send the Reel. Keep the reason.',
-  'Finding books...',
-  'Books found',
-  'The post is still saved.',
-  'The Reel stays with the book.',
+  'How a Reel becomes a reading list.',
+  'Send it to Mentioned.',
+  'Mentioned looks for books.',
+  'Your list gets updated.',
+  'No clear title?',
+  'The post stays with the books.',
+  'Mentioned pulls the book rec out of the Reel',
+  'Join the BookTok-to-TBR waitlist.',
+  'Get the iOS share-sheet build first.',
+  'Save your first Reel when invites open.',
   'Never lose a book rec in the feed again.'
 ];
 
