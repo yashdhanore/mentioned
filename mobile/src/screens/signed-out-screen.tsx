@@ -10,16 +10,20 @@ export function SignedOutScreen({
   error,
   pendingSharedSourceUrl,
   isGoogleLoading,
+  isAppleLoading,
   isDisabled,
   onContinueGoogle,
+  onContinueApple,
   onDiscardPendingSharedSource,
   privacyPolicyUrl,
 }: {
   error: string | null;
   pendingSharedSourceUrl: string | null;
   isGoogleLoading: boolean;
+  isAppleLoading: boolean;
   isDisabled: boolean;
   onContinueGoogle: () => void;
+  onContinueApple: () => void;
   onDiscardPendingSharedSource: () => void;
   privacyPolicyUrl: string | null;
 }) {
@@ -76,11 +80,18 @@ export function SignedOutScreen({
           ) : null}
 
           {error ? <InlineMessage tone="error" message={error} /> : null}
-          <GoogleSignInButton
-            isLoading={isGoogleLoading}
-            onPress={onContinueGoogle}
-            disabled={isDisabled}
-          />
+          <View style={styles.authProviderGroup}>
+            <AppleSignInButton
+              isLoading={isAppleLoading}
+              onPress={onContinueApple}
+              disabled={isDisabled}
+            />
+            <GoogleSignInButton
+              isLoading={isGoogleLoading}
+              onPress={onContinueGoogle}
+              disabled={isDisabled}
+            />
+          </View>
         </View>
 
         <View style={styles.authPreviewWrap}>
@@ -100,6 +111,35 @@ export function SignedOutScreen({
         </View>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function AppleSignInButton({
+  disabled,
+  isLoading,
+  onPress,
+}: {
+  disabled: boolean;
+  isLoading: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ busy: isLoading, disabled }}
+      disabled={disabled}
+      style={({ pressed }) => [
+        styles.authAppleButton,
+        disabled && styles.disabledButton,
+        pressed && styles.pressed,
+      ]}
+      onPress={onPress}
+    >
+      <Text style={styles.authAppleGlyphText}></Text>
+      <Text style={styles.authAppleButtonText}>
+        {isLoading ? 'Signing in...' : 'Continue with Apple'}
+      </Text>
+    </Pressable>
   );
 }
 

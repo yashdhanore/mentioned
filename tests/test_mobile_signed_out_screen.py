@@ -20,17 +20,17 @@ API = REPO_ROOT / "mobile" / "src" / "api.ts"
 USE_CAPTURES = REPO_ROOT / "mobile" / "src" / "features" / "captures" / "use-captures.ts"
 
 
-def test_signed_out_screen_does_not_offer_unsupported_apple_auth() -> None:
+def test_signed_out_screen_offers_sign_in_with_apple() -> None:
     screen_source = SIGNED_OUT_SCREEN.read_text()
     app_source = APP.read_text()
     supabase_source = SUPABASE.read_text()
 
-    assert "Continue with Apple" not in screen_source
-    assert "onContinueApple" not in screen_source
-    assert "isAppleLoading" not in screen_source
-    assert "handleSignIn('apple')" not in app_source
-    assert "authProviderInFlight === 'apple'" not in app_source
-    assert "Extract<Provider, 'google'>" in supabase_source
+    assert "Continue with Apple" in screen_source
+    assert "onContinueApple" in screen_source
+    assert "isAppleLoading" in screen_source
+    assert "handleSignIn('apple')" in app_source
+    assert "authProviderInFlight === 'apple'" in app_source
+    assert "'google' | 'apple'" in supabase_source
 
 
 def test_signed_out_screen_explains_pending_shared_source() -> None:

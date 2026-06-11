@@ -6,6 +6,7 @@ import { AppState, SafeAreaView, useWindowDimensions } from 'react-native';
 
 import {
   clearAccessTokenProvider,
+  deleteAccount,
   devAccessToken,
   errorMessage,
   isDevAuthEnabled,
@@ -58,6 +59,8 @@ export default function App() {
   const [selectedBook, setSelectedBook] = useState<BookMention | null>(null);
   const [bookRemovalError, setBookRemovalError] = useState<string | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [confirmingDeleteAccount, setConfirmingDeleteAccount] = useState(false);
   const [registeredPushToken, setRegisteredPushToken] = useState<string | null>(null);
   const [pendingSharedSource, setPendingSharedSource] = useState<PendingSharedSourceState | null>(null);
   const handledSharedSourceKeysRef = useRef<Set<string>>(new Set());
@@ -500,6 +503,31 @@ export default function App() {
     }
   }, [registeredPushToken]);
 
+  const handleDeleteAccount = useCallback(async () => {
+    setProfileError(null);
+    setIsDeletingAccount(true);
+    try {
+      await deleteAccount();
+      await disableRegisteredPushToken(registeredPushToken);
+      if (!isDevAuthEnabled) {
+        await supabase.auth.signOut();
+      }
+      setRegisteredPushToken(null);
+      setConfirmingDeleteAccount(false);
+      setSheet(null);
+    } catch (error) {
+      setProfileError(errorMessage(error, 'Could not delete your account.'));
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  }, [registeredPushToken]);
+
+  const closeProfileSheet = useCallback(() => {
+    setProfileError(null);
+    setConfirmingDeleteAccount(false);
+    setSheet(null);
+  }, []);
+
   const closePasteSheet = useCallback(() => {
     clearPasteError();
     setSheet(null);
@@ -576,8 +604,10 @@ export default function App() {
         error={shareLinkError ?? authError}
         pendingSharedSourceUrl={pendingSharedSource?.sourceUrl ?? null}
         isGoogleLoading={authProviderInFlight === 'google'}
+        isAppleLoading={authProviderInFlight === 'apple'}
         isDisabled={authProviderInFlight !== null}
         onContinueGoogle={() => void handleSignIn('google')}
+        onContinueApple={() => void handleSignIn('apple')}
         onDiscardPendingSharedSource={() => void discardPendingSharedSource()}
         privacyPolicyUrl={PRIVACY_POLICY_URL}
       />
@@ -623,8 +653,13 @@ export default function App() {
         accountLabel={accountLabel}
         error={profileError}
         isSigningOut={isSigningOut}
-        onClose={() => setSheet(null)}
+        isDeletingAccount={isDeletingAccount}
+        confirmingDeleteAccount={confirmingDeleteAccount}
+        onClose={closeProfileSheet}
         onSignOut={() => void handleSignOut()}
+        onRequestDeleteAccount={() => setConfirmingDeleteAccount(true)}
+        onConfirmDeleteAccount={() => void handleDeleteAccount()}
+        onCancelDeleteAccount={() => setConfirmingDeleteAccount(false)}
         privacyPolicyUrl={PRIVACY_POLICY_URL}
       />
       <PasteSheet

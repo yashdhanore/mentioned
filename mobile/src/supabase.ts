@@ -9,7 +9,7 @@ import { validateSupabaseMobileConfig } from '@/supabase-runtime-config';
 
 WebBrowser.maybeCompleteAuthSession();
 
-export type AuthProvider = Extract<Provider, 'google'>;
+export type AuthProvider = Extract<Provider, 'google' | 'apple'>;
 
 const AUTH_CALLBACK_PATH = 'auth/callback';
 const authRedirectUrlOverride = process.env.EXPO_PUBLIC_AUTH_REDIRECT_URL?.trim() || '';

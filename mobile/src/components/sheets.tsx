@@ -19,18 +19,29 @@ export function ProfileSheet({
   accountLabel,
   error,
   isSigningOut,
+  isDeletingAccount,
+  confirmingDeleteAccount,
   onClose,
   onSignOut,
+  onRequestDeleteAccount,
+  onConfirmDeleteAccount,
+  onCancelDeleteAccount,
   privacyPolicyUrl,
 }: {
   visible: boolean;
   accountLabel: string;
   error: string | null;
   isSigningOut: boolean;
+  isDeletingAccount: boolean;
+  confirmingDeleteAccount: boolean;
   onClose: () => void;
   onSignOut: () => void;
+  onRequestDeleteAccount: () => void;
+  onConfirmDeleteAccount: () => void;
+  onCancelDeleteAccount: () => void;
   privacyPolicyUrl: string | null;
 }) {
+  const busy = isSigningOut || isDeletingAccount;
   return (
     <BottomSheet visible={visible} onClose={onClose}>
       <Text style={styles.sheetTitle}>Profile</Text>
@@ -40,7 +51,32 @@ export function ProfileSheet({
         {privacyPolicyUrl ? (
           <SheetRow label="Privacy Policy" onPress={() => void Linking.openURL(privacyPolicyUrl)} />
         ) : null}
-        <SheetRow label={isSigningOut ? 'Signing out...' : 'Sign out'} onPress={onSignOut} disabled={isSigningOut} />
+        <SheetRow
+          label={isSigningOut ? 'Signing out...' : 'Sign out'}
+          onPress={onSignOut}
+          disabled={busy}
+        />
+        {confirmingDeleteAccount ? (
+          <>
+            <Text style={styles.sheetBody}>
+              This permanently deletes your account, saved posts, and books. This cannot be undone.
+            </Text>
+            <SheetRow
+              label={isDeletingAccount ? 'Deleting account...' : 'Confirm delete account'}
+              destructive
+              onPress={onConfirmDeleteAccount}
+              disabled={isDeletingAccount}
+            />
+            <SheetRow label="Cancel" onPress={onCancelDeleteAccount} disabled={isDeletingAccount} />
+          </>
+        ) : (
+          <SheetRow
+            label="Delete account"
+            destructive
+            onPress={onRequestDeleteAccount}
+            disabled={busy}
+          />
+        )}
       </View>
     </BottomSheet>
   );
