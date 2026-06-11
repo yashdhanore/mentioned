@@ -171,16 +171,53 @@ function parseApiError(status: number, payload: ApiErrorPayload | null): ApiErro
   return new ApiError(status, 'The request failed.');
 }
 
+// Render's API can be slow to respond on a cold start (after a deploy or
+// restart). We give each attempt a bounded timeout, and for *idempotent* GET
+// requests only we retry once so a single cold-start blip is invisible to the
+// user. POST/DELETE are never retried — repeating them could duplicate a job
+// or delete the wrong thing.
+
+const REQUEST_TIMEOUT_MS = 30_000;
+const RETRY_DELAY_MS = 1_500;
+
+function isIdempotent(init: RequestInit): boolean {
+  const method = (init.method ?? 'GET').toUpperCase();
+  return method === 'GET' || method === 'HEAD';
+}
+
+async function fetchOnce(path: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(`${API_BASE_URL}${path}`, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = init.headers as Record<string, string> | undefined;
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const requestInit: RequestInit = {
     ...init,
     headers: {
       Accept: 'application/json',
       ...(await authHeaders()),
       ...headers,
     },
-  });
+  };
+
+  let response: Response;
+  try {
+    response = await fetchOnce(path, requestInit);
+  } catch (err) {
+    // A throw means no HTTP response came back (network failure or cold-start
+    // timeout). Retry once for safe-to-repeat requests; let the rest surface.
+    if (!isIdempotent(init)) {
+      throw err;
+    }
+    await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+    response = await fetchOnce(path, requestInit);
+  }
 
   const rawBody = await response.text();
   const payload = rawBody ? JSON.parse(rawBody) : null;
@@ -234,6 +271,14 @@ export async function deleteJob(jobId: string): Promise<DeleteJobResponse> {
 
 export async function deleteMention(mentionId: string): Promise<DeleteMentionResponse> {
   return requestJson<DeleteMentionResponse>(`/v1/mentions/${mentionId}`, {
+    method: 'DELETE',
+  });
+}
+
+// --- Account ---
+
+export async function deleteAccount(): Promise<{ deleted: boolean }> {
+  return requestJson<{ deleted: boolean }>('/v1/account', {
     method: 'DELETE',
   });
 }

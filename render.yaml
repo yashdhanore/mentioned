@@ -19,7 +19,7 @@ services:
   - type: web
     name: mentioned-api
     runtime: docker
-    plan: free
+    plan: starter
     region: frankfurt
     healthCheckPath: /health
     dockerfilePath: ./Dockerfile
