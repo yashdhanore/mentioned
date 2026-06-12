@@ -15,7 +15,6 @@
     },
     "ios": {
       "bundleIdentifier": "com.yashd18.mentioned",
-      "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       },
