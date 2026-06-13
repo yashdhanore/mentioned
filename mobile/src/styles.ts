@@ -825,6 +825,11 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  tumbleweedShadow: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   primaryButton: {
     alignItems: 'center',
     backgroundColor: colors.primary,
