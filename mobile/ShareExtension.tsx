@@ -5,6 +5,7 @@ import {
   Text,
   View,
 } from 'expo-share-extension';
+import { useEffect, useRef } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 
 import { extractSharedSourceUrl } from './src/utils/shared-source-url';
@@ -21,11 +22,22 @@ export default function ShareExtension(props: InitialProps) {
     openHostApp(`share?url=${encodeURIComponent(sourceUrl)}`);
   };
 
+  // Hand off to the app automatically so the user doesn't have to tap through
+  // the extension. The button below stays as a fallback if the automatic
+  // handoff is interrupted. Guarded so it fires at most once.
+  const handedOffRef = useRef(false);
+  useEffect(() => {
+    if (sourceUrl && !handedOffRef.current) {
+      handedOffRef.current = true;
+      openHostApp(`share?url=${encodeURIComponent(sourceUrl)}`);
+    }
+  }, [sourceUrl]);
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>{sourceUrl ? 'Save to Mentioned' : 'Unsupported source'}</Text>
+      <Text style={styles.title}>{sourceUrl ? 'Opening Mentioned…' : 'Unsupported source'}</Text>
       <Text style={styles.body}>
-        {sourceUrl ? 'Open Mentioned to save this source.' : 'Share an Instagram Reel or post link.'}
+        {sourceUrl ? 'Saving this source. Tap below if it doesn’t open.' : 'Share an Instagram Reel or post link.'}
       </Text>
       {sourceUrl ? (
         <Text ellipsizeMode="middle" numberOfLines={2} style={styles.url}>
