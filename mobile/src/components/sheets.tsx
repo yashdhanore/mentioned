@@ -1,7 +1,11 @@
 import type { ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
+  Animated,
+  Easing,
   KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   Text,
   TextInput,
@@ -107,27 +111,28 @@ export function PasteSheet({
 }) {
   return (
     <BottomSheet visible={visible} onClose={onClose}>
-      <KeyboardAvoidingView behavior={process.env.EXPO_OS === 'ios' ? 'padding' : undefined}>
-        <Text style={styles.sheetTitle}>Paste link</Text>
-        <Text style={styles.sheetBody}>Use this when sharing from another app is not available.</Text>
-        <Text style={styles.inputLabel}>Post URL</Text>
-        <TextInput
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="url"
-          onChangeText={onChange}
-          placeholder="https://www.instagram.com/reel/..."
-          placeholderTextColor={colors.onMuted}
-          style={styles.input}
-          value={value}
-        />
-        {error ? <InlineMessage tone="error" message={error} /> : null}
-        <PrimaryButton
-          label={isSubmitting ? 'Finding books...' : 'Find books'}
-          onPress={onSubmit}
-          disabled={isSubmitting}
-        />
-      </KeyboardAvoidingView>
+      <Text style={styles.sheetTitle}>Paste link</Text>
+      <Text style={styles.sheetBody}>Use this when sharing from another app is not available.</Text>
+      <Text style={styles.inputLabel}>Post URL</Text>
+      <TextInput
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="url"
+        multiline
+        numberOfLines={3}
+        onChangeText={(text) => onChange(text.replace(/\n/g, ''))}
+        placeholder="https://www.instagram.com/reel/..."
+        placeholderTextColor={colors.onMuted}
+        style={styles.input}
+        textAlignVertical="top"
+        value={value}
+      />
+      {error ? <InlineMessage tone="error" message={error} /> : null}
+      <PrimaryButton
+        label={isSubmitting ? 'Finding books...' : 'Find books'}
+        onPress={onSubmit}
+        disabled={isSubmitting}
+      />
     </BottomSheet>
   );
 }
@@ -209,6 +214,13 @@ export function RemoveBookSheet({
   );
 }
 
+// A bottom sheet where the backdrop fades in place while only the card slides
+// up. Built on RN's Animated (no deps). The KeyboardAvoidingView is the outer
+// container so the whole card lifts above the keyboard instead of hiding behind
+// it. The card height is measured so it can start fully off-screen regardless
+// of its content.
+const SHEET_FALLBACK_HEIGHT = 420;
+
 function BottomSheet({
   visible,
   onClose,
@@ -218,14 +230,63 @@ function BottomSheet({
   onClose: () => void;
   children: ReactNode;
 }) {
+  // Keep the modal mounted through the exit animation, then unmount.
+  const [mounted, setMounted] = useState(visible);
+  const progress = useRef(new Animated.Value(0)).current;
+  const cardHeight = useRef(SHEET_FALLBACK_HEIGHT);
+
+  useEffect(() => {
+    if (visible) {
+      setMounted(true);
+      Animated.timing(progress, {
+        toValue: 1,
+        duration: 250,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
+      return;
+    }
+    Animated.timing(progress, {
+      toValue: 0,
+      duration: 200,
+      easing: Easing.in(Easing.cubic),
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) {
+        setMounted(false);
+      }
+    });
+  }, [visible, progress]);
+
+  if (!mounted) {
+    return null;
+  }
+
+  const backdropOpacity = progress;
+  const translateY = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [cardHeight.current, 0],
+  });
+
   return (
-    <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
-      <Pressable style={styles.modalOverlay} onPress={onClose}>
-        <Pressable style={styles.bottomSheet}>
+    <Modal animationType="none" transparent visible onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        style={styles.sheetContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <Animated.View style={[styles.modalOverlay, { opacity: backdropOpacity }]}>
+          <Pressable style={styles.modalOverlayFill} onPress={onClose} />
+        </Animated.View>
+        <Animated.View
+          style={[styles.bottomSheet, { transform: [{ translateY }] }]}
+          onLayout={(event) => {
+            cardHeight.current = event.nativeEvent.layout.height;
+          }}
+        >
           <View style={styles.sheetHandle} />
           {children}
-        </Pressable>
-      </Pressable>
+        </Animated.View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

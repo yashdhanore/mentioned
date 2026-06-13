@@ -64,7 +64,11 @@ export default function App() {
   const [registeredPushToken, setRegisteredPushToken] = useState<string | null>(null);
   const [pendingSharedSource, setPendingSharedSource] = useState<PendingSharedSourceState | null>(null);
   const handledSharedSourceKeysRef = useRef<Set<string>>(new Set());
-  const submittingSharedSourceKeysRef = useRef<Set<string>>(new Set());
+  // Synchronous same-tick dedup only: a cold-start getInitialURL and the warm
+  // 'url' listener can deliver the same link before React state settles. Once
+  // pendingSharedSource updates, that state (mirrored in pendingSharedSourceRef)
+  // becomes the source of truth, so this is cleared in the mirror effect below.
+  const inFlightShareKeyRef = useRef<string | null>(null);
   const pendingSharedSourceRef = useRef<PendingSharedSourceState | null>(null);
   const authStateRef = useRef({ isAuthLoading: true, isSignedIn: false });
   const initialShareUrlProcessedRef = useRef(false);
@@ -103,6 +107,11 @@ export default function App() {
 
   useEffect(() => {
     pendingSharedSourceRef.current = pendingSharedSource;
+    // State has settled and is now the source of truth for "in progress";
+    // release the synchronous same-tick guard so it can never get stuck.
+    if (pendingSharedSource?.sourceKey === inFlightShareKeyRef.current) {
+      inFlightShareKeyRef.current = null;
+    }
   }, [pendingSharedSource]);
 
   useEffect(() => {
@@ -155,16 +164,19 @@ export default function App() {
       }
 
       const sourceKey = result.sourceUrl;
+      // Dedup against the single source of truth: already handled, already the
+      // pending source (state settled), or in flight this same tick.
       if (
         handledSharedSourceKeysRef.current.has(sourceKey) ||
-        submittingSharedSourceKeysRef.current.has(sourceKey)
+        pendingSharedSourceRef.current?.sourceKey === sourceKey ||
+        inFlightShareKeyRef.current === sourceKey
       ) {
         return;
       }
 
       clearSharedCaptureError();
       setShareLinkError(null);
-      submittingSharedSourceKeysRef.current.add(sourceKey);
+      inFlightShareKeyRef.current = sourceKey;
 
       if (!authStateRef.current.isAuthLoading && authStateRef.current.isSignedIn) {
         setPendingSharedSource({
@@ -179,7 +191,6 @@ export default function App() {
       void pendingSharedSourceStore
         .save(result.sourceUrl)
         .then((source) => {
-          submittingSharedSourceKeysRef.current.delete(sourceKey);
           setPendingSharedSource((currentSource) => {
             if (currentSource && currentSource.createdAtMs > source.createdAtMs) {
               return currentSource;
@@ -191,7 +202,12 @@ export default function App() {
           });
         })
         .catch((error) => {
-          submittingSharedSourceKeysRef.current.delete(sourceKey);
+          // The save failed: we may keep an existing different pending source
+          // and drop this one, so release the in-flight guard here rather than
+          // relying on the mirror effect (which only clears on a matching key).
+          if (inFlightShareKeyRef.current === sourceKey) {
+            inFlightShareKeyRef.current = null;
+          }
           setPendingSharedSource((currentSource) =>
             currentSource ?? {
               sourceUrl: result.sourceUrl,
@@ -382,8 +398,8 @@ export default function App() {
       return;
     }
 
-    if (currentSource) {
-      submittingSharedSourceKeysRef.current.delete(currentSource.sourceKey);
+    if (currentSource && inFlightShareKeyRef.current === currentSource.sourceKey) {
+      inFlightShareKeyRef.current = null;
     }
     try {
       if (expectedSourceKey) {
@@ -416,7 +432,6 @@ export default function App() {
     }
 
     const didSubmit = await submitSharedUrl(source.sourceUrl);
-    submittingSharedSourceKeysRef.current.delete(source.sourceKey);
 
     if (pendingSharedSourceRef.current?.sourceKey !== source.sourceKey) {
       return;

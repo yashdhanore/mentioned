@@ -816,10 +816,35 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     overflow: 'hidden',
   },
-  emptyPreviewWrap: {
+  tumbleweedWrap: {
     alignItems: 'center',
-    overflow: 'hidden',
-    paddingVertical: spacing.sm,
+    justifyContent: 'center',
+  },
+  tumbleweedShadow: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyScene: {
+    alignItems: 'center',
+    gap: spacing.md,
+    marginTop: spacing.xxl,
+    paddingHorizontal: spacing.lg,
+  },
+  emptySceneTitle: {
+    ...typography.titleLg,
+    color: colors.onSurface,
+    marginTop: spacing.sm,
+    textAlign: 'center',
+  },
+  emptySceneBody: {
+    ...typography.bodySm,
+    color: colors.onMuted,
+    maxWidth: 280,
+    textAlign: 'center',
+  },
+  emptySceneActions: {
+    marginTop: spacing.sm,
   },
   primaryButton: {
     alignItems: 'center',
@@ -884,10 +909,16 @@ export const styles = StyleSheet.create({
     ...typography.labelMd,
     color: colors.primary,
   },
-  modalOverlay: {
-    backgroundColor: 'rgba(20, 32, 27, 0.06)',
+  sheetContainer: {
     flex: 1,
     justifyContent: 'flex-end',
+  },
+  modalOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(20, 32, 27, 0.35)',
+  },
+  modalOverlayFill: {
+    flex: 1,
   },
   bottomSheet: {
     backgroundColor: colors.surface,
@@ -981,7 +1012,9 @@ export const styles = StyleSheet.create({
     borderWidth: 1,
     color: colors.onSurface,
     minHeight: 48,
+    maxHeight: 96,
     paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     marginBottom: spacing.lg,
   },
   authProductPreview: {
