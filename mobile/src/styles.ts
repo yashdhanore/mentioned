@@ -821,6 +821,10 @@ export const styles = StyleSheet.create({
     overflow: 'hidden',
     paddingVertical: spacing.sm,
   },
+  tumbleweedWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   primaryButton: {
     alignItems: 'center',
     backgroundColor: colors.primary,
