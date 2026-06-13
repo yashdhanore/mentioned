@@ -15,6 +15,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.yashd18.mentioned",
+      "buildNumber": "5",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       },
