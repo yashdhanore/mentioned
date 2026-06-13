@@ -909,10 +909,16 @@ export const styles = StyleSheet.create({
     ...typography.labelMd,
     color: colors.primary,
   },
-  modalOverlay: {
-    backgroundColor: 'rgba(20, 32, 27, 0.06)',
+  sheetContainer: {
     flex: 1,
     justifyContent: 'flex-end',
+  },
+  modalOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(20, 32, 27, 0.35)',
+  },
+  modalOverlayFill: {
+    flex: 1,
   },
   bottomSheet: {
     backgroundColor: colors.surface,
@@ -1006,7 +1012,9 @@ export const styles = StyleSheet.create({
     borderWidth: 1,
     color: colors.onSurface,
     minHeight: 48,
+    maxHeight: 96,
     paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     marginBottom: spacing.lg,
   },
   authProductPreview: {
