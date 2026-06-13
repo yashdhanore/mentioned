@@ -938,6 +938,20 @@ export const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: 'hidden',
   },
+  sheetWarning: {
+    backgroundColor: colors.errorSoft,
+    borderRadius: radius.md,
+    gap: spacing.xs,
+    padding: spacing.md,
+  },
+  sheetWarningTitle: {
+    ...typography.labelLg,
+    color: colors.error,
+  },
+  sheetWarningBody: {
+    ...typography.bodySm,
+    color: colors.onSurface,
+  },
   sheetRow: {
     backgroundColor: colors.surface,
     borderBottomColor: colors.border,

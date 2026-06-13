@@ -220,9 +220,25 @@ async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> 
   }
 
   const rawBody = await response.text();
-  const payload = rawBody ? JSON.parse(rawBody) : null;
+
+  let payload: unknown = null;
+  let parseFailed = false;
+  if (rawBody) {
+    try {
+      payload = JSON.parse(rawBody);
+    } catch {
+      parseFailed = true;
+    }
+  }
 
   if (!response.ok) {
+    if (parseFailed) {
+      const msg =
+        response.status >= 500
+          ? 'The server had a problem. Please try again.'
+          : 'The request failed. Please try again.';
+      throw new ApiError(response.status, msg, null);
+    }
     throw parseApiError(response.status, payload as ApiErrorPayload | null);
   }
 

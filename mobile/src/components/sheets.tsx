@@ -56,20 +56,7 @@ export function ProfileSheet({
           onPress={onSignOut}
           disabled={busy}
         />
-        {confirmingDeleteAccount ? (
-          <>
-            <Text style={styles.sheetBody}>
-              This permanently deletes your account, saved posts, and books. This cannot be undone.
-            </Text>
-            <SheetRow
-              label={isDeletingAccount ? 'Deleting account...' : 'Confirm delete account'}
-              destructive
-              onPress={onConfirmDeleteAccount}
-              disabled={isDeletingAccount}
-            />
-            <SheetRow label="Cancel" onPress={onCancelDeleteAccount} disabled={isDeletingAccount} />
-          </>
-        ) : (
+        {confirmingDeleteAccount ? null : (
           <SheetRow
             label="Delete account"
             destructive
@@ -78,6 +65,25 @@ export function ProfileSheet({
           />
         )}
       </View>
+      {confirmingDeleteAccount ? (
+        <>
+          <View style={styles.sheetWarning}>
+            <Text style={styles.sheetWarningTitle}>Delete account?</Text>
+            <Text style={styles.sheetWarningBody}>
+              This permanently deletes your account, saved posts, and books. This cannot be undone.
+            </Text>
+          </View>
+          <View style={styles.sheetMenu}>
+            <SheetRow
+              label={isDeletingAccount ? 'Deleting account...' : 'Confirm delete account'}
+              destructive
+              onPress={onConfirmDeleteAccount}
+              disabled={isDeletingAccount}
+            />
+            <SheetRow label="Cancel" onPress={onCancelDeleteAccount} disabled={isDeletingAccount} />
+          </View>
+        </>
+      ) : null}
     </BottomSheet>
   );
 }
