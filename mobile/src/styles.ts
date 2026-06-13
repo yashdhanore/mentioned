@@ -816,11 +816,6 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     overflow: 'hidden',
   },
-  emptyPreviewWrap: {
-    alignItems: 'center',
-    overflow: 'hidden',
-    paddingVertical: spacing.sm,
-  },
   tumbleweedWrap: {
     alignItems: 'center',
     justifyContent: 'center',
