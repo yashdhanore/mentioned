@@ -1,9 +1,9 @@
 import { ScrollView, Text, View } from 'react-native';
 
 import type { Capture } from '@/captures';
+import { EmptyCaptures } from '@/components/empty-state';
 import { PlusIcon, UserIcon } from '@/components/icons';
 import { FadeInView } from '@/components/motion';
-import { SourceToBooksPreview } from '@/components/product-preview';
 import { ReelTile } from '@/components/reel-tile';
 import { IconButton, InlineMessage, PrimaryButton, SecondaryButton } from '@/components/ui';
 import { styles } from '@/styles';
@@ -123,21 +123,6 @@ function LoadingState({ tileWidth }: { tileWidth: number }) {
         <View style={[styles.reelSkeletonTile, { width: tileWidth }]} />
         <View style={[styles.reelSkeletonTile, { width: tileWidth }]} />
         <View style={[styles.reelSkeletonTile, { width: tileWidth }]} />
-      </View>
-    </View>
-  );
-}
-
-function EmptyCaptures({ onOpenPaste }: { onOpenPaste: () => void }) {
-  return (
-    <View style={styles.stateCard}>
-      <Text style={styles.stateTitle}>No saved posts yet</Text>
-      <Text style={styles.stateBody}>Share a post to save it here and start finding books mentioned inside.</Text>
-      <View style={styles.emptyPreviewWrap}>
-        <SourceToBooksPreview />
-      </View>
-      <View style={styles.stateActions}>
-        <PrimaryButton label="Paste link" onPress={onOpenPaste} compact />
       </View>
     </View>
   );
