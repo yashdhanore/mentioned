@@ -181,6 +181,24 @@ def test_download_assets_rejects_total_size_over_limit(monkeypatch, tmp_path):
         download_assets("https://instagram.com/p/ABC123/", tmp_path)
 
 
+def test_download_assets_rejects_video_count_over_limit(monkeypatch, tmp_path):
+    first_file = tmp_path / "media_001.mp4"
+    second_file = tmp_path / "media_002.mp4"
+
+    def fake_run(args, **kwargs):
+        if "--dump-single-json" in args:
+            return _completed(json.dumps({"entries": [{"duration": 1}, {"duration": 1}]}))
+        first_file.write_bytes(b"1")
+        second_file.write_bytes(b"2")
+        return _completed(f"{first_file}\n{second_file}")
+
+    monkeypatch.setattr("src.extraction.download.is_available", lambda: True)
+    monkeypatch.setattr("src.extraction.download.subprocess.run", fake_run)
+
+    with pytest.raises(RuntimeError, match="video count"):
+        download_assets("https://instagram.com/p/ABC123/", tmp_path)
+
+
 def test_download_assets_compresses_oversized_video(monkeypatch, tmp_path):
     media_file = tmp_path / "media_001.mp4"
 

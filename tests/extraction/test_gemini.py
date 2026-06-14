@@ -29,6 +29,7 @@ def test_get_client_uses_vertexai_config(mock_client, monkeypatch):
     assert kwargs["project"] == "mentioned-test"
     assert kwargs["location"] == "europe-west4"
     assert kwargs["http_options"].api_version == "v1"
+    assert kwargs["http_options"].retry_options.attempts == 1
     assert "api_key" not in kwargs
 
 
@@ -89,3 +90,21 @@ def test_extract_mentions_from_media_sends_all_media_parts(monkeypatch, tmp_path
         "part:media_002.jpg",
         gemini.EXTRACTION_PROMPT,
     ]
+
+
+def test_extract_mentions_from_media_rejects_oversized_media_before_client(
+    monkeypatch,
+    tmp_path,
+):
+    media_file = tmp_path / "media_001.jpg"
+    media_file.write_bytes(b"123456")
+    monkeypatch.setenv("MAX_MEDIA_FILE_BYTES", "5")
+    monkeypatch.setenv("MAX_MEDIA_TOTAL_BYTES", "10")
+    monkeypatch.setattr(
+        gemini,
+        "_get_client",
+        lambda: (_ for _ in ()).throw(AssertionError("client should not be created")),
+    )
+
+    with pytest.raises(RuntimeError, match="Media file exceeds limit"):
+        gemini.extract_mentions_from_media(media_file)

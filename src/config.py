@@ -11,6 +11,11 @@ from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 SUPPORTED_AUTH_MODES = {"dev", "supabase"}
+HARD_MAX_MEDIA_DURATION_SECONDS = 300
+HARD_MAX_MEDIA_FILE_BYTES = 100 * 1024 * 1024
+HARD_MAX_MEDIA_TOTAL_BYTES = 150 * 1024 * 1024
+HARD_MAX_MEDIA_VIDEO_COUNT = 3
+HARD_MAX_GEMINI_TOTAL_ATTEMPTS = 3
 
 
 @dataclass(frozen=True)
@@ -34,6 +39,7 @@ class AuthConfig:
 class GeminiConfig:
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-2.5-flash"
+    gemini_total_attempts: int = 3
     use_vertexai: bool = False
     vertex_project: str | None = None
     vertex_location: str = "global"
@@ -67,6 +73,7 @@ class Settings:
     max_media_file_bytes: int = 50 * 1024 * 1024
     max_media_total_bytes: int = 100 * 1024 * 1024
     max_media_duration_seconds: int = 180
+    max_media_video_count: int = 1
     media_transcode_video_bitrate: str = "1100k"
     media_transcode_audio_bitrate: str = "96k"
 
@@ -158,6 +165,22 @@ def _is_invalid_production_host(host: str) -> bool:
 def validate_settings(settings: Settings) -> None:
     if settings.auth.auth_mode not in SUPPORTED_AUTH_MODES:
         raise RuntimeError(f"Unsupported AUTH_MODE: {settings.auth.auth_mode}")
+    if not 1 <= settings.max_media_duration_seconds <= HARD_MAX_MEDIA_DURATION_SECONDS:
+        raise RuntimeError(
+            f"MAX_MEDIA_DURATION_SECONDS must be between 1 and {HARD_MAX_MEDIA_DURATION_SECONDS}"
+        )
+    if not 1 <= settings.max_media_file_bytes <= HARD_MAX_MEDIA_FILE_BYTES:
+        raise RuntimeError(f"MAX_MEDIA_FILE_BYTES must be between 1 and {HARD_MAX_MEDIA_FILE_BYTES}")
+    if not 1 <= settings.max_media_total_bytes <= HARD_MAX_MEDIA_TOTAL_BYTES:
+        raise RuntimeError(f"MAX_MEDIA_TOTAL_BYTES must be between 1 and {HARD_MAX_MEDIA_TOTAL_BYTES}")
+    if settings.max_media_file_bytes > settings.max_media_total_bytes:
+        raise RuntimeError("MAX_MEDIA_FILE_BYTES must be less than or equal to MAX_MEDIA_TOTAL_BYTES")
+    if not 1 <= settings.max_media_video_count <= HARD_MAX_MEDIA_VIDEO_COUNT:
+        raise RuntimeError(f"MAX_MEDIA_VIDEO_COUNT must be between 1 and {HARD_MAX_MEDIA_VIDEO_COUNT}")
+    if not 1 <= settings.gemini.gemini_total_attempts <= HARD_MAX_GEMINI_TOTAL_ATTEMPTS:
+        raise RuntimeError(
+            f"GEMINI_TOTAL_ATTEMPTS must be between 1 and {HARD_MAX_GEMINI_TOTAL_ATTEMPTS}"
+        )
     if not settings.is_production:
         return
     if settings.auth.auth_mode != "supabase":
@@ -212,6 +235,7 @@ def get_settings() -> Settings:
         max_media_file_bytes=_env_int("MAX_MEDIA_FILE_BYTES", 50 * 1024 * 1024),
         max_media_total_bytes=_env_int("MAX_MEDIA_TOTAL_BYTES", 100 * 1024 * 1024),
         max_media_duration_seconds=_env_int("MAX_MEDIA_DURATION_SECONDS", 180),
+        max_media_video_count=_env_int("MAX_MEDIA_VIDEO_COUNT", 1),
         media_transcode_video_bitrate=os.getenv("MEDIA_TRANSCODE_VIDEO_BITRATE", "1100k").strip(),
         media_transcode_audio_bitrate=os.getenv("MEDIA_TRANSCODE_AUDIO_BITRATE", "96k").strip(),
         max_job_create_burst_per_minute=_env_int("MAX_JOB_CREATE_BURST_PER_MINUTE", 3),
@@ -233,6 +257,7 @@ def get_settings() -> Settings:
         gemini=GeminiConfig(
             gemini_api_key=_env_optional("GEMINI_API_KEY"),
             gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip(),
+            gemini_total_attempts=_env_int("GEMINI_TOTAL_ATTEMPTS", 3),
             use_vertexai=_env_bool(
                 "GEMINI_USE_VERTEXAI",
                 _env_bool("GOOGLE_GENAI_USE_VERTEXAI", False),

@@ -14,7 +14,20 @@ from src.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-VIDEO_SUFFIXES = {".mp4", ".mov", ".m4v", ".webm", ".mkv"}
+VIDEO_SUFFIXES = {
+    ".3gp",
+    ".3gpp",
+    ".avi",
+    ".flv",
+    ".m4v",
+    ".mkv",
+    ".mov",
+    ".mp4",
+    ".mpeg",
+    ".mpg",
+    ".webm",
+    ".wmv",
+}
 INSTAGRAM_HANDLE_RE = re.compile(r"[A-Za-z0-9._]{1,30}")
 
 
@@ -220,6 +233,15 @@ def _check_size_limits(paths: list[Path], *, max_file_bytes: int, max_total_byte
         )
 
 
+def _check_video_count_limit(paths: list[Path], *, max_video_count: int) -> None:
+    video_count = sum(1 for path in paths if path.suffix.lower() in VIDEO_SUFFIXES)
+    if video_count > max_video_count:
+        raise RuntimeError(
+            f"Downloaded media video count exceeds limit of {max_video_count} "
+            f"({video_count} videos)"
+        )
+
+
 def _compress_video(
     path: Path,
     *,
@@ -367,6 +389,10 @@ def download_assets_with_metadata(url: str, output_dir: Path) -> DownloadedAsset
         timeout_seconds=settings.media_download_timeout_seconds,
         video_bitrate=settings.media_transcode_video_bitrate,
         audio_bitrate=settings.media_transcode_audio_bitrate,
+    )
+    _check_video_count_limit(
+        paths,
+        max_video_count=settings.max_media_video_count,
     )
     _check_size_limits(
         paths,

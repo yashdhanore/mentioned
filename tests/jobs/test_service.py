@@ -8,6 +8,7 @@ from sqlmodel import Session, SQLModel, create_engine, select
 
 from src.jobs.models import Job, JobEvent, JobEventType, JobStatus
 from src.jobs.service import (
+    claim_job_by_id,
     claim_next_job,
     complete_job,
     count_active_jobs,
@@ -80,6 +81,30 @@ def test_claim_next_job(session):
     assert job is not None
     assert job.locked_by == "worker-1"
     assert job.locked_at is not None
+
+
+def test_claim_job_by_id_atomically_claims_pending_job(session):
+    original = create_job(session, OWNER, "https://instagram.com/reel/ABC123/")
+
+    job = claim_job_by_id(session, original.id, "worker-1")
+
+    assert job is not None
+    assert job.id == original.id
+    assert job.locked_by == "worker-1"
+    assert job.locked_at is not None
+    assert job.heartbeat_at is not None
+
+
+def test_claim_job_by_id_returns_none_when_already_locked(session):
+    original = create_job(session, OWNER, "https://instagram.com/reel/ABC123/")
+    claimed = claim_job_by_id(session, original.id, "worker-1")
+
+    second_claim = claim_job_by_id(session, original.id, "worker-2")
+
+    refreshed = session.get(Job, original.id)
+    assert claimed is not None
+    assert second_claim is None
+    assert refreshed.locked_by == "worker-1"
 
 
 def test_claim_returns_none_when_empty(session):
