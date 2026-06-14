@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 
-from sqlalchemy import func
+from sqlalchemy import func, update
 from sqlmodel import Session, select
 
 from src.ids import parse_uuid
@@ -91,26 +91,28 @@ def claim_next_job(session: Session, worker_id: str) -> Job | None:
 
 
 def claim_job_by_id(session: Session, job_id: str | UUID, worker_id: str) -> Job | None:
+    parsed_job_id = parse_uuid(job_id)
+    now = datetime.utcnow()
     stmt = (
-        select(Job)
+        update(Job)
         .where(
-            Job.id == parse_uuid(job_id),
+            Job.id == parsed_job_id,
             Job.status == JobStatus.PENDING,
             Job.locked_by == None,
         )
-        .limit(1)
+        .values(
+            locked_by=worker_id,
+            locked_at=now,
+            heartbeat_at=now,
+        )
+        .returning(Job.id)
     )
-    job = session.exec(stmt).first()
-    if not job:
+    claimed_id = session.execute(stmt).scalar_one_or_none()
+    if claimed_id is None:
         return None
-    now = datetime.utcnow()
-    job.locked_by = worker_id
-    job.locked_at = now
-    job.heartbeat_at = now
-    session.add(job)
+
     session.commit()
-    session.refresh(job)
-    return job
+    return session.get(Job, claimed_id)
 
 
 def _add_job_event(session: Session, job: Job, event_type: JobEventType) -> None:
