@@ -39,6 +39,10 @@ Use the command loop for larger work: `prime` to load context, `plan` to write a
 plan, `implement` to execute it, `validate` to run checks, `review` or `security-review` before
 shipping, and `system-review` after messy runs to improve the AI layer.
 
+For product ideation, marketing ideas, positioning, growth, or prioritization discussions, read
+`PRODUCT.md` alongside `CONTEXT.md` and `DESIGN.md`. Treat `PRODUCT.md` as a living idea dump, not
+as a committed roadmap.
+
 ## Backend Deployment & Render Troubleshooting
 
 When investigating hosted backend failures, use the Render plugin to inspect the backend service before guessing from local code alone. Check Render deploy status, runtime logs, health checks, service configuration, and recent deploy/error events to identify production-only issues. Summarize the Render evidence you used, then connect it to any local code or configuration changes.
