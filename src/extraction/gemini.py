@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 from google import genai
-from google.genai.types import GenerateContentConfig, HttpOptions, Part
+from google.genai.types import GenerateContentConfig, HttpOptions, HttpRetryOptions, Part
 
 from src.config import get_settings
 
@@ -52,6 +52,7 @@ VERTEX_INLINE_SIZE_LIMIT = 100 * 1024 * 1024  # 100 MB
 
 def _get_client() -> genai.Client:
     settings = get_settings()
+    retry_options = HttpRetryOptions(attempts=1)
     if settings.gemini.use_vertexai:
         if not settings.gemini.vertex_project:
             raise RuntimeError("GOOGLE_CLOUD_PROJECT is not configured for Vertex AI")
@@ -59,21 +60,30 @@ def _get_client() -> genai.Client:
             vertexai=True,
             project=settings.gemini.vertex_project,
             location=settings.gemini.vertex_location,
-            http_options=HttpOptions(api_version="v1"),
+            http_options=HttpOptions(api_version="v1", retry_options=retry_options),
         )
 
     api_key = settings.gemini.gemini_api_key
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is not configured")
-    return genai.Client(api_key=api_key)
+    return genai.Client(api_key=api_key, http_options=HttpOptions(retry_options=retry_options))
 
 
 def _mime_type_for(path: Path) -> str:
     suffix = path.suffix.lower()
     mime_map = {
+        ".3gp": "video/3gpp",
+        ".3gpp": "video/3gpp",
+        ".avi": "video/avi",
+        ".flv": "video/x-flv",
+        ".m4v": "video/mp4",
+        ".mkv": "video/x-matroska",
         ".mp4": "video/mp4",
+        ".mpeg": "video/mpeg",
+        ".mpg": "video/mpg",
         ".webm": "video/webm",
         ".mov": "video/quicktime",
+        ".wmv": "video/wmv",
         ".jpg": "image/jpeg",
         ".jpeg": "image/jpeg",
         ".png": "image/png",
@@ -121,7 +131,6 @@ def upload_to_gemini(client: genai.Client, media_path: Path, *, use_vertexai: bo
     return Part.from_uri(file_uri=uploaded.uri, mime_type=uploaded.mime_type)
 
 
-MAX_RETRIES = 3
 RETRY_DELAYS = [2, 5, 10]  # seconds between retries
 RETRYABLE_STATUS_CODES = {429, 500, 503}
 
@@ -132,19 +141,41 @@ def _media_path_list(media_paths: Path | Sequence[Path]) -> list[Path]:
     return list(media_paths)
 
 
+def _check_size_limits(paths: Sequence[Path], *, max_file_bytes: int, max_total_bytes: int) -> None:
+    total_bytes = 0
+    for path in paths:
+        file_bytes = path.stat().st_size
+        if file_bytes > max_file_bytes:
+            raise RuntimeError(
+                f"Media file exceeds limit of {max_file_bytes} bytes "
+                f"({path.name}: {file_bytes} bytes)"
+            )
+        total_bytes += file_bytes
+    if total_bytes > max_total_bytes:
+        raise RuntimeError(
+            f"Media total exceeds limit of {max_total_bytes} bytes "
+            f"({total_bytes} bytes)"
+        )
+
+
 def extract_mentions_from_media(media_paths: Path | Sequence[Path]) -> dict:
     settings = get_settings()
-    client = _get_client()
     paths = _media_path_list(media_paths)
     if not paths:
         return {"mentions": []}
+    _check_size_limits(
+        paths,
+        max_file_bytes=settings.max_media_file_bytes,
+        max_total_bytes=settings.max_media_total_bytes,
+    )
+    client = _get_client()
     file_parts = [
         upload_to_gemini(client, media_path, use_vertexai=settings.gemini.use_vertexai)
         for media_path in paths
     ]
 
     last_exc = None
-    for attempt in range(MAX_RETRIES):
+    for attempt in range(settings.gemini.gemini_total_attempts):
         try:
             response = client.models.generate_content(
                 model=settings.gemini.gemini_model,
@@ -165,12 +196,12 @@ def extract_mentions_from_media(media_paths: Path | Sequence[Path]) -> dict:
             # Check if it's a retryable error (503, 429, etc.)
             exc_str = str(exc)
             is_retryable = any(str(code) in exc_str for code in RETRYABLE_STATUS_CODES)
-            if not is_retryable or attempt == MAX_RETRIES - 1:
+            if not is_retryable or attempt == settings.gemini.gemini_total_attempts - 1:
                 raise
             delay = RETRY_DELAYS[attempt]
             logger.warning(
                 "Gemini request failed (attempt %d/%d), retrying in %ds: %s",
-                attempt + 1, MAX_RETRIES, delay, exc,
+                attempt + 1, settings.gemini.gemini_total_attempts, delay, exc,
             )
             time.sleep(delay)
 

@@ -8,6 +8,14 @@ from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
+from src.config import (
+    HARD_MAX_GEMINI_TOTAL_ATTEMPTS,
+    HARD_MAX_MEDIA_DURATION_SECONDS,
+    HARD_MAX_MEDIA_FILE_BYTES,
+    HARD_MAX_MEDIA_TOTAL_BYTES,
+    HARD_MAX_MEDIA_VIDEO_COUNT,
+)
+
 
 REQUIRED_VALUES = {
     "APP_ENV": "production",
@@ -21,6 +29,11 @@ GUARDRAILS = {
     "MAX_JOB_CREATE_BURST_PER_MINUTE": (3, 1, 10),
     "MAX_JOBS_CREATED_PER_DAY": (25, 1, 100),
     "MAX_ACTIVE_JOBS_PER_USER": (5, 1, 10),
+    "MAX_MEDIA_DURATION_SECONDS": (180, 1, HARD_MAX_MEDIA_DURATION_SECONDS),
+    "MAX_MEDIA_FILE_BYTES": (50 * 1024 * 1024, 1, HARD_MAX_MEDIA_FILE_BYTES),
+    "MAX_MEDIA_TOTAL_BYTES": (100 * 1024 * 1024, 1, HARD_MAX_MEDIA_TOTAL_BYTES),
+    "MAX_MEDIA_VIDEO_COUNT": (1, 1, HARD_MAX_MEDIA_VIDEO_COUNT),
+    "GEMINI_TOTAL_ATTEMPTS": (3, 1, HARD_MAX_GEMINI_TOTAL_ATTEMPTS),
 }
 
 
@@ -129,6 +142,18 @@ def _check_release_env(worker_replicas: str | None) -> list[str]:
             continue
         if value is None or value < low or value > high:
             errors.append(f"{name} must be between {low} and {high}")
+
+    max_file_bytes, max_file_error = _env_int_with_default(
+        "MAX_MEDIA_FILE_BYTES",
+        50 * 1024 * 1024,
+    )
+    max_total_bytes, max_total_error = _env_int_with_default(
+        "MAX_MEDIA_TOTAL_BYTES",
+        100 * 1024 * 1024,
+    )
+    if not max_file_error and not max_total_error and max_file_bytes and max_total_bytes:
+        if max_file_bytes > max_total_bytes:
+            errors.append("MAX_MEDIA_FILE_BYTES must be less than or equal to MAX_MEDIA_TOTAL_BYTES")
 
     if worker_replicas != "1":
         errors.append("worker replicas must be exactly 1 for beta")

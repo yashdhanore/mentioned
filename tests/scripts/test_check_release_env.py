@@ -26,6 +26,11 @@ GUARDRAIL_ENV_NAMES = {
     "MAX_JOB_CREATE_BURST_PER_MINUTE",
     "MAX_JOBS_CREATED_PER_DAY",
     "MAX_ACTIVE_JOBS_PER_USER",
+    "MAX_MEDIA_DURATION_SECONDS",
+    "MAX_MEDIA_FILE_BYTES",
+    "MAX_MEDIA_TOTAL_BYTES",
+    "MAX_MEDIA_VIDEO_COUNT",
+    "GEMINI_TOTAL_ATTEMPTS",
 }
 
 
@@ -70,6 +75,21 @@ def test_release_env_accepts_valid_default_guardrails(valid_release_env: None) -
             "11",
             "MAX_ACTIVE_JOBS_PER_USER must be between 1 and 10",
         ),
+        (
+            "MAX_MEDIA_DURATION_SECONDS",
+            "301",
+            "MAX_MEDIA_DURATION_SECONDS must be between 1 and 300",
+        ),
+        (
+            "MAX_MEDIA_VIDEO_COUNT",
+            "4",
+            "MAX_MEDIA_VIDEO_COUNT must be between 1 and 3",
+        ),
+        (
+            "GEMINI_TOTAL_ATTEMPTS",
+            "4",
+            "GEMINI_TOTAL_ATTEMPTS must be between 1 and 3",
+        ),
         ("MAX_JOBS_CREATED_PER_DAY", "many", "MAX_JOBS_CREATED_PER_DAY must be an integer"),
     ],
 )
@@ -83,3 +103,16 @@ def test_release_env_rejects_invalid_guardrail_overrides(
     monkeypatch.setenv(name, value)
 
     assert expected in check_release_env._check_release_env("1")
+
+
+def test_release_env_rejects_file_limit_above_total_limit(
+    valid_release_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MAX_MEDIA_FILE_BYTES", "10")
+    monkeypatch.setenv("MAX_MEDIA_TOTAL_BYTES", "5")
+
+    assert (
+        "MAX_MEDIA_FILE_BYTES must be less than or equal to MAX_MEDIA_TOTAL_BYTES"
+        in check_release_env._check_release_env("1")
+    )
