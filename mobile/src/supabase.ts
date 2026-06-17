@@ -1,17 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, processLock, type Provider } from '@supabase/supabase-js';
-import * as Linking from 'expo-linking';
-import * as WebBrowser from 'expo-web-browser';
 import { AppState, Platform } from 'react-native';
 import 'react-native-url-polyfill/auto';
 
 import { validateSupabaseMobileConfig } from '@/supabase-runtime-config';
 
-WebBrowser.maybeCompleteAuthSession();
-
 export type AuthProvider = Extract<Provider, 'google' | 'apple'>;
 
-const AUTH_CALLBACK_PATH = 'auth/callback';
 const authRedirectUrlOverride = process.env.EXPO_PUBLIC_AUTH_REDIRECT_URL?.trim() || '';
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() || '';
 const supabasePublishableKey =
@@ -53,65 +48,18 @@ if (Platform.OS !== 'web') {
   });
 }
 
-function assertSupabaseConfigured(): void {
+// Thrown when the user dismisses the provider sign-in flow. Callers treat this
+// as a silent no-op rather than surfacing an error banner.
+export class AuthCanceledError extends Error {
+  constructor() {
+    super('Sign in was canceled.');
+    this.name = 'AuthCanceledError';
+  }
+}
+
+export function assertSupabaseConfigured(): void {
   if (!isSupabaseConfigured) {
     throw new Error('Supabase auth is not configured for this build.');
-  }
-}
-
-function authRedirectUrl(): string {
-  if (authRedirectUrlOverride) {
-    return authRedirectUrlOverride;
-  }
-
-  return Linking.createURL(AUTH_CALLBACK_PATH, { scheme: 'mentioned' });
-}
-
-function authErrorFromCallback(callbackUrl: string): string | null {
-  const parsed = new URL(callbackUrl);
-  return parsed.searchParams.get('error_description') || parsed.searchParams.get('error');
-}
-
-export async function signInWithProvider(provider: AuthProvider): Promise<void> {
-  assertSupabaseConfigured();
-
-  const redirectTo = authRedirectUrl();
-  if (__DEV__) {
-    console.info(`[auth] OAuth redirect URL: ${redirectTo}`);
-  }
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider,
-    options: {
-      redirectTo,
-      skipBrowserRedirect: true,
-    },
-  });
-
-  if (error) {
-    throw error;
-  }
-  if (!data.url) {
-    throw new Error('Supabase did not return an OAuth URL.');
-  }
-
-  const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
-  if (result.type !== 'success') {
-    throw new Error('Sign in was canceled.');
-  }
-
-  const callbackError = authErrorFromCallback(result.url);
-  if (callbackError) {
-    throw new Error(callbackError);
-  }
-
-  const code = new URL(result.url).searchParams.get('code');
-  if (!code) {
-    throw new Error('The auth provider did not return a session code.');
-  }
-
-  const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-  if (exchangeError) {
-    throw exchangeError;
   }
 }
 

@@ -32,7 +32,14 @@ import { AuthLoadingScreen } from '@/screens/auth-loading-screen';
 import { HomeScreen } from '@/screens/home-screen';
 import { ReelDetailScreen } from '@/screens/reel-detail-screen';
 import { SignedOutScreen } from '@/screens/signed-out-screen';
-import { type AuthProvider, currentAccessToken, isSupabaseConfigured, signInWithProvider, supabase } from '@/supabase';
+import { signInWithApple, signInWithGoogle } from '@/auth-signin';
+import {
+  AuthCanceledError,
+  type AuthProvider,
+  currentAccessToken,
+  isSupabaseConfigured,
+  supabase,
+} from '@/supabase';
 import { parseMentionedShareDeepLink } from '@/utils/shared-source-url';
 import { spacing } from '@/theme';
 import { styles } from '@/styles';
@@ -486,8 +493,15 @@ export default function App() {
     setAuthError(null);
     setAuthProviderInFlight(provider);
     try {
-      await signInWithProvider(provider);
+      if (provider === 'apple') {
+        await signInWithApple();
+      } else {
+        await signInWithGoogle();
+      }
     } catch (error) {
+      if (error instanceof AuthCanceledError) {
+        return;
+      }
       setAuthError(errorMessage(error, 'Could not complete sign in.'));
     } finally {
       setAuthProviderInFlight(null);
@@ -618,7 +632,6 @@ export default function App() {
       <SignedOutScreen
         error={shareLinkError ?? authError}
         pendingSharedSourceUrl={pendingSharedSource?.sourceUrl ?? null}
-        isGoogleLoading={authProviderInFlight === 'google'}
         isAppleLoading={authProviderInFlight === 'apple'}
         isDisabled={authProviderInFlight !== null}
         onContinueGoogle={() => void handleSignIn('google')}

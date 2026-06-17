@@ -18,7 +18,9 @@
         "EXPO_PUBLIC_API_BASE_URL": "https://mentioned-api.onrender.com",
         "EXPO_PUBLIC_SUPABASE_URL": "https://skjvnbyposuswsiyzdas.supabase.co",
         "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_96kEQgbbZE1jAna_XyQItg_rbo0VfMU",
-        "EXPO_PUBLIC_PRIVACY_POLICY_URL": "https://mentioned-api.onrender.com/privacy"
+        "EXPO_PUBLIC_PRIVACY_POLICY_URL": "https://mentioned-api.onrender.com/privacy",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "810024465257-fg9mjhhemsb1i1cgd6pculrubtpp4m36.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "810024465257-qvlgocuiqealhcfdu3l5oermmd38cg64.apps.googleusercontent.com"
       }
     },
     "production": {
@@ -27,7 +29,9 @@
         "EXPO_PUBLIC_API_BASE_URL": "https://mentioned-api.onrender.com",
         "EXPO_PUBLIC_SUPABASE_URL": "https://skjvnbyposuswsiyzdas.supabase.co",
         "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_96kEQgbbZE1jAna_XyQItg_rbo0VfMU",
-        "EXPO_PUBLIC_PRIVACY_POLICY_URL": "https://mentioned-api.onrender.com/privacy"
+        "EXPO_PUBLIC_PRIVACY_POLICY_URL": "https://mentioned-api.onrender.com/privacy",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "810024465257-fg9mjhhemsb1i1cgd6pculrubtpp4m36.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "810024465257-qvlgocuiqealhcfdu3l5oermmd38cg64.apps.googleusercontent.com"
       },
       "ios": {
         "resourceClass": "m-medium"
