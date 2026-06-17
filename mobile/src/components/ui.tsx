@@ -1,9 +1,8 @@
 import type { ReactNode } from 'react';
-import { Image, Pressable, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 
 import { styles } from '@/styles';
-
-const appMarkImage = require('../../assets/app-mark.png');
 
 type ButtonProps = {
   label: string;
@@ -100,7 +99,16 @@ export function IconButton({
 export function AppMark() {
   return (
     <View accessibilityLabel="Mentioned" accessibilityRole="image" style={styles.appMark}>
-      <Image source={appMarkImage} style={styles.appMarkImage} />
+      <Svg height={32} viewBox="0 0 1024 1024" width={32}>
+        <Path
+          d="M300 300 L512 724 L724 300 L724 724"
+          fill="none"
+          stroke="#0E6F68"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={92}
+        />
+      </Svg>
     </View>
   );
 }

@@ -63,11 +63,11 @@ export const styles = StyleSheet.create({
   authScreen: {
     alignSelf: 'center',
     flexGrow: 1,
-    gap: spacing.xl,
+    gap: spacing.md,
     maxWidth: 430,
     paddingHorizontal: spacing.screen,
-    paddingTop: spacing.xl,
-    paddingBottom: spacing.xxl,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.lg,
     width: '100%',
   },
   authTop: {
@@ -97,7 +97,7 @@ export const styles = StyleSheet.create({
   },
   authIntro: {
     gap: spacing.lg,
-    paddingTop: spacing.xxxl,
+    paddingTop: spacing.xl,
   },
   authBrand: {
     ...typography.labelLg,
@@ -125,7 +125,7 @@ export const styles = StyleSheet.create({
   authPreviewWrap: {
     alignItems: 'center',
     overflow: 'hidden',
-    paddingTop: spacing.xl,
+    paddingTop: spacing.sm,
     width: '100%',
   },
   authActions: {
@@ -197,12 +197,14 @@ export const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRightColor: 'rgba(16, 26, 23, 0.16)',
     borderRightWidth: 1,
-    bottom: 0,
+    borderBottomLeftRadius: radius.md - 1,
+    borderTopLeftRadius: radius.md - 1,
+    bottom: 1,
     justifyContent: 'center',
-    left: 0,
+    left: 1,
     position: 'absolute',
-    top: 0,
-    width: 52,
+    top: 1,
+    width: 50,
   },
   authPendingRow: {
     alignItems: 'center',
@@ -246,7 +248,7 @@ export const styles = StyleSheet.create({
   authLink: {
     alignSelf: 'center',
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.xs,
   },
   authLinkText: {
     ...typography.labelMd,
@@ -1151,16 +1153,18 @@ export const styles = StyleSheet.create({
     right: 4,
   },
   authOrbitBookCover: {
-    alignItems: 'center',
+    backgroundColor: colors.surfaceMuted,
     borderColor: 'rgba(16, 26, 23, 0.12)',
     borderRadius: radius.sm,
     borderWidth: 1,
     boxShadow: '0 9px 18px rgba(16, 26, 23, 0.14)',
     height: 94,
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xs,
-    paddingVertical: spacing.sm,
+    overflow: 'hidden',
     width: 66,
+  },
+  authOrbitBookImage: {
+    height: '100%',
+    width: '100%',
   },
   authOrbitBookCoverPaper: {
     backgroundColor: '#EEE7D8',

@@ -13,12 +13,17 @@ import { styles } from '@/styles';
 
 const authOrbitReelPreview = require('../../assets/auth-orbit-reel-preview.png');
 
+const orbitBookCovers = {
+  atomicHabits: require('../../assets/book-covers/atomic-habits.jpg'),
+  deepWork: require('../../assets/book-covers/deep-work.jpg'),
+  theTalentCode: require('../../assets/book-covers/the-talent-code.jpg'),
+  theShallows: require('../../assets/book-covers/the-shallows.jpg'),
+} as const;
+
 const orbitBooks = [
   {
-    title: 'Atomic\nHabits',
-    author: 'James Clear',
-    tone: 'paper',
-    coverStyle: styles.authOrbitBookCoverPaper,
+    title: 'Atomic Habits',
+    coverSource: orbitBookCovers.atomicHabits,
     positionStyle: styles.authOrbitBookUpperLeft,
     compactPositionStyle: styles.authOrbitBookUpperLeftCompact,
     driftX: 6,
@@ -27,10 +32,8 @@ const orbitBooks = [
     rotateTo: '-3deg',
   },
   {
-    title: 'Deep\nWork',
-    author: 'Cal Newport',
-    tone: 'green',
-    coverStyle: styles.authOrbitBookCoverGreen,
+    title: 'Deep Work',
+    coverSource: orbitBookCovers.deepWork,
     positionStyle: styles.authOrbitBookUpperRight,
     compactPositionStyle: styles.authOrbitBookUpperRightCompact,
     driftX: -5,
@@ -39,10 +42,8 @@ const orbitBooks = [
     rotateTo: '10deg',
   },
   {
-    title: 'The Talent\nCode',
-    author: 'Daniel Coyle',
-    tone: 'olive',
-    coverStyle: styles.authOrbitBookCoverOlive,
+    title: 'The Talent Code',
+    coverSource: orbitBookCovers.theTalentCode,
     positionStyle: styles.authOrbitBookLowerLeft,
     compactPositionStyle: styles.authOrbitBookLowerLeftCompact,
     driftX: 5,
@@ -51,10 +52,8 @@ const orbitBooks = [
     rotateTo: '-6deg',
   },
   {
-    title: 'The\nShallows',
-    author: 'Nicholas Carr',
-    tone: 'cream',
-    coverStyle: styles.authOrbitBookCoverCream,
+    title: 'The Shallows',
+    coverSource: orbitBookCovers.theShallows,
     positionStyle: styles.authOrbitBookLowerRight,
     compactPositionStyle: styles.authOrbitBookLowerRightCompact,
     driftX: -6,
@@ -177,7 +176,6 @@ export function SignedOutProductPreview() {
               },
               ...compactTransform,
             ];
-        const isDarkCover = book.tone === 'green' || book.tone === 'olive';
 
         return (
           <Animated.View
@@ -189,20 +187,13 @@ export function SignedOutProductPreview() {
               transform.length > 0 && { transform },
             ]}
           >
-            <View style={[styles.authOrbitBookCover, book.coverStyle]}>
-              <Text
-                numberOfLines={2}
-                style={[styles.authOrbitBookTitle, isDarkCover && styles.authOrbitBookTextLight]}
-              >
-                {book.title}
-              </Text>
-              <View style={[styles.authOrbitBookRule, isDarkCover && styles.authOrbitBookRuleLight]} />
-              <Text
-                numberOfLines={1}
-                style={[styles.authOrbitBookAuthor, isDarkCover && styles.authOrbitBookTextLight]}
-              >
-                {book.author}
-              </Text>
+            <View style={styles.authOrbitBookCover}>
+              <Image
+                accessibilityLabel={`${book.title} book cover`}
+                resizeMode="cover"
+                source={book.coverSource}
+                style={styles.authOrbitBookImage}
+              />
             </View>
           </Animated.View>
         );
