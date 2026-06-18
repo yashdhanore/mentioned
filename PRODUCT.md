@@ -192,3 +192,87 @@ When deciding what to build next, ask:
 
 Add new notes below this line.
 
+### 2026-06-15 - Viral Product Principles
+
+- Type: Product / Growth / Pricing / Marketing / Landing page
+- Status: Raw
+- Source: https://x.com/marclou/status/2065385672991752210?s=20
+- Audience: Early users, future paid subscribers, launch-page visitors, and the product team.
+- Problem: Mentioned can easily become too vague: too many categories, too many features, too many
+  CTAs, or an expensive free tier that attracts usage before willingness to pay is clear.
+- Idea: Use Marc Lou's viral-product principles as a checklist for the landing page, launch assets,
+  pricing, and early product packaging. The useful translation for Mentioned:
+  - Avoid an unlimited free plan. Prefer bounded free credits, a small number of sample extractions,
+    a short trial, a low-cost starter plan, or standalone free marketing tools that do not create
+    unbounded extraction cost.
+  - Keep the visual system simple: mostly neutral surfaces, clear text, and one accent color reserved
+    for the primary action.
+  - Replace vague claims with concrete numbers when true, such as saves processed, minutes saved,
+    supported source types, or number of books extracted.
+  - End pages and launch posts with something worth sharing, not a generic footer.
+  - Treat social preview images as conversion assets; design them to make people click.
+  - Give each screen or landing-page section one job.
+  - Make the headline plain enough that someone outside tech understands it immediately.
+  - Validate payment intent early; do not confuse signups with demand.
+  - Write copy from real Mentioned use cases, not generic AI productivity language.
+  - Show the product flow before explaining the product: source -> extraction -> saved items.
+  - Be known for one core promise first: do not lose the useful things mentioned in social content.
+  - Keep pricing simple, ideally three obvious choices if/when multiple plans exist.
+  - Ride an existing wave: social saves, creator recommendations, AI extraction, personal memory,
+    book discovery, travel planning.
+  - Reuse customer language from interviews, support messages, waitlist responses, and app reviews.
+  - Let the founder be visible in demos, videos, changelogs, and launch content.
+  - Make pricing easy to find once the product asks for payment.
+  - Test headlines for memorability, not just cleverness.
+  - Prefer emotional outcomes over feature labels: relief, confidence, less forgetting, more follow
+    through on things users meant to revisit.
+  - Look for one surprising interaction or artifact people have not seen before, such as a Reel
+    turning into a clean reading list.
+  - Make the hero section self-sufficient: a visitor should understand what Mentioned does without
+    scrolling.
+  - Show empathy before selling by naming the real behavior: saving posts, screenshots, and Reels
+    that vanish into clutter.
+  - Use one primary CTA per surface.
+  - Keep naming memorable and obvious; avoid clever names that require explanation.
+  - Sell human desires, not features: remember more, save time, organize taste, plan better, reduce
+    digital clutter.
+  - Let people experience the product before buying where costs are controlled, such as a demo,
+    sample extraction, or limited trial.
+  - Avoid weak wording; make claims specific enough to understand and challenge.
+  - Question subscription pricing. Consider whether one-time purchases, packs, credits, or annual
+    plans better match extraction costs and consumer willingness to pay.
+  - Make CTAs describe the next action, such as "Extract My Reel" or "Save This Book List."
+  - Collect proof before sending traffic: testimonials, app screenshots, extracted examples, and
+    user quotes.
+  - Keep the product description under 10 words where possible.
+  - Compare against the real alternatives: Instagram saves, screenshots, Notes, bookmarks, and memory.
+  - Do not race to the bottom on price if the product delivers a useful memory layer.
+- Why it might matter: Mentioned has real per-use costs from media handling, OCR/transcription,
+  LLM calls, enrichment, storage, and support. The product also needs clear, memorable positioning
+  because the broader vision can sound abstract unless the first wedge is concrete.
+- Smallest test: Audit the landing page and app onboarding against this checklist. Track cost per
+  successful save, activation rate, extraction volume per user, retry/support burden, headline
+  comprehension, and willingness to pay before committing to a permanent free plan or broad launch.
+- Notes: Keep the initial published proof accessible enough for learning and App Store trust, but
+  design future monetization with explicit usage ceilings and clear upgrade moments.
+
+### 2026-06-15 - Arc Selection Interaction Inspiration
+
+- Type: UX / Product
+- Status: Raw
+- Audience: Mobile users curating useful extracted items from saved sources.
+- Problem: Moving an extracted item into a collection, reading list, or selected set can feel like a
+  generic state change if the UI only toggles a checkbox or updates a list silently.
+- Idea: Explore an iOS-style selection mode where users tap Select, choose source tiles or extracted
+  items, and see the chosen item travel along a curved arc into a destination such as a collection,
+  reading list, sample box, or "kept items" tray. Inspiration: Motion's `arc()` path animation, where
+  an item moves from source to destination on a curved trajectory instead of a straight line.
+- Why it might matter: The motion makes the product model more legible: a useful thing mentioned in
+  a source is being intentionally moved into a place the user controls. It could make curation feel
+  tactile and memorable without adding explanation text.
+- Smallest test: Prototype this only with sample data or a local-only interaction first. Validate
+  whether users understand Select -> item flies into destination -> Delete/Remove clears the selected
+  set before wiring it to real collection state.
+- Notes: Keep it short, optional, and respectful of reduced-motion settings. Avoid using this for
+  destructive deletion; the stronger fit is "add to list", "keep", or "collect" because the motion
+  visually reinforces where the item went.
