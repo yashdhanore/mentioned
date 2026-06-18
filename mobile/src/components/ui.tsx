@@ -25,6 +25,11 @@ type SurfaceProps = {
   variant?: 'plain' | 'paper' | 'raised';
 };
 
+type AppMarkProps = {
+  size?: number;
+  style?: StyleProp<ViewStyle>;
+};
+
 export function PrimaryButton({
   label,
   onPress,
@@ -96,10 +101,10 @@ export function IconButton({
   );
 }
 
-export function AppMark() {
+export function AppMark({ size = 32, style }: AppMarkProps = {}) {
   return (
-    <View accessibilityLabel="Mentioned" accessibilityRole="image" style={styles.appMark}>
-      <Svg height={32} viewBox="0 0 1024 1024" width={32}>
+    <View accessibilityLabel="Mentioned" accessibilityRole="image" style={[styles.appMark, style]}>
+      <Svg height={size} viewBox="0 0 1024 1024" width={size}>
         <Path
           d="M300 300 L512 724 L724 300 L724 724"
           fill="none"

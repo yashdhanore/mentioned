@@ -1,4 +1,5 @@
-import { Image, Pressable, ScrollView, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, Animated, Easing, Image, Pressable, ScrollView, Text, View } from 'react-native';
 
 import type { BookMention, Capture } from '@/captures';
 import { BackIcon, ExternalLinkIcon, MoreIcon } from '@/components/icons';
@@ -8,7 +9,7 @@ import {
   NoBooks,
   ProcessingBooks,
 } from '@/components/books';
-import { IconButton, InlineMessage, SecondaryButton, SourceQuote } from '@/components/ui';
+import { AppMark, IconButton, InlineMessage, SecondaryButton, SourceQuote } from '@/components/ui';
 import { styles } from '@/styles';
 
 export function ReelDetailScreen({
@@ -73,11 +74,7 @@ export function ReelDetailScreen({
         <>
           {inlineError}
           <ProcessingBooks />
-          <OriginalSourceSection
-            capture={capture}
-            previewWidth={sourcePreviewWidth}
-            onOpenSource={onOpenSource}
-          />
+          <ProcessingBrandMark />
         </>
       ) : null}
       {capture.status === 'no_books' ? (
@@ -111,7 +108,7 @@ function SourceNavIdentity({ capture }: { capture: Capture }) {
 
   return (
     <View style={styles.detailNavIdentity}>
-      {capture.creatorHandle ? (
+      {capture.creatorHandle && capture.thumbnailUrl ? (
         <Image
           source={{ uri: capture.thumbnailUrl }}
           resizeMode="cover"
@@ -144,11 +141,17 @@ function SourceHero({
       <View style={styles.sourceHeroStage}>
         <View style={styles.sourceHeroPaper} />
         <View style={[styles.sourceHeroCard, { width: previewWidth }]}>
-          <Image
-            source={{ uri: capture.thumbnailUrl }}
-            resizeMode="cover"
-            style={styles.sourceHeroImage}
-          />
+          {capture.thumbnailUrl ? (
+            <Image
+              source={{ uri: capture.thumbnailUrl }}
+              resizeMode="cover"
+              style={styles.sourceHeroImage}
+            />
+          ) : (
+            <View style={styles.thumbnailFallback}>
+              <AppMark style={styles.thumbnailFallbackMark} />
+            </View>
+          )}
         </View>
       </View>
 
@@ -215,6 +218,63 @@ function sourceIdentityLabel(capture: Capture): string {
   return capture.creatorHandle ? `@${capture.creatorHandle}` : capture.creator;
 }
 
+function ProcessingBrandMark() {
+  const opacity = useRef(new Animated.Value(0.45)).current;
+  const [reduceMotion, setReduceMotion] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+
+    void AccessibilityInfo.isReduceMotionEnabled().then((isReduceMotionEnabled) => {
+      if (isMounted) {
+        setReduceMotion(isReduceMotionEnabled);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      opacity.setValue(1);
+      return undefined;
+    }
+
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: 800,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, {
+          toValue: 0.45,
+          duration: 800,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+
+    animation.start();
+
+    return () => animation.stop();
+  }, [opacity, reduceMotion]);
+
+  return (
+    <View style={styles.processingBrandMarkWrap}>
+      <Animated.View style={{ opacity }}>
+        <AppMark size={56} style={styles.processingBrandMark} />
+      </Animated.View>
+    </View>
+  );
+}
+
 function OriginalSourceSection({
   capture,
   previewWidth,
@@ -229,7 +289,13 @@ function OriginalSourceSection({
       <Text style={styles.originalSourceTitle}>Original post</Text>
       <View style={styles.originalSourceModule}>
         <View style={[styles.originalSourcePreview, { width: previewWidth }]}>
-          <Image source={{ uri: capture.thumbnailUrl }} style={styles.reelPreviewImage} />
+          {capture.thumbnailUrl ? (
+            <Image source={{ uri: capture.thumbnailUrl }} style={styles.reelPreviewImage} />
+          ) : (
+            <View style={styles.thumbnailFallback}>
+              <AppMark style={styles.thumbnailFallbackMark} />
+            </View>
+          )}
         </View>
         <View style={styles.originalSourceCopy}>
           <Text numberOfLines={1} style={styles.sourceCreator}>

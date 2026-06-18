@@ -32,7 +32,7 @@ const listedPendingCapture = captureFromJobListItem({
   thumbnail_url: null,
 });
 assert.equal(listedPendingCapture.status, 'processing');
-assert.match(listedPendingCapture.thumbnailUrl, /picsum\.photos\/seed\/mentioned-/);
+assert.equal(listedPendingCapture.thumbnailUrl, null);
 
 const listedFailedCapture = captureFromJobListItem({
   ...listedDoneJob,

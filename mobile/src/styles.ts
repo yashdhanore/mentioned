@@ -367,6 +367,15 @@ export const styles = StyleSheet.create({
     height: '100%',
     width: '100%',
   },
+  thumbnailFallback: {
+    alignItems: 'center',
+    height: '100%',
+    justifyContent: 'center',
+    width: '100%',
+  },
+  thumbnailFallbackMark: {
+    alignSelf: 'center',
+  },
   reelTileScrim: {
     backgroundColor: 'rgba(16, 26, 23, 0.42)',
     bottom: 0,
@@ -609,6 +618,16 @@ export const styles = StyleSheet.create({
   originalSourceTitle: {
     ...typography.titleLg,
     color: colors.onSurface,
+  },
+  processingBrandMarkWrap: {
+    alignItems: 'center',
+    marginTop: spacing.xl,
+    paddingVertical: spacing.lg,
+  },
+  processingBrandMark: {
+    alignSelf: 'center',
+    height: 72,
+    width: 72,
   },
   originalSourceModule: {
     backgroundColor: colors.surface,
