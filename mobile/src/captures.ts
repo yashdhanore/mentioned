@@ -17,7 +17,7 @@ export type Capture = {
   creator: string;
   creatorHandle: string | null;
   status: CaptureStatus;
-  thumbnailUrl: string;
+  thumbnailUrl: string | null;
   sourceUrl: string;
   createdAt: string;
   sourceContextSnippet: string | null;
@@ -54,13 +54,8 @@ function colorFor(id: string) {
   return BOOK_COLORS[hash];
 }
 
-function placeholderThumbnail(jobId: string) {
-  const seed = jobId.replace(/[^a-z0-9]/gi, '').slice(0, 24) || 'mentioned';
-  return `https://picsum.photos/seed/mentioned-${seed}/900/1600`;
-}
-
-function thumbnailForJob(job: Pick<JobResponse, 'job_id' | 'thumbnail_url'>) {
-  return compact(job.thumbnail_url) ?? placeholderThumbnail(job.job_id);
+function thumbnailForJob(job: Pick<JobResponse, 'thumbnail_url'>) {
+  return compact(job.thumbnail_url);
 }
 
 function visibleBookMentions(mentions: MentionInJob[]): BookMention[] {
@@ -113,7 +108,7 @@ export function captureFromJobCreated(jobId: string, sourceUrl: string): Capture
     creator: 'Instagram',
     creatorHandle: null,
     status: 'processing',
-    thumbnailUrl: placeholderThumbnail(jobId),
+    thumbnailUrl: null,
     sourceUrl,
     createdAt: new Date().toISOString(),
     sourceContextSnippet: null,

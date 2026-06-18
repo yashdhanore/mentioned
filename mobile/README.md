@@ -77,6 +77,51 @@ EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<publishable-or-anon-key>
 Native iOS and Android builds work with the deployed backend over HTTPS. CORS only affects browser
 clients such as Expo web.
 
+## Native Sign in with Apple + Google
+
+Sign-in uses **native on-device ID-token flows** (`supabase.auth.signInWithIdToken`), not the web
+OAuth redirect. No `*.supabase.co` URL or in-app browser appears during sign-in. These flows rely on
+native modules, so they **require an EAS dev/release build — they do not work in Expo Go.**
+
+### One-time setup checklist
+
+- [ ] **Apple — enable the capability.** In the Apple Developer portal, enable **Sign In with Apple**
+      for the App ID `com.yashd18.mentioned`. `app.json` includes the
+      `expo-apple-authentication` config plugin; do not add `ios.usesAppleSignIn`, because the share
+      extension must not receive the Apple sign-in entitlement. No client ID is needed for Apple.
+- [ ] **Supabase — Apple provider.** Confirm the Apple provider is enabled in Supabase Auth (it
+      already is for the existing flow; native sign-in reuses the same provider config).
+- [ ] **Google — create OAuth client IDs** in Google Cloud Console → *APIs & Services → Credentials*
+      for the project tied to Supabase's Google provider:
+  - [ ] **Web** client ID (type *Web application*). This is the audience Supabase verifies against —
+        it is the one passed to `GoogleSignin.configure({ webClientId })`, **not** the iOS client ID.
+  - [ ] **iOS** client ID (type *iOS*, bundle ID `com.yashd18.mentioned`).
+- [ ] **Supabase — Google provider.** Set the **Web** client ID (and secret) on Supabase Auth's
+      Google provider so issued tokens validate. Add the iOS client ID to the provider's
+      *Authorized Client IDs* list.
+- [ ] **Verify the Google OAuth values**:
+  - [ ] `app.json` → `@react-native-google-signin/google-signin` plugin → `iosUrlScheme`. This is the
+        **reversed** iOS client ID, e.g. iOS client `123-abc.apps.googleusercontent.com` becomes
+        `com.googleusercontent.apps.123-abc`.
+  - [ ] `eas.json` → `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` (preview + production) → the **Web** client ID.
+  - [ ] `eas.json` → `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` (preview + production) → the **iOS** client ID.
+
+### Build & on-device verification
+
+- [ ] Bump `ios.buildNumber` in `app.json` (already at `6` for this change; bump again per release).
+- [ ] Build a dev client: `EXPO_NO_CAPABILITY_SYNC=1 eas build --profile development --platform ios`.
+- [ ] On device, confirm:
+  - [ ] Apple sign-in completes and reaches the signed-in state.
+  - [ ] Google sign-in completes and reaches the signed-in state.
+  - [ ] Cancelling either sheet shows **no** error banner (silent no-op).
+  - [ ] **No `supabase.co` URL or in-app browser appears at any point.**
+  - [ ] An authenticated API request still succeeds (session JWT shape is unchanged; backend needs
+        no edits).
+
+> The legacy web-OAuth redirect (`mentioned://auth/callback`, `EXPO_PUBLIC_AUTH_REDIRECT_URL`) is no
+> longer used by the production sign-in path. The `EXPO_PUBLIC_AUTH_REDIRECT_URL` guard remains only
+> to keep it out of production builds.
+
 ## Validate
 
 ```bash

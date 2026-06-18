@@ -1,6 +1,7 @@
 import { Image, Pressable, Text, View } from 'react-native';
 
 import type { Capture } from '@/captures';
+import { AppMark } from '@/components/ui';
 import { styles } from '@/styles';
 
 export function ReelTile({
@@ -26,7 +27,13 @@ export function ReelTile({
       ]}
       onPress={onPress}
     >
-      <Image source={{ uri: capture.thumbnailUrl }} style={styles.reelTileImage} />
+      {capture.thumbnailUrl ? (
+        <Image source={{ uri: capture.thumbnailUrl }} style={styles.reelTileImage} />
+      ) : (
+        <View style={styles.thumbnailFallback}>
+          <AppMark style={styles.thumbnailFallbackMark} />
+        </View>
+      )}
       <View style={styles.reelTileScrim} />
       {featured ? (
         <View style={styles.latestBadge}>
