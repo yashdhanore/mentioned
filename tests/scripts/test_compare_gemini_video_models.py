@@ -1,0 +1,148 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from scripts import compare_gemini_video_models
+from src.extraction.download import DownloadedAssets
+
+
+USAGE = {
+    "prompt_token_count": 1000,
+    "prompt_tokens_details": [
+        {"modality": "VIDEO", "token_count": 800},
+        {"modality": "AUDIO", "token_count": 200},
+    ],
+    "candidates_token_count": 50,
+    "thoughts_token_count": 0,
+    "total_token_count": 1050,
+}
+
+
+def test_compare_models_downloads_once_and_runs_default_models(monkeypatch, tmp_path):
+    download_calls = []
+    model_calls = []
+
+    def fake_download(source_url: str, output_dir: Path) -> DownloadedAssets:
+        download_calls.append((source_url, output_dir))
+        media_file = output_dir / "media_001.mp4"
+        media_file.write_bytes(b"fake video")
+        return DownloadedAssets(
+            paths=[media_file],
+            thumbnail_url="https://example.com/thumb.jpg",
+            source_creator_handle="reader",
+        )
+
+    def fake_extract(paths: list[Path], *, model: str) -> dict:
+        model_calls.append((model, [path.name for path in paths]))
+        return {
+            "raw": {
+                "mentions": [
+                    {
+                        "title": f"Book from {model}",
+                        "category": "book",
+                        "confidence": 0.9,
+                    }
+                ]
+            },
+            "usage": USAGE,
+        }
+
+    monkeypatch.setattr(compare_gemini_video_models, "download_assets_with_metadata", fake_download)
+    monkeypatch.setattr(compare_gemini_video_models, "_extract_mentions_for_model", fake_extract)
+
+    payload = compare_gemini_video_models.compare_models(
+        "https://www.instagram.com/reel/SHORTCODE/",
+        media_dir=tmp_path / "downloads",
+    )
+
+    assert len(download_calls) == 1
+    assert payload["download"]["media_dir_kept"] is True
+    assert payload["download"]["media_count"] == 1
+    assert payload["download"]["source_creator_handle"] == "reader"
+    assert [result["model"] for result in payload["results"]] == [
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+    ]
+    assert all(result["ok"] is True for result in payload["results"])
+    assert all(result["mention_count"] == 1 for result in payload["results"])
+    assert all(result["token_summary"]["prompt_tokens"] == 1000 for result in payload["results"])
+    assert all(result["estimated_cost"]["total_usd"] is not None for result in payload["results"])
+    assert {model for model, _paths in model_calls} == {
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+    }
+    assert all(paths == ["media_001.mp4"] for _model, paths in model_calls)
+
+
+def test_compare_models_keeps_result_order_for_custom_models(monkeypatch, tmp_path):
+    def fake_download(source_url: str, output_dir: Path) -> DownloadedAssets:
+        media_file = output_dir / "media_001.mp4"
+        media_file.write_bytes(b"fake video")
+        return DownloadedAssets(paths=[media_file])
+
+    def fake_extract(paths: list[Path], *, model: str) -> dict:
+        return {
+            "raw": {"mentions": [{"title": model, "category": "book", "confidence": 0.8}]},
+            "usage": USAGE,
+        }
+
+    monkeypatch.setattr(compare_gemini_video_models, "download_assets_with_metadata", fake_download)
+    monkeypatch.setattr(compare_gemini_video_models, "_extract_mentions_for_model", fake_extract)
+
+    payload = compare_gemini_video_models.compare_models(
+        "https://www.instagram.com/reel/SHORTCODE/",
+        models=["model-b", "model-a"],
+        media_dir=tmp_path / "downloads",
+    )
+
+    assert [result["model"] for result in payload["results"]] == ["model-b", "model-a"]
+
+
+def test_compare_sources_summarizes_cost_by_model(monkeypatch, tmp_path):
+    download_calls = []
+
+    def fake_download(source_url: str, output_dir: Path) -> DownloadedAssets:
+        download_calls.append((source_url, output_dir))
+        media_file = output_dir / "media_001.mp4"
+        media_file.write_bytes(b"fake video")
+        return DownloadedAssets(paths=[media_file])
+
+    def fake_extract(paths: list[Path], *, model: str) -> dict:
+        return {
+            "raw": {"mentions": [{"title": model, "category": "book", "confidence": 0.8}]},
+            "usage": USAGE,
+        }
+
+    monkeypatch.setattr(compare_gemini_video_models, "download_assets_with_metadata", fake_download)
+    monkeypatch.setattr(compare_gemini_video_models, "_extract_mentions_for_model", fake_extract)
+
+    payload = compare_gemini_video_models.compare_sources(
+        [
+            "https://www.instagram.com/reel/ONE/",
+            "https://www.instagram.com/reel/TWO/",
+        ],
+        media_dir=tmp_path / "downloads",
+    )
+
+    assert len(download_calls) == 2
+    assert [call[1].name for call in download_calls] == ["source_001", "source_002"]
+    assert payload["summary"]["source_count"] == 2
+    assert payload["summary"]["estimated_total_cost_usd"] is not None
+    assert [item["sources"] for item in payload["summary"]["models"]] == [2, 2]
+    assert [item["successful_sources"] for item in payload["summary"]["models"]] == [2, 2]
+    assert [item["mentions"] for item in payload["summary"]["models"]] == [2, 2]
+
+
+def test_source_urls_from_text_extracts_only_urls():
+    text = """
+    # Saved Reels
+
+    - https://www.instagram.com/reel/ONE/?igsh=abc==
+    - [https://www.instagram.com/reel/TWO/](https://www.instagram.com/reel/TWO/)
+    plain text should be ignored
+    """
+
+    assert compare_gemini_video_models._source_urls_from_text(text) == [
+        "https://www.instagram.com/reel/ONE/?igsh=abc==",
+        "https://www.instagram.com/reel/TWO/",
+    ]

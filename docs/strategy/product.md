@@ -1,15 +1,15 @@
-# Mentioned Product Dump
+# Product Decisions And Ideation
 
-Last updated: 2026-06-14
+Last updated: 2026-06-21
 
-This is the single, messy place for Mentioned product thinking: product improvements,
-marketing ideas, positioning, launch angles, user problems, and future bets. Use it as an
-idea bank, not as a committed roadmap.
+This is the canonical home for Mentioned product thinking: product decisions, product
+improvements, UX ideas, marketing ideas, positioning, launch angles, user problems, and future
+bets. Use it as an idea bank and decision log, not as a committed roadmap.
 
 Agents should read this file when discussing product direction, feature ideas, positioning,
 growth, marketing, launch plans, or prioritization. Also read `CONTEXT.md` for current product
-language, `DESIGN.md` for visual/product feel, and `specs/product-ideas.md` for more technical
-roadmap notes.
+language, `DESIGN.md` for visual/product feel, and `docs/strategy/technical.md` for architecture
+and technical decisions that constrain product choices.
 
 ## How To Use This File
 
@@ -17,8 +17,12 @@ roadmap notes.
 - Prefer adding dated notes instead of deleting ideas. Mark ideas as validated, rejected, shipped,
   or superseded when the direction changes.
 - Treat bullets here as prompts for discussion, not decisions.
-- When an idea becomes actionable, promote it into `specs/`, a plan, or an issue and leave a link
-  back here.
+- Before adding a new product idea, search this file and `docs/strategy/technical.md` for similar
+  ideas or decisions. Link or update the existing note when the new discussion is a continuation.
+- After meaningful product ideation, customer/problem framing, positioning research, launch
+  research, or prioritization discussion, add a dated note or update the relevant decision here.
+- When an idea becomes actionable, promote it into a PRD, implementation plan, issue, or
+  `docs/strategy/technical.md` when the main decision is technical. Leave a link back here.
 - Keep product and marketing language aligned with the current framing: Mentioned is a way to save
   recommendations and useful things mentioned in social content. Books are the first wedge, not the
   whole product.
@@ -39,6 +43,22 @@ The near-term product should prove a tight native capture loop:
 
 The long-term product should help users recall saved content by meaning, context, and intention,
 not by exact title, creator, or platform search terms.
+
+## Product Decisions
+
+- The first focused use case is extracting book recommendations from Instagram Reels.
+- The broader product is a personal recommendation memory layer for useful things mentioned in
+  social content.
+- The core object is a generic saved item or mention, not a book. Books are the first surfaced type,
+  not the whole product.
+- The schema already supports multiple mention categories such as books, products, and places, but
+  v1 product surfaces should stay book-first until the broader loop is proven.
+- Prefer "saved item", "mention", and "collection" in specs and broad UI copy; use "book" when the
+  surface is specifically about the v1 book wedge.
+- Product direction by version is informal: v1 proves books, v2 hardens infrastructure and API
+  quality, and v3 can generalize into mixed collections across mention types.
+- Avoid promising unavailable features inside the app. The website can carry future-facing roadmap
+  language and waitlist interest.
 
 ## Idea Intake Template
 

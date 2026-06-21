@@ -1,0 +1,519 @@
+from __future__ import annotations
+
+import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import json
+import os
+from pathlib import Path
+import re
+import sys
+import tempfile
+import time
+from typing import Any
+
+from google.genai.types import GenerateContentConfig
+
+from src.config import get_settings
+from src.extraction.download import download_assets_with_metadata
+from src.extraction.gemini import (
+    EXTRACTION_PROMPT,
+    MENTION_SCHEMA,
+    RETRYABLE_STATUS_CODES,
+    RETRY_DELAYS,
+    _get_client,
+    upload_to_gemini,
+)
+
+
+DEFAULT_MODELS = ("gemini-2.5-flash", "gemini-2.5-flash-lite")
+PRICING_SOURCE = "Gemini Developer API paid tier, standard mode, checked 2026-06-21"
+
+# USD per 1M tokens. Gemini pricing separates audio input from text/image/video input.
+DEFAULT_PRICE_TABLE: dict[str, dict[str, float]] = {
+    "gemini-2.5-flash": {
+        "input_text_image_video": 0.30,
+        "input_audio": 1.00,
+        "output": 2.50,
+    },
+    "gemini-2.5-flash-lite": {
+        "input_text_image_video": 0.10,
+        "input_audio": 0.30,
+        "output": 0.40,
+    },
+}
+
+SOURCE_URL_RE = re.compile(r"https?://[^\s)\]>\"]+")
+
+
+class CompareError(RuntimeError):
+    pass
+
+
+def _env(name: str) -> str | None:
+    value = os.getenv(name)
+    if value is None or not value.strip():
+        return None
+    return value.strip()
+
+
+def _round_seconds(seconds: float) -> float:
+    return round(seconds, 3)
+
+
+def _round_usd(value: float | None) -> float | None:
+    if value is None:
+        return None
+    return round(value, 8)
+
+
+def _normalize_models(models: list[str] | None) -> list[str]:
+    model_names = models or list(DEFAULT_MODELS)
+    normalized: list[str] = []
+    seen = set()
+    for model in model_names:
+        model_name = model.strip()
+        if not model_name or model_name in seen:
+            continue
+        normalized.append(model_name)
+        seen.add(model_name)
+    if not normalized:
+        raise CompareError("At least one model is required")
+    return normalized
+
+
+def _source_urls_from_text(value: str | None) -> list[str]:
+    if not value:
+        return []
+    source_urls: list[str] = []
+    seen = set()
+    for match in SOURCE_URL_RE.finditer(value):
+        source_url = match.group(0).rstrip(".,")
+        if source_url in seen:
+            continue
+        source_urls.append(source_url)
+        seen.add(source_url)
+    return source_urls
+
+
+def _normalize_source_urls(args: argparse.Namespace) -> list[str]:
+    sources: list[str] = []
+    for source_url in args.source_urls or []:
+        sources.extend(_source_urls_from_text(source_url))
+    if args.source_file:
+        sources.extend(_source_urls_from_text(args.source_file.read_text(encoding="utf-8")))
+
+    if not sources:
+        sources.extend(_source_urls_from_text(_env("SOURCE_URLS")))
+    if not sources:
+        sources.extend(_source_urls_from_text(_env("SOURCE_URL")))
+
+    normalized: list[str] = []
+    seen = set()
+    for source_url in sources:
+        if source_url in seen:
+            continue
+        normalized.append(source_url)
+        seen.add(source_url)
+    if not normalized:
+        raise CompareError("Missing source URL. Pass one or more URLs, set SOURCE_URLS, or set SOURCE_URL.")
+    return normalized
+
+
+def _media_summary(path: Path) -> dict[str, Any]:
+    return {
+        "name": path.name,
+        "path": str(path),
+        "suffix": path.suffix,
+        "bytes": path.stat().st_size,
+    }
+
+
+def _int_value(value: Any) -> int:
+    return value if isinstance(value, int) else 0
+
+
+def _modality_name(value: Any) -> str:
+    if value is None:
+        return "UNKNOWN"
+    name = getattr(value, "name", None)
+    if isinstance(name, str):
+        return name.upper()
+    return str(value).split(".")[-1].upper()
+
+
+def _details_by_modality(details: Any) -> dict[str, int]:
+    totals: dict[str, int] = {}
+    if not isinstance(details, list):
+        return totals
+    for item in details:
+        if not isinstance(item, dict):
+            continue
+        modality = _modality_name(item.get("modality"))
+        token_count = _int_value(item.get("token_count"))
+        if token_count:
+            totals[modality] = totals.get(modality, 0) + token_count
+    return totals
+
+
+def _usage_token_summary(usage: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not usage:
+        return None
+    prompt_by_modality = _details_by_modality(usage.get("prompt_tokens_details"))
+    output_tokens = (
+        _int_value(usage.get("candidates_token_count"))
+        + _int_value(usage.get("thoughts_token_count"))
+    )
+    return {
+        "prompt_tokens": _int_value(usage.get("prompt_token_count")),
+        "prompt_tokens_by_modality": prompt_by_modality,
+        "candidate_tokens": _int_value(usage.get("candidates_token_count")),
+        "thoughts_tokens": _int_value(usage.get("thoughts_token_count")),
+        "output_billable_tokens": output_tokens,
+        "total_tokens": _int_value(usage.get("total_token_count")),
+    }
+
+
+def _estimate_cost(model: str, usage: dict[str, Any] | None) -> dict[str, Any] | None:
+    rates = DEFAULT_PRICE_TABLE.get(model)
+    token_summary = _usage_token_summary(usage)
+    if not rates or not token_summary:
+        return None
+
+    prompt_by_modality = token_summary["prompt_tokens_by_modality"]
+    audio_input_tokens = prompt_by_modality.get("AUDIO", 0)
+    prompt_tokens = token_summary["prompt_tokens"]
+    non_audio_input_tokens = max(prompt_tokens - audio_input_tokens, 0)
+    output_tokens = token_summary["output_billable_tokens"]
+
+    input_text_image_video_usd = non_audio_input_tokens * rates["input_text_image_video"] / 1_000_000
+    input_audio_usd = audio_input_tokens * rates["input_audio"] / 1_000_000
+    output_usd = output_tokens * rates["output"] / 1_000_000
+    total_usd = input_text_image_video_usd + input_audio_usd + output_usd
+
+    return {
+        "currency": "USD",
+        "pricing_source": PRICING_SOURCE,
+        "rates_per_million_tokens": rates,
+        "input_text_image_video_tokens": non_audio_input_tokens,
+        "input_audio_tokens": audio_input_tokens,
+        "output_tokens": output_tokens,
+        "input_text_image_video_usd": _round_usd(input_text_image_video_usd),
+        "input_audio_usd": _round_usd(input_audio_usd),
+        "output_usd": _round_usd(output_usd),
+        "total_usd": _round_usd(total_usd),
+    }
+
+
+def _jsonable_metadata(value: object) -> dict | None:
+    if value is None:
+        return None
+    model_dump = getattr(value, "model_dump", None)
+    if callable(model_dump):
+        return model_dump(mode="json", exclude_none=True)
+    if isinstance(value, dict):
+        return value
+    return None
+
+
+def _extract_mentions_for_model(paths: list[Path], *, model: str) -> dict[str, Any]:
+    settings = get_settings()
+    client = _get_client()
+    file_parts = [
+        upload_to_gemini(client, media_path, use_vertexai=settings.gemini.use_vertexai)
+        for media_path in paths
+    ]
+
+    last_exc = None
+    for attempt in range(settings.gemini.gemini_total_attempts):
+        try:
+            response = client.models.generate_content(
+                model=model,
+                contents=[*file_parts, EXTRACTION_PROMPT],
+                config=GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=MENTION_SCHEMA,
+                    temperature=0.1,
+                ),
+            )
+            try:
+                raw = json.loads(response.text)
+            except (json.JSONDecodeError, TypeError):
+                raw = {"mentions": []}
+            return {
+                "raw": raw,
+                "usage": _jsonable_metadata(getattr(response, "usage_metadata", None)),
+            }
+        except Exception as exc:
+            last_exc = exc
+            exc_str = str(exc)
+            is_retryable = any(str(code) in exc_str for code in RETRYABLE_STATUS_CODES)
+            if not is_retryable or attempt == settings.gemini.gemini_total_attempts - 1:
+                raise
+            time.sleep(RETRY_DELAYS[attempt])
+
+    raise last_exc
+
+
+def _run_model(paths: list[Path], model: str) -> dict[str, Any]:
+    started = time.monotonic()
+    try:
+        response = _extract_mentions_for_model(paths, model=model)
+    except Exception as exc:
+        return {
+            "model": model,
+            "ok": False,
+            "duration_seconds": _round_seconds(time.monotonic() - started),
+            "error": f"{type(exc).__name__}: {exc}",
+        }
+
+    raw = response.get("raw", {"mentions": []})
+    usage = response.get("usage")
+    mentions = raw.get("mentions") if isinstance(raw, dict) else None
+    return {
+        "model": model,
+        "ok": True,
+        "duration_seconds": _round_seconds(time.monotonic() - started),
+        "mention_count": len(mentions) if isinstance(mentions, list) else None,
+        "usage": usage,
+        "token_summary": _usage_token_summary(usage if isinstance(usage, dict) else None),
+        "estimated_cost": _estimate_cost(model, usage if isinstance(usage, dict) else None),
+        "raw": raw,
+    }
+
+
+def _compare_in_dir(source_url: str, models: list[str], media_dir: Path, *, keep_media: bool) -> dict[str, Any]:
+    download_started = time.monotonic()
+    assets = download_assets_with_metadata(source_url, media_dir)
+    download_seconds = _round_seconds(time.monotonic() - download_started)
+    paths = assets.paths
+
+    payload: dict[str, Any] = {
+        "source_url": source_url,
+        "models": models,
+        "download": {
+            "duration_seconds": download_seconds,
+            "media_dir": str(media_dir),
+            "media_dir_kept": keep_media,
+            "media_count": len(paths),
+            "media": [_media_summary(path) for path in paths],
+            "thumbnail_url": assets.thumbnail_url,
+            "source_creator_handle": assets.source_creator_handle,
+        },
+        "results": [],
+    }
+
+    if not paths:
+        payload["error"] = "No media downloaded"
+        return payload
+
+    with ThreadPoolExecutor(max_workers=len(models)) as executor:
+        futures = {
+            executor.submit(_run_model, paths, model): model
+            for model in models
+        }
+        results_by_model = {
+            futures[future]: future.result()
+            for future in as_completed(futures)
+        }
+
+    payload["results"] = [results_by_model[model] for model in models]
+    return payload
+
+
+def _media_dir_for_source(media_dir: Path, source_count: int, index: int) -> Path:
+    if source_count == 1:
+        return media_dir
+    return media_dir / f"source_{index + 1:03d}"
+
+
+def compare_models(
+    source_url: str,
+    *,
+    models: list[str] | None = None,
+    media_dir: Path | None = None,
+) -> dict[str, Any]:
+    model_names = _normalize_models(models)
+    if media_dir:
+        media_dir.mkdir(parents=True, exist_ok=True)
+        return _compare_in_dir(source_url, model_names, media_dir, keep_media=True)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        return _compare_in_dir(source_url, model_names, Path(tmp), keep_media=False)
+
+
+def _summarize_batch(sources: list[dict[str, Any]], models: list[str]) -> dict[str, Any]:
+    by_model = {
+        model: {
+            "model": model,
+            "sources": 0,
+            "successful_sources": 0,
+            "failed_sources": 0,
+            "mentions": 0,
+            "duration_seconds": 0.0,
+            "prompt_tokens": 0,
+            "output_billable_tokens": 0,
+            "total_tokens": 0,
+            "estimated_cost_usd": 0.0,
+            "cost_estimate_missing": False,
+        }
+        for model in models
+    }
+
+    failed_downloads = 0
+    for source in sources:
+        if source.get("error") == "No media downloaded" or "download_error" in source:
+            failed_downloads += 1
+        for result in source.get("results", []):
+            if not isinstance(result, dict):
+                continue
+            model = result.get("model")
+            if not isinstance(model, str) or model not in by_model:
+                continue
+            item = by_model[model]
+            item["sources"] += 1
+            item["duration_seconds"] += float(result.get("duration_seconds") or 0)
+            if result.get("ok") is True:
+                item["successful_sources"] += 1
+                item["mentions"] += int(result.get("mention_count") or 0)
+            else:
+                item["failed_sources"] += 1
+
+            token_summary = result.get("token_summary")
+            if isinstance(token_summary, dict):
+                item["prompt_tokens"] += int(token_summary.get("prompt_tokens") or 0)
+                item["output_billable_tokens"] += int(token_summary.get("output_billable_tokens") or 0)
+                item["total_tokens"] += int(token_summary.get("total_tokens") or 0)
+
+            estimated_cost = result.get("estimated_cost")
+            if isinstance(estimated_cost, dict) and isinstance(estimated_cost.get("total_usd"), (int, float)):
+                item["estimated_cost_usd"] += float(estimated_cost["total_usd"])
+            elif result.get("ok") is True:
+                item["cost_estimate_missing"] = True
+
+    model_summaries = []
+    total_cost_usd = 0.0
+    missing_cost = False
+    for model in models:
+        item = by_model[model]
+        item["duration_seconds"] = _round_seconds(item["duration_seconds"])
+        item["estimated_cost_usd"] = _round_usd(item["estimated_cost_usd"])
+        total_cost_usd += item["estimated_cost_usd"] or 0
+        missing_cost = missing_cost or bool(item["cost_estimate_missing"])
+        model_summaries.append(item)
+
+    return {
+        "source_count": len(sources),
+        "failed_downloads": failed_downloads,
+        "models": model_summaries,
+        "estimated_total_cost_usd": _round_usd(total_cost_usd),
+        "cost_estimate_missing": missing_cost,
+        "pricing_source": PRICING_SOURCE,
+    }
+
+
+def compare_sources(
+    source_urls: list[str],
+    *,
+    models: list[str] | None = None,
+    media_dir: Path | None = None,
+) -> dict[str, Any]:
+    model_names = _normalize_models(models)
+    started = time.monotonic()
+    sources: list[dict[str, Any]] = []
+
+    if media_dir:
+        media_dir.mkdir(parents=True, exist_ok=True)
+        for index, source_url in enumerate(source_urls):
+            source_media_dir = _media_dir_for_source(media_dir, len(source_urls), index)
+            source_media_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                sources.append(
+                    _compare_in_dir(source_url, model_names, source_media_dir, keep_media=True)
+                )
+            except Exception as exc:
+                sources.append({"source_url": source_url, "download_error": f"{type(exc).__name__}: {exc}", "results": []})
+    else:
+        for source_url in source_urls:
+            with tempfile.TemporaryDirectory() as tmp:
+                try:
+                    sources.append(_compare_in_dir(source_url, model_names, Path(tmp), keep_media=False))
+                except Exception as exc:
+                    sources.append({"source_url": source_url, "download_error": f"{type(exc).__name__}: {exc}", "results": []})
+
+    return {
+        "models": model_names,
+        "total_duration_seconds": _round_seconds(time.monotonic() - started),
+        "summary": _summarize_batch(sources, model_names),
+        "sources": sources,
+    }
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Download Instagram sources and compare Gemini video extraction models."
+    )
+    parser.add_argument(
+        "source_urls",
+        nargs="*",
+        help="Instagram Reel/post URLs. Defaults to SOURCE_URLS or SOURCE_URL.",
+    )
+    parser.add_argument(
+        "--source-file",
+        type=Path,
+        default=None,
+        help="Text file containing source URLs separated by whitespace, commas, or newlines.",
+    )
+    parser.add_argument(
+        "--model",
+        action="append",
+        dest="models",
+        default=None,
+        help=(
+            "Gemini model to run. Repeat to compare more models. "
+            "Defaults to gemini-2.5-flash and gemini-2.5-flash-lite."
+        ),
+    )
+    parser.add_argument(
+        "--media-dir",
+        type=Path,
+        default=None,
+        help="Directory for downloaded media. Multiple sources use source_001, source_002, ... subdirectories.",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Optional path to write the comparison JSON.",
+    )
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    try:
+        source_urls = _normalize_source_urls(args)
+        payload = compare_sources(source_urls, models=args.models, media_dir=args.media_dir)
+    except Exception as exc:
+        print(f"comparison failed: {exc}", file=sys.stderr)
+        return 1
+
+    output = json.dumps(payload, indent=2, sort_keys=True, default=str)
+    if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(f"{output}\n", encoding="utf-8")
+    print(output)
+
+    results = [
+        result
+        for source in payload.get("sources", [])
+        if isinstance(source, dict)
+        for result in source.get("results", [])
+        if isinstance(result, dict)
+    ]
+    if results and not any(result.get("ok") is True for result in results):
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
