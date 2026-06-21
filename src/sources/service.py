@@ -4,6 +4,7 @@ from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import update
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from src.ids import parse_uuid
@@ -13,6 +14,20 @@ from src.sources.queue import enqueue_source_extraction
 
 
 def save_source_for_user(session: Session, owner_id: str, raw_url: str) -> SavedSource:
+    for attempt in range(2):
+        try:
+            return _save_source_for_user_once(session, owner_id, raw_url)
+        except IntegrityError:
+            session.rollback()
+            if attempt == 1:
+                raise
+        except Exception:
+            session.rollback()
+            raise
+    raise RuntimeError("Could not save source after retry")
+
+
+def _save_source_for_user_once(session: Session, owner_id: str, raw_url: str) -> SavedSource:
     owner_uuid = parse_uuid(owner_id)
     identity = identify_source(raw_url, require_https=False)
     should_enqueue = False

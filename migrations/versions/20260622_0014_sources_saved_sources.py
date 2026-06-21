@@ -104,8 +104,57 @@ def upgrade() -> None:
     op.execute("CREATE POLICY source_items_worker_all ON public.source_items FOR ALL TO mentioned_worker USING (true) WITH CHECK (true)")
     op.execute("CREATE POLICY saved_sources_worker_all ON public.saved_sources FOR ALL TO mentioned_worker USING (true) WITH CHECK (true)")
 
+    op.execute("create extension if not exists pgmq")
+    op.execute(
+        """
+        do $$
+        begin
+          if not exists (
+            select 1
+            from pgmq.list_queues()
+            where queue_name = 'extract_sources'
+          ) then
+            perform pgmq.create('extract_sources');
+          end if;
+        end
+        $$;
+        """
+    )
+
+    op.execute("GRANT USAGE ON SCHEMA pgmq TO mentioned_api, mentioned_worker")
+    op.execute("GRANT EXECUTE ON FUNCTION pgmq.send(text, jsonb, integer) TO mentioned_api")
+    op.execute(
+        """
+        GRANT EXECUTE ON FUNCTION pgmq.read_with_poll(text, integer, integer, integer, integer, jsonb)
+        TO mentioned_worker
+        """
+    )
+    op.execute("GRANT EXECUTE ON FUNCTION pgmq.archive(text, bigint) TO mentioned_worker")
+    op.execute("GRANT USAGE ON TYPE pgmq.message_record TO mentioned_worker")
+
+    op.execute("GRANT SELECT, INSERT ON TABLE pgmq.q_extract_sources TO mentioned_api")
+    op.execute("GRANT SELECT, UPDATE, DELETE ON TABLE pgmq.q_extract_sources TO mentioned_worker")
+    op.execute("GRANT SELECT, INSERT ON TABLE pgmq.a_extract_sources TO mentioned_worker")
+    op.execute("GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA pgmq TO mentioned_api, mentioned_worker")
+
 
 def downgrade() -> None:
+    op.execute("REVOKE USAGE, SELECT ON ALL SEQUENCES IN SCHEMA pgmq FROM mentioned_api, mentioned_worker")
+    op.execute("REVOKE SELECT, INSERT ON TABLE pgmq.a_extract_sources FROM mentioned_worker")
+    op.execute("REVOKE SELECT, UPDATE, DELETE ON TABLE pgmq.q_extract_sources FROM mentioned_worker")
+    op.execute("REVOKE SELECT, INSERT ON TABLE pgmq.q_extract_sources FROM mentioned_api")
+    op.execute("REVOKE USAGE ON TYPE pgmq.message_record FROM mentioned_worker")
+    op.execute("REVOKE EXECUTE ON FUNCTION pgmq.archive(text, bigint) FROM mentioned_worker")
+    op.execute(
+        """
+        REVOKE EXECUTE ON FUNCTION pgmq.read_with_poll(text, integer, integer, integer, integer, jsonb)
+        FROM mentioned_worker
+        """
+    )
+    op.execute("REVOKE EXECUTE ON FUNCTION pgmq.send(text, jsonb, integer) FROM mentioned_api")
+    op.execute("REVOKE USAGE ON SCHEMA pgmq FROM mentioned_api, mentioned_worker")
+    op.execute("select pgmq.drop_queue('extract_sources')")
+
     op.execute("DROP POLICY IF EXISTS saved_sources_worker_all ON public.saved_sources")
     op.execute("DROP POLICY IF EXISTS source_items_worker_all ON public.source_items")
     op.execute("DROP POLICY IF EXISTS sources_worker_all ON public.sources")
