@@ -5,13 +5,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, SafeAreaView, useWindowDimensions } from 'react-native';
 
 import {
-  clearAccessTokenProvider,
   deleteAccount,
-  devAccessToken,
   errorMessage,
-  isDevAuthEnabled,
   PRIVACY_POLICY_URL,
-  setAccessTokenProvider,
 } from '@/api';
 import type { BookMention } from '@/captures';
 import { PasteSheet, ProfileSheet, ReelMenuSheet, RemoveBookSheet } from '@/components/sheets';
@@ -20,11 +16,11 @@ import {
   type PendingSharedSource,
 } from '@/features/captures/pending-shared-source';
 import { useCaptures } from '@/features/captures/use-captures';
+import { useAuthSession } from '@/features/auth/use-auth-session';
 import {
   addNotificationTapListener,
   addPushTokenRegistrationListener,
   clearLastNotificationResponse,
-  disableRegisteredPushToken,
   getLastNotificationJobId,
   registerForPushNotificationsAsync,
 } from '@/notifications';
@@ -32,14 +28,6 @@ import { AuthLoadingScreen } from '@/screens/auth-loading-screen';
 import { HomeScreen } from '@/screens/home-screen';
 import { ReelDetailScreen } from '@/screens/reel-detail-screen';
 import { SignedOutScreen } from '@/screens/signed-out-screen';
-import { signInWithApple, signInWithGoogle } from '@/auth-signin';
-import {
-  AuthCanceledError,
-  type AuthProvider,
-  currentAccessToken,
-  isSupabaseConfigured,
-  supabase,
-} from '@/supabase';
 import { parseMentionedShareDeepLink } from '@/utils/shared-source-url';
 import { spacing } from '@/theme';
 import { styles } from '@/styles';
@@ -55,18 +43,25 @@ const pendingSharedSourceStore = createPendingSharedSourceStore(AsyncStorage);
 export default function App() {
   const { width } = useWindowDimensions();
   const contentWidth = Math.min(width, 430);
-  const [isAuthLoading, setIsAuthLoading] = useState(true);
-  const [isSignedIn, setIsSignedIn] = useState(false);
-  const [accountLabel, setAccountLabel] = useState('Signed in');
+  const {
+    isAuthLoading,
+    isSignedIn,
+    accountLabel,
+    authError,
+    authProviderInFlight,
+    profileError,
+    isSigningOut,
+    isDeletingAccount,
+    setAuthError,
+    setProfileError,
+    handleSignIn,
+    handleSignOut,
+    handleDeleteAccount,
+  } = useAuthSession();
   const [sheet, setSheet] = useState<Sheet>(null);
-  const [authError, setAuthError] = useState<string | null>(null);
   const [shareLinkError, setShareLinkError] = useState<string | null>(null);
-  const [authProviderInFlight, setAuthProviderInFlight] = useState<AuthProvider | null>(null);
-  const [profileError, setProfileError] = useState<string | null>(null);
   const [selectedBook, setSelectedBook] = useState<BookMention | null>(null);
   const [bookRemovalError, setBookRemovalError] = useState<string | null>(null);
-  const [isSigningOut, setIsSigningOut] = useState(false);
-  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [confirmingDeleteAccount, setConfirmingDeleteAccount] = useState(false);
   const [registeredPushToken, setRegisteredPushToken] = useState<string | null>(null);
   const [pendingSharedSource, setPendingSharedSource] = useState<PendingSharedSourceState | null>(null);
@@ -230,69 +225,6 @@ export default function App() {
     },
     [clearSharedCaptureError, setSelectedCaptureId, setSharedCaptureError],
   );
-
-  useEffect(() => {
-    if (isDevAuthEnabled) {
-      setAccessTokenProvider(devAccessToken);
-      setIsSignedIn(true);
-      setAccountLabel('Dev User');
-      setIsAuthLoading(false);
-      return () => {
-        clearAccessTokenProvider();
-      };
-    }
-
-    if (!isSupabaseConfigured) {
-      clearAccessTokenProvider();
-      setIsSignedIn(true);
-      setAccountLabel('Dev User');
-      setIsAuthLoading(false);
-      return;
-    }
-
-    setAccessTokenProvider(currentAccessToken);
-    let isMounted = true;
-
-    void supabase.auth
-      .getSession()
-      .then(({ data }) => {
-        if (!isMounted) {
-          return;
-        }
-        setIsSignedIn(Boolean(data.session));
-        setAccountLabel(data.session?.user.email || 'Signed in');
-      })
-      .catch(() => {
-        if (!isMounted) {
-          return;
-        }
-        setIsSignedIn(false);
-        setAuthError('Could not restore your sign-in session.');
-      })
-      .finally(() => {
-        if (isMounted) {
-          setIsAuthLoading(false);
-        }
-      });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsSignedIn(Boolean(session));
-      setAccountLabel(session?.user.email || 'Signed in');
-      if (session) {
-        setAuthError(null);
-      } else {
-        setRegisteredPushToken(null);
-      }
-    });
-
-    return () => {
-      isMounted = false;
-      subscription.unsubscribe();
-      clearAccessTokenProvider();
-    };
-  }, []);
 
   useEffect(() => {
     if (initialShareUrlProcessedRef.current) {
@@ -489,67 +421,21 @@ export default function App() {
     }
   }, [isAuthLoading, isSignedIn, pendingSharedSource, submitPendingSharedSource]);
 
-  const handleSignIn = useCallback(async (provider: AuthProvider) => {
-    setAuthError(null);
-    setAuthProviderInFlight(provider);
-    try {
-      if (provider === 'apple') {
-        await signInWithApple();
-      } else {
-        await signInWithGoogle();
-      }
-    } catch (error) {
-      if (error instanceof AuthCanceledError) {
-        return;
-      }
-      setAuthError(errorMessage(error, 'Could not complete sign in.'));
-    } finally {
-      setAuthProviderInFlight(null);
-    }
-  }, []);
+  const signOutAndClose = useCallback(async () => {
+    await handleSignOut(registeredPushToken);
+    setRegisteredPushToken(null);
+    setSheet(null);
+  }, [handleSignOut, registeredPushToken]);
 
-  const handleSignOut = useCallback(async () => {
-    setProfileError(null);
-    setIsSigningOut(true);
-    try {
-      if (isDevAuthEnabled) {
-        setRegisteredPushToken(null);
-        setSheet(null);
-        return;
-      }
-
-      await disableRegisteredPushToken(registeredPushToken);
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        throw error;
-      }
-      setRegisteredPushToken(null);
-      setSheet(null);
-    } catch (error) {
-      setProfileError(errorMessage(error, 'Could not sign out.'));
-    } finally {
-      setIsSigningOut(false);
+  const deleteAccountAndClose = useCallback(async () => {
+    const didDelete = await handleDeleteAccount(registeredPushToken, deleteAccount);
+    if (!didDelete) {
+      return;
     }
-  }, [registeredPushToken]);
-
-  const handleDeleteAccount = useCallback(async () => {
-    setProfileError(null);
-    setIsDeletingAccount(true);
-    try {
-      await deleteAccount();
-      await disableRegisteredPushToken(registeredPushToken);
-      if (!isDevAuthEnabled) {
-        await supabase.auth.signOut();
-      }
-      setRegisteredPushToken(null);
-      setConfirmingDeleteAccount(false);
-      setSheet(null);
-    } catch (error) {
-      setProfileError(errorMessage(error, 'Could not delete your account.'));
-    } finally {
-      setIsDeletingAccount(false);
-    }
-  }, [registeredPushToken]);
+    setRegisteredPushToken(null);
+    setConfirmingDeleteAccount(false);
+    setSheet(null);
+  }, [handleDeleteAccount, registeredPushToken]);
 
   const closeProfileSheet = useCallback(() => {
     setProfileError(null);
@@ -684,9 +570,9 @@ export default function App() {
         isDeletingAccount={isDeletingAccount}
         confirmingDeleteAccount={confirmingDeleteAccount}
         onClose={closeProfileSheet}
-        onSignOut={() => void handleSignOut()}
+        onSignOut={() => void signOutAndClose()}
         onRequestDeleteAccount={() => setConfirmingDeleteAccount(true)}
-        onConfirmDeleteAccount={() => void handleDeleteAccount()}
+        onConfirmDeleteAccount={() => void deleteAccountAndClose()}
         onCancelDeleteAccount={() => setConfirmingDeleteAccount(false)}
         privacyPolicyUrl={PRIVACY_POLICY_URL}
       />

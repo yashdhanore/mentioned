@@ -18,6 +18,9 @@ AUTH_ORBIT_REEL_PREVIEW = (
 )
 API = REPO_ROOT / "mobile" / "src" / "api.ts"
 USE_CAPTURES = REPO_ROOT / "mobile" / "src" / "features" / "captures" / "use-captures.ts"
+AUTH_SESSION = (
+    REPO_ROOT / "mobile" / "src" / "features" / "auth" / "use-auth-session.ts"
+)
 
 
 def test_signed_out_screen_offers_sign_in_with_apple() -> None:
@@ -142,6 +145,7 @@ def test_signed_out_preview_uses_native_reduced_motion_safe_orbit() -> None:
 def test_mobile_dev_auth_bypass_is_explicit_and_production_blocked() -> None:
     app_source = APP.read_text()
     api_source = API.read_text()
+    auth_source = AUTH_SESSION.read_text()
     captures_source = USE_CAPTURES.read_text()
 
     assert "EXPO_PUBLIC_AUTH_MODE" in api_source
@@ -149,7 +153,8 @@ def test_mobile_dev_auth_bypass_is_explicit_and_production_blocked() -> None:
     assert "devAccessToken" in api_source
     assert "Production mobile builds must not set EXPO_PUBLIC_AUTH_MODE=dev." in api_source
     assert "Production mobile builds must not define EXPO_PUBLIC_DEV_USER_ID." in api_source
-    assert "setAccessTokenProvider(devAccessToken)" in app_source
+    assert "useAuthSession" in app_source
+    assert "setAccessTokenProvider(devAccessToken)" in auth_source
     assert "isDevAuthEnabled" in captures_source
 
 
