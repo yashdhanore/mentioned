@@ -3,25 +3,21 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, status
-from sqlmodel import select
 
 from src.auth.dependencies import CallerDep
 from src.config import get_settings
 from src.extraction.url import SourceUrlError, validate_instagram_url
-from src.ids import parse_uuid
 from src.jobs.dependencies import SessionDep, ValidJobDep
 from src.jobs.exceptions import JobNotFound, QuotaExceeded, RateLimited
-from src.jobs.models import Job
+from src.jobs.read_models import job_detail_response, job_list_response
 from src.jobs.schemas import (
     CreateJobRequest,
     DeleteJobResponse,
     JobCreatedResponse,
     JobListItem,
     JobResponse,
-    MentionInJob,
 )
 from src.jobs import service as job_service
-from src.mentions.models import Mention
 
 router = APIRouter(tags=["jobs"])
 
@@ -66,24 +62,7 @@ async def list_jobs(
     caller: CallerDep,
     session: SessionDep,
 ) -> list[JobListItem]:
-    stmt = (
-        select(Job)
-        .where(Job.owner_id == parse_uuid(caller.subject_id))
-        .order_by(Job.created_at.desc())
-        .limit(50)
-    )
-    jobs = list(session.exec(stmt).all())
-    return [
-        JobListItem(
-            job_id=str(j.id),
-            status=j.status,
-            source_url=j.source_url,
-            thumbnail_url=j.thumbnail_url,
-            source_creator_handle=j.source_creator_handle,
-            created_at=j.created_at,
-        )
-        for j in jobs
-    ]
+    return job_list_response(session, caller.subject_id)
 
 
 @router.get("/v1/jobs/{job_id}")
@@ -91,34 +70,7 @@ async def get_job(
     job: ValidJobDep,
     session: SessionDep,
 ) -> JobResponse:
-    mentions = list(
-        session.exec(
-            select(Mention).where(Mention.job_id == job.id, Mention.is_deleted == False)
-        ).all()
-    )
-    return JobResponse(
-        job_id=str(job.id),
-        status=job.status,
-        source_url=job.source_url,
-        thumbnail_url=job.thumbnail_url,
-        source_creator_handle=job.source_creator_handle,
-        error_message=job.error_message,
-        created_at=job.created_at,
-        finished_at=job.finished_at,
-        mentions=[
-            MentionInJob(
-                id=str(m.id),
-                book_id=str(m.book_id) if m.book_id else None,
-                title=m.title,
-                author=m.author,
-                category=m.category,
-                confidence=m.confidence,
-                google_books_url=m.google_books_url,
-                cover_image_url=m.cover_image_url,
-            )
-            for m in mentions
-        ],
-    )
+    return job_detail_response(session, job)
 
 
 @router.delete("/v1/jobs/{job_id}")
