@@ -1,6 +1,7 @@
 # Backend Agent Guide
 
 `src/` contains the FastAPI backend, worker, SQLModel data access, job queues, auth, mentions, books, push notifications, storage helpers, waitlist endpoints, and extraction integration points.
+Saved source ingestion behavior lives under `src/ingestion/`; keep `src/worker.py` focused on process wiring.
 
 ## Commands
 

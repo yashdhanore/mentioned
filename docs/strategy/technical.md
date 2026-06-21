@@ -85,6 +85,17 @@ The work splits along two independent axes:
 - Use LLM calls as a fallback or confidence booster rather than the default for every input.
 - Track provider cost, latency, and confidence per extraction.
 
+### 2026-06-21 - Behavior-Preserving Ingestion Module Seam
+
+- Status: Accepted as the first architecture step before production ingestion hardening.
+- Product constraint: Protects the save -> extract -> revisit loop and frozen v1 HTTP contract while
+  making worker internals easier to harden in place.
+- Notes: Saved source processing now belongs behind `src.ingestion.processor`, extract queue message
+  handling behind `src.ingestion.queue_worker`, and push queue message handling behind
+  `src.push.worker`. This does not add Axis A hardening yet; claim safety, timeouts, idempotency,
+  concurrency, retry budgets, and cost instrumentation remain in the future
+  *production-ingestion-hardening* plan.
+
 ### Book Catalog And Reading List Support
 
 > Product intent lives in `docs/strategy/product.md`. Technical work here should support the

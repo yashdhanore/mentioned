@@ -3,13 +3,14 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID, uuid4
 
+import pytest
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from src.jobs.models import Job, JobStatus
 from src.push.expo import PushDeliveryResult, PushDeliveryRetryableError
 from src.push.models import PushToken
 from src.push.queue import PushNotificationMessage
-from src.worker import process_push_notification_message
+from src.push.worker import process_push_notification_message
 
 
 OWNER = UUID("00000000-0000-4000-8000-000000000001")
@@ -29,7 +30,7 @@ def test_push_worker_archives_missing_job(monkeypatch):
     def fake_archive(_session: Session, msg_id: int) -> None:
         archived.append(msg_id)
 
-    monkeypatch.setattr("src.worker.archive_push_notification_message", fake_archive)
+    monkeypatch.setattr("src.push.worker.archive_push_notification_message", fake_archive)
 
     try:
         process_push_notification_message(
@@ -54,8 +55,7 @@ def test_push_worker_leaves_pending_job_unarchived(monkeypatch):
         sent.append(tokens)
         return PushDeliveryResult(disabled_tokens=set())
 
-    monkeypatch.setattr("src.worker.archive_push_notification_message", fake_archive)
-    monkeypatch.setattr("src.worker.send_job_push_notifications", fake_send)
+    monkeypatch.setattr("src.push.worker.archive_push_notification_message", fake_archive)
 
     try:
         with Session(engine) as session:
@@ -71,6 +71,7 @@ def test_push_worker_leaves_pending_job_unarchived(monkeypatch):
         process_push_notification_message(
             PushNotificationMessage(msg_id=21, job_id=job.id, read_count=1),
             engine,
+            send_notifications=fake_send,
         )
     finally:
         SQLModel.metadata.drop_all(engine)
@@ -79,7 +80,8 @@ def test_push_worker_leaves_pending_job_unarchived(monkeypatch):
     assert sent == []
 
 
-def test_push_worker_sends_active_owner_tokens_and_disables_invalid(monkeypatch):
+@pytest.mark.parametrize("status", [JobStatus.DONE, JobStatus.FAILED])
+def test_push_worker_sends_active_owner_tokens_and_disables_invalid(monkeypatch, status: JobStatus):
     engine = _engine()
     archived = []
     sent = []
@@ -91,15 +93,14 @@ def test_push_worker_sends_active_owner_tokens_and_disables_invalid(monkeypatch)
         sent.append((job.id, tokens))
         return PushDeliveryResult(disabled_tokens={"ExpoPushToken[invalid]"})
 
-    monkeypatch.setattr("src.worker.archive_push_notification_message", fake_archive)
-    monkeypatch.setattr("src.worker.send_job_push_notifications", fake_send)
+    monkeypatch.setattr("src.push.worker.archive_push_notification_message", fake_archive)
 
     try:
         with Session(engine) as session:
             job = Job(
                 owner_id=OWNER,
                 source_url="https://www.instagram.com/reel/DONE/",
-                status=JobStatus.DONE,
+                status=status,
                 finished_at=datetime.utcnow(),
             )
             session.add(job)
@@ -138,6 +139,7 @@ def test_push_worker_sends_active_owner_tokens_and_disables_invalid(monkeypatch)
         process_push_notification_message(
             PushNotificationMessage(msg_id=22, job_id=job.id, read_count=1),
             engine,
+            send_notifications=fake_send,
         )
 
         with Session(engine) as session:
@@ -167,8 +169,7 @@ def test_push_worker_retries_request_level_delivery_failure(monkeypatch):
     def fake_send(_job: Job, _tokens: list[str]) -> PushDeliveryResult:
         raise PushDeliveryRetryableError("network down")
 
-    monkeypatch.setattr("src.worker.archive_push_notification_message", fake_archive)
-    monkeypatch.setattr("src.worker.send_job_push_notifications", fake_send)
+    monkeypatch.setattr("src.push.worker.archive_push_notification_message", fake_archive)
 
     try:
         with Session(engine) as session:
@@ -192,6 +193,7 @@ def test_push_worker_retries_request_level_delivery_failure(monkeypatch):
         process_push_notification_message(
             PushNotificationMessage(msg_id=23, job_id=job.id, read_count=1),
             engine,
+            send_notifications=fake_send,
         )
     finally:
         SQLModel.metadata.drop_all(engine)
