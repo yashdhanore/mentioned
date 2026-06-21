@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from uuid import UUID
 
+import pytest
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from src.sources.models import SavedSource, Source, SourceItem, SourceStatus
@@ -48,3 +50,23 @@ def test_source_saved_source_and_items_round_trip(session: Session) -> None:
         session.exec(select(SavedSource).where(SavedSource.owner_id == OWNER)).one().source_id
         == source.id
     )
+
+
+def test_saved_source_rejects_duplicate_owner_source(session: Session) -> None:
+    source = Source(
+        source_key="instagram:reel:DUPLICATE",
+        platform="instagram",
+        source_type="reel",
+        external_id="DUPLICATE",
+        canonical_url="https://www.instagram.com/reel/DUPLICATE/",
+        status=SourceStatus.DONE,
+    )
+    session.add(source)
+    session.commit()
+    session.refresh(source)
+
+    session.add(SavedSource(owner_id=OWNER, source_id=source.id))
+    session.add(SavedSource(owner_id=OWNER, source_id=source.id))
+
+    with pytest.raises(IntegrityError):
+        session.commit()

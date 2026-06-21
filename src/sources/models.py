@@ -5,6 +5,7 @@ from enum import StrEnum
 from typing import Optional
 from uuid import UUID, uuid4
 
+from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 from src.books.models import Book  # noqa: F401 - register foreign key target
@@ -55,6 +56,9 @@ class SourceItem(SQLModel, table=True):
 
 class SavedSource(SQLModel, table=True):
     __tablename__ = "saved_sources"
+    __table_args__ = (
+        UniqueConstraint("owner_id", "source_id", name="saved_sources_owner_source_key"),
+    )
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     owner_id: UUID = Field(nullable=False, index=True)
