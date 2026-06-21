@@ -12,6 +12,7 @@ from src.config import get_settings
 from src.database import check_api_database_role, create_db_and_tables
 from src.jobs.exceptions import JobError
 from src.mentions.exceptions import MentionError
+from src.sources.exceptions import SourceError
 
 
 settings = get_settings()
@@ -51,6 +52,14 @@ async def job_error_handler(_: object, exc: JobError) -> JSONResponse:
 
 @app.exception_handler(MentionError)
 async def mention_error_handler(_: object, exc: MentionError) -> JSONResponse:
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error_code": exc.error_code, "message": exc.message},
+    )
+
+
+@app.exception_handler(SourceError)
+async def source_error_handler(_: object, exc: SourceError) -> JSONResponse:
     return JSONResponse(
         status_code=exc.status_code,
         content={"error_code": exc.error_code, "message": exc.message},

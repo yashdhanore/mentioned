@@ -11,6 +11,8 @@ from src.sources.models import SavedSource, Source, SourceItem, SourceStatus
 from src.sources.service import (
     claim_source_for_processing,
     complete_source_processing,
+    count_active_saved_sources,
+    count_saved_sources_created_since,
     delete_saved_source,
     fail_source_processing,
     recover_stale_sources,
@@ -20,6 +22,7 @@ from src.sources.service import (
 
 OWNER = "00000000-0000-4000-8000-000000000001"
 OWNER_UUID = UUID(OWNER)
+OTHER_OWNER = "00000000-0000-4000-8000-000000000002"
 
 
 def test_save_source_for_user_creates_source_and_saved_source(
@@ -200,3 +203,44 @@ def test_delete_saved_source_removes_only_saved_source(session: Session) -> None
 
     assert session.get(Source, source_id) is not None
     assert len(list(session.exec(select(SavedSource)).all())) == 0
+
+
+def test_count_active_saved_sources(session: Session) -> None:
+    pending = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/PENDING/")
+    processing = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/PROCESSING/")
+    done = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/DONE/")
+    other = save_source_for_user(session, OTHER_OWNER, "https://www.instagram.com/reel/OTHER/")
+
+    processing_source = session.get(Source, processing.source_id)
+    done_source = session.get(Source, done.source_id)
+    other_source = session.get(Source, other.source_id)
+    assert processing_source is not None
+    assert done_source is not None
+    assert other_source is not None
+    processing_source.status = SourceStatus.PROCESSING
+    done_source.status = SourceStatus.DONE
+    other_source.status = SourceStatus.PENDING
+    session.add(processing_source)
+    session.add(done_source)
+    session.add(other_source)
+    session.commit()
+
+    assert count_active_saved_sources(session, OWNER) == 2
+    assert count_active_saved_sources(session, OTHER_OWNER) == 1
+    assert session.get(SavedSource, pending.id) is not None
+
+
+def test_count_saved_sources_created_since(session: Session) -> None:
+    now = datetime.utcnow()
+    recent = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/RECENT/")
+    old = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/OLD/")
+    other = save_source_for_user(session, OTHER_OWNER, "https://www.instagram.com/reel/OTHER/")
+    old.created_at = now - timedelta(days=2)
+    other.created_at = now
+    session.add(old)
+    session.add(other)
+    session.commit()
+
+    assert count_saved_sources_created_since(session, OWNER, now - timedelta(days=1)) == 1
+    assert count_saved_sources_created_since(session, OTHER_OWNER, now - timedelta(days=1)) == 1
+    assert session.get(SavedSource, recent.id) is not None

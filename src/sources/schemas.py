@@ -34,7 +34,7 @@ class SavedSourceResponse(BaseModel):
     source_creator_handle: Optional[str] = None
     error_message: Optional[str] = None
     created_at: datetime
-    items: list[SourceItemResponse] = []
+    items: list[SourceItemResponse] = Field(default_factory=list)
 
 
 class DeleteSavedSourceResponse(BaseModel):

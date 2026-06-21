@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from uuid import UUID
+
 from sqlmodel import Session, select
 
 from src.ids import parse_uuid
@@ -15,7 +17,7 @@ def _app_status(source_status: str) -> str:
     return "failed"
 
 
-def _source_items_response(session: Session, source_id) -> list[SourceItemResponse]:
+def _source_items_response(session: Session, source_id: UUID) -> list[SourceItemResponse]:
     items = list(
         session.exec(
             select(SourceItem)

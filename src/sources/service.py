@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import update
+from sqlalchemy import func, update
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
@@ -124,3 +124,26 @@ def recover_stale_sources(session: Session, stale_timeout_seconds: int = 900) ->
 def delete_saved_source(session: Session, saved_source: SavedSource) -> None:
     session.delete(saved_source)
     session.commit()
+
+
+def count_active_saved_sources(session: Session, owner_id: str) -> int:
+    owner_uuid = parse_uuid(owner_id)
+    stmt = (
+        select(func.count())
+        .select_from(SavedSource)
+        .join(Source, Source.id == SavedSource.source_id)
+        .where(
+            SavedSource.owner_id == owner_uuid,
+            Source.status.in_([SourceStatus.PENDING, SourceStatus.PROCESSING]),
+        )
+    )
+    return int(session.exec(stmt).one())
+
+
+def count_saved_sources_created_since(session: Session, owner_id: str, since: datetime) -> int:
+    owner_uuid = parse_uuid(owner_id)
+    stmt = select(func.count()).select_from(SavedSource).where(
+        SavedSource.owner_id == owner_uuid,
+        SavedSource.created_at >= since,
+    )
+    return int(session.exec(stmt).one())
