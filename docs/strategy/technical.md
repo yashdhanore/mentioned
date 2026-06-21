@@ -96,6 +96,21 @@ The work splits along two independent axes:
   concurrency, retry budgets, and cost instrumentation remain in the future
   *production-ingestion-hardening* plan.
 
+### 2026-06-21 - AI-Navigable Architecture Review
+
+- Status: Reviewed; codebase partially follows deep-module practice, with backend ingestion as the
+  strongest current seam and mobile app orchestration as the largest shallow surface.
+- Product constraint: Supports the save -> extract -> revisit loop, book-first wedge, frozen v1
+  contract safety, and future production ingestion hardening.
+- Notes: Keep deepening in this order: first finish the saved-source ingestion seam so Axis A
+  hardening has one module to change and test; next separate job lifecycle writes from job read
+  models so `/v1` and future `/v2` contract mapping stop leaking SQLModel rows into routers; then
+  split the mobile app shell into focused auth session, shared-source intake, notification routing,
+  and capture-state modules. Book enrichment is also worth deepening because Google Books provider
+  shape currently leaks through extraction schemas into books persistence and ingestion. The web
+  landing surface has good validation and lower urgency; split its global stylesheet only when
+  another substantial web section lands.
+
 ### 2026-06-21 - Cloudflare Workers, D1, And R2 Cost Exploration
 
 - Status: Explored; do not replace Supabase/Postgres for the active v1/v2 backend yet. Keep R2 as a
@@ -115,6 +130,25 @@ The work splits along two independent axes:
   the existing FastAPI worker, while keeping Supabase as the source of truth. Revisit a larger
   Workers/D1 architecture only after v1 ingestion hardening and cost instrumentation show database,
   storage, or Render worker cost is the bottleneck rather than Gemini/extraction cost.
+
+### 2026-06-21 - Supabase Plus Cloudflare Worker For Background Extraction
+
+- Status: Possible only with Cloudflare Containers or an external extraction service; do not replace
+  the Render worker with a standard Worker runtime.
+- Product constraint: Preserves Supabase Auth, Postgres/RLS, and `job_events` realtime for the save
+  -> extract -> revisit loop while exploring lower idle compute cost.
+- Notes: A standard Cloudflare Worker can connect to Supabase/Postgres and is a good fit for
+  lightweight orchestration, queue dispatch, push notification HTTP calls, and R2 storage writes.
+  It is not a good fit for the current extractor because `src.extraction.download` shells out to
+  `yt-dlp` and `ffmpeg`, handles tens of MB of media, and needs a Linux-like filesystem/process
+  environment. The realistic Cloudflare replacement is a Worker/Queue/Container architecture:
+  enqueue jobs from the API, let a Worker consume or schedule work, and run the existing Python
+  extraction code inside a Cloudflare Container that writes back to the same Supabase `public.jobs`,
+  `public.mentions`, and `public.job_events` path. Treat this as a post-hardening spike, not an
+  immediate migration, because it changes queue ownership, deploy tooling, secrets, observability,
+  retry behavior, and cost shape. First refactor the worker into an idempotent process-one-job entry
+  point with explicit timeouts, retry budgets, and cost metrics; then compare Container cost and
+  reliability against the current always-on Render worker.
 
 ### 2026-06-21 - LLaVA-Video 72B As Gemini Replacement
 
@@ -144,6 +178,26 @@ The work splits along two independent axes:
   retry rate, and cost. Open models from the leaderboard, such as Qwen2-VL/Qwen2.5-VL, LLaVA-Video,
   InternVL, and video-SALMONN, should stay research candidates until they have managed API support,
   audio/transcript handling, structured-output reliability, and lower total cost than Gemini.
+
+### 2026-06-21 - Frame And Scene Sampling For Video Extraction
+
+- Status: Explore as an eval variant and fallback, not as the default replacement for direct Gemini
+  video input.
+- Product constraint: Supports cost control and useful-but-imperfect book extraction while preserving
+  the save -> extract -> revisit loop, the frozen v1 HTTP contract, and future source recall.
+- Notes: The current 20-Reel Gemini comparison already shows the main tradeoff: `gemini-2.5-flash`
+  found more mentions than Flash-Lite on dense book-list sources, while Lite was much cheaper and
+  faster. A Capstone-style scene segmentation, transcript, frame, and multi-vector index is valuable
+  for future semantic source recall across many saved videos, but it is heavier than the current
+  single-Reel extraction problem. For near-term extraction quality, prefer a staged test: keep full
+  video plus audio as the baseline, try Gemini video controls such as custom FPS or media resolution
+  on text-heavy Reels, and separately test selected frames plus OCR/transcript as a fallback when the
+  model returns zero, unusually few, or suspiciously incomplete books. Do not switch to frame-only
+  extraction unless a labeled Reel eval shows higher book precision/recall after accounting for lost
+  audio context, extra OCR/ASR work, latency, storage, privacy, and provider cost. Do not add
+  production Lite-vs-Flash routing until labeled evals prove the routing rule; if production must
+  choose one Gemini model today, prefer Flash for recall and use Lite only in offline comparison or
+  a deliberately lower-quality/cost mode.
 
 ### Book Catalog And Reading List Support
 

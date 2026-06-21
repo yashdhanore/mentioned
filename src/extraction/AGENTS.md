@@ -13,5 +13,6 @@
 
 - Run targeted extraction tests with `pytest tests/extraction`.
 - Evaluate saved visual extraction outputs with `python scripts/evaluate_visual_manifest.py --artifacts-dir data/artifacts` when artifact shape or visual extraction output changes.
+- Compare Gemini video extraction models on one or more sources with `python scripts/compare_gemini_video_models.py <instagram-url> [...]`.
 - Media extraction paths may require local `ffmpeg`, `yt-dlp`, and `tesseract`.
 - Update this guide when extraction commands, artifact shape, provider behavior, or required local tools change.
