@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 from collections.abc import Callable
 from typing import Protocol
@@ -8,10 +7,9 @@ from uuid import UUID
 
 from sqlmodel import Session
 
-from src.books.service import upsert_google_book
-from src.extraction.google_books import find_google_book
+from src.books.enrichment import BookFinder, enrich_extracted_book_mention, find_google_book_sync
 from src.extraction.pipeline import run_pipeline
-from src.extraction.schemas import GoogleBook, PipelineResult
+from src.extraction.schemas import PipelineResult
 from src.jobs.models import Job
 from src.jobs.service import complete_job, fail_job
 from src.mentions.models import Mention
@@ -27,20 +25,6 @@ class ThumbnailStore(Protocol):
 
 
 ExtractionRunner = Callable[[str], PipelineResult]
-BookFinder = Callable[[str, str | None], GoogleBook | None]
-
-
-def _clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
-    return max(low, min(high, value))
-
-
-def _find_google_book_sync(title: str, author: str | None) -> GoogleBook | None:
-    """Run async Google Books enrichment synchronously."""
-    try:
-        return asyncio.run(find_google_book(title, author))
-    except Exception as exc:
-        logger.warning("Google Books enrichment failed: %s", exc)
-        return None
 
 
 class SavedSourceIngestion:
@@ -49,7 +33,7 @@ class SavedSourceIngestion:
         *,
         extraction_runner: ExtractionRunner = run_pipeline,
         thumbnail_store: ThumbnailStore = store_job_thumbnail,
-        book_finder: BookFinder = _find_google_book_sync,
+        book_finder: BookFinder = find_google_book_sync,
     ) -> None:
         self._extraction_runner = extraction_runner
         self._thumbnail_store = thumbnail_store
@@ -83,15 +67,12 @@ class SavedSourceIngestion:
             )
 
             if extracted.category == "book":
-                google_book = self._book_finder(extracted.title, extracted.author)
-                if google_book:
-                    book = upsert_google_book(session, google_book)
-                    mention.book_id = book.id
-                    mention.title = book.title
-                    mention.author = ", ".join(book.authors) or extracted.author
-                    mention.google_books_url = book.info_link
-                    mention.cover_image_url = book.cover_image_url
-                    mention.confidence = _clamp(extracted.confidence + 0.05)
+                enrich_extracted_book_mention(
+                    session,
+                    mention,
+                    extracted,
+                    book_finder=self._book_finder,
+                )
 
             mentions.append(mention)
 

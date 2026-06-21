@@ -5,7 +5,8 @@ from uuid import UUID
 from sqlmodel import Session, select
 
 from src.books.models import Book
-from src.extraction.schemas import ExtractedMention, GoogleBook, PipelineResult
+from src.books.schemas import GoogleBook
+from src.extraction.schemas import ExtractedMention, PipelineResult
 from src.ingestion.processor import SavedSourceIngestion
 from src.jobs.models import Job, JobStatus
 from src.mentions.models import Mention
