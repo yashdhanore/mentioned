@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, Image, Pressable, ScrollView, Text, View } from 'react-native';
 
-import type { BookMention, Capture } from '@/captures';
+import type { Capture } from '@/captures';
 import { BackIcon, ExternalLinkIcon, MoreIcon } from '@/components/icons';
 import {
   BooksMentioned,
@@ -17,10 +17,8 @@ export function ReelDetailScreen({
   width,
   actionError,
   isRetrying,
-  removingBookId,
   onBack,
   onOpenMenu,
-  onOpenRemoveBook,
   onOpenSource,
   onRetry,
 }: {
@@ -28,10 +26,8 @@ export function ReelDetailScreen({
   width: number;
   actionError: string | null;
   isRetrying: boolean;
-  removingBookId: string | null;
   onBack: () => void;
   onOpenMenu: () => void;
-  onOpenRemoveBook: (book: BookMention) => void;
   onOpenSource: () => void;
   onRetry: () => void;
 }) {
@@ -63,11 +59,7 @@ export function ReelDetailScreen({
             onOpenSource={onOpenSource}
           />
           {inlineError}
-          <BooksMentioned
-            books={capture.books}
-            removingBookId={removingBookId}
-            onOpenRemoveBook={onOpenRemoveBook}
-          />
+          <BooksMentioned books={capture.books} />
         </>
       ) : null}
       {capture.status === 'processing' ? (

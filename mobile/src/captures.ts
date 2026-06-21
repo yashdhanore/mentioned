@@ -1,4 +1,4 @@
-import type { JobListItem, JobResponse, JobStatus, MentionInJob } from './api';
+import type { SavedSourceResponse, SavedSourceStatus, SourceItemInSavedSource } from './api';
 
 export type CaptureStatus = 'ready' | 'processing' | 'no_books' | 'failed';
 
@@ -54,122 +54,88 @@ function colorFor(id: string) {
   return BOOK_COLORS[hash];
 }
 
-function thumbnailForJob(job: Pick<JobResponse, 'thumbnail_url'>) {
-  return compact(job.thumbnail_url);
+function thumbnailForSavedSource(savedSource: Pick<SavedSourceResponse, 'thumbnail_url'>) {
+  return compact(savedSource.thumbnail_url);
 }
 
-function visibleBookMentions(mentions: MentionInJob[]): BookMention[] {
-  return mentions
-    .filter((mention) => mention.category === 'book')
-    .filter((mention) => mention.confidence === null || mention.confidence >= MIN_VISIBLE_CONFIDENCE)
-    .filter((mention) => compact(mention.title))
-    .map((mention) => ({
-      id: mention.id,
-      title: mention.title.trim(),
-      author: compact(mention.author),
+function visibleBookItems(items: SourceItemInSavedSource[]): BookMention[] {
+  return items
+    .filter((item) => item.category === 'book')
+    .filter((item) => item.confidence === null || item.confidence >= MIN_VISIBLE_CONFIDENCE)
+    .filter((item) => compact(item.title))
+    .sort((left, right) => left.position - right.position)
+    .map((item) => ({
+      id: item.id,
+      title: item.title.trim(),
+      author: compact(item.author),
       synopsis: null,
-      coverImageUrl: compact(mention.cover_image_url),
-      initials: initialsFor(mention.title),
-      color: colorFor(mention.id),
+      coverImageUrl: compact(item.cover_image_url),
+      initials: initialsFor(item.title),
+      color: colorFor(item.id),
     }));
 }
 
-function statusFor(jobStatus: JobStatus, books: BookMention[]): CaptureStatus {
-  if (jobStatus === 'pending') {
+function statusFor(savedSourceStatus: SavedSourceStatus, books: BookMention[]): CaptureStatus {
+  if (savedSourceStatus === 'processing') {
     return 'processing';
   }
-  if (jobStatus === 'done') {
+  if (savedSourceStatus === 'done') {
     return books.length > 0 ? 'ready' : 'no_books';
   }
   return 'failed';
 }
 
-function listStatusFor(jobStatus: JobStatus): CaptureStatus {
-  if (jobStatus === 'pending') {
-    return 'processing';
-  }
-  if (jobStatus === 'done') {
-    return 'ready';
-  }
-  return 'failed';
+export function buildCapturesFromSavedSources(savedSources: SavedSourceResponse[]): Capture[] {
+  return savedSources.map(captureFromSavedSource);
 }
 
-export function buildCaptures(jobs: JobResponse[]): Capture[] {
-  return jobs.map(captureFromJobDetail);
-}
-
-export function buildCapturesFromJobList(jobs: JobListItem[]): Capture[] {
-  return jobs.map(captureFromJobListItem);
-}
-
-export function captureFromJobCreated(jobId: string, sourceUrl: string): Capture {
+export function captureFromSavedSourceCreated(savedSource: SavedSourceResponse): Capture {
   return {
-    id: jobId,
+    id: savedSource.id,
     creator: 'Instagram',
-    creatorHandle: null,
+    creatorHandle: compact(savedSource.source_creator_handle),
     status: 'processing',
-    thumbnailUrl: null,
-    sourceUrl,
-    createdAt: new Date().toISOString(),
+    thumbnailUrl: thumbnailForSavedSource(savedSource),
+    sourceUrl: savedSource.source_url,
+    createdAt: savedSource.created_at,
     sourceContextSnippet: null,
     books: [],
-    errorMessage: null,
+    errorMessage: savedSource.error_message,
   };
 }
 
-export function captureFromJobListItem(job: JobListItem): Capture {
+export function captureFromSavedSource(savedSource: SavedSourceResponse): Capture {
+  const books = visibleBookItems(savedSource.items);
   return {
-    id: job.job_id,
+    id: savedSource.id,
     creator: 'Instagram',
-    creatorHandle: compact(job.source_creator_handle),
-    status: listStatusFor(job.status),
-    thumbnailUrl: thumbnailForJob(job),
-    sourceUrl: job.source_url,
-    createdAt: job.created_at,
+    creatorHandle: compact(savedSource.source_creator_handle),
+    status: statusFor(savedSource.status, books),
+    thumbnailUrl: thumbnailForSavedSource(savedSource),
+    sourceUrl: savedSource.source_url,
+    createdAt: savedSource.created_at,
     sourceContextSnippet: null,
-    books: [],
-    errorMessage: null,
+    books,
+    errorMessage: savedSource.error_message,
   };
 }
 
-export function mergeJobListItemsWithCaptures(
-  jobs: JobListItem[],
+export function mergeSavedSourcesWithCaptures(
+  savedSources: SavedSourceResponse[],
   existingCaptures: Capture[],
 ): Capture[] {
   const existingById = new Map(existingCaptures.map((capture) => [capture.id, capture]));
 
-  return jobs.map((job) => {
-    const listedCapture = captureFromJobListItem(job);
-    const existingCapture = existingById.get(job.job_id);
+  return savedSources.map((savedSource) => {
+    const savedSourceCapture = captureFromSavedSource(savedSource);
+    const existingCapture = existingById.get(savedSource.id);
     if (!existingCapture) {
-      return listedCapture;
+      return savedSourceCapture;
     }
 
     return {
-      ...listedCapture,
-      books: existingCapture.books,
-      errorMessage: existingCapture.errorMessage,
+      ...savedSourceCapture,
       sourceContextSnippet: existingCapture.sourceContextSnippet,
-      status:
-        listedCapture.status === 'ready' && existingCapture.status === 'no_books'
-          ? 'no_books'
-          : listedCapture.status,
     };
   });
-}
-
-export function captureFromJobDetail(job: JobResponse): Capture {
-  const books = visibleBookMentions(job.mentions);
-  return {
-    id: job.job_id,
-    creator: 'Instagram',
-    creatorHandle: compact(job.source_creator_handle),
-    status: statusFor(job.status, books),
-    thumbnailUrl: thumbnailForJob(job),
-    sourceUrl: job.source_url,
-    createdAt: job.created_at,
-    sourceContextSnippet: null,
-    books,
-    errorMessage: job.error_message,
-  };
 }

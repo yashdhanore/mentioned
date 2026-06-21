@@ -2,23 +2,18 @@ import { useEffect, useState } from 'react';
 import { Image, Text, View } from 'react-native';
 
 import type { BookMention } from '@/captures';
-import { MoreIcon } from '@/components/icons';
 import { FadeInView } from '@/components/motion';
 import { SourceToBooksPreview } from '@/components/product-preview';
-import { BookSpine, BookSpineSkeleton, IconButton, PrimaryButton, SecondaryButton } from '@/components/ui';
+import { BookSpine, BookSpineSkeleton, PrimaryButton, SecondaryButton } from '@/components/ui';
 import { styles } from '@/styles';
 
 type BooksMentionedProps = {
   books: BookMention[];
-  removingBookId?: string | null;
-  onOpenRemoveBook?: (book: BookMention) => void;
 };
 
 type BookRowProps = {
   book: BookMention;
-  isRemoving: boolean;
   showDivider: boolean;
-  onOpenRemoveBook?: (book: BookMention) => void;
 };
 
 export function ProcessingBooks() {
@@ -47,11 +42,7 @@ function SkeletonBookRow() {
   );
 }
 
-export function BooksMentioned({
-  books,
-  removingBookId = null,
-  onOpenRemoveBook,
-}: BooksMentionedProps) {
+export function BooksMentioned({ books }: BooksMentionedProps) {
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Books mentioned</Text>
@@ -60,9 +51,7 @@ export function BooksMentioned({
           <FadeInView key={book.id} delay={Math.min(index * 55, 220)}>
             <BookRow
               book={book}
-              isRemoving={removingBookId === book.id}
               showDivider={index < books.length - 1}
-              onOpenRemoveBook={onOpenRemoveBook}
             />
           </FadeInView>
         ))}
@@ -71,7 +60,7 @@ export function BooksMentioned({
   );
 }
 
-function BookRow({ book, isRemoving, showDivider, onOpenRemoveBook }: BookRowProps) {
+function BookRow({ book, showDivider }: BookRowProps) {
   const [didFailCoverLoad, setDidFailCoverLoad] = useState(false);
   const shouldShowCoverImage = Boolean(book.coverImageUrl) && !didFailCoverLoad;
 
@@ -97,17 +86,6 @@ function BookRow({ book, isRemoving, showDivider, onOpenRemoveBook }: BookRowPro
           {book.author ? <Text style={styles.bookAuthor}>{book.author}</Text> : null}
           {book.synopsis ? <Text style={styles.bookSynopsis}>{book.synopsis}</Text> : null}
         </View>
-        {onOpenRemoveBook ? (
-          <View style={styles.bookRowAction}>
-            <IconButton
-              accessibilityLabel={`Remove ${book.title}`}
-              disabled={isRemoving}
-              onPress={() => onOpenRemoveBook(book)}
-            >
-              <MoreIcon />
-            </IconButton>
-          </View>
-        ) : null}
       </View>
       {showDivider ? <View style={styles.bookRowDivider} /> : null}
     </View>

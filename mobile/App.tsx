@@ -1,13 +1,12 @@
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { SafeAreaView, useWindowDimensions } from 'react-native';
 
 import {
   deleteAccount,
   PRIVACY_POLICY_URL,
 } from '@/api';
-import type { BookMention } from '@/captures';
-import { PasteSheet, ProfileSheet, ReelMenuSheet, RemoveBookSheet } from '@/components/sheets';
+import { PasteSheet, ProfileSheet, ReelMenuSheet } from '@/components/sheets';
 import { useCaptures } from '@/features/captures/use-captures';
 import { useSharedSourceIntake } from '@/features/captures/use-shared-source-intake';
 import { useAuthSession } from '@/features/auth/use-auth-session';
@@ -19,7 +18,7 @@ import { SignedOutScreen } from '@/screens/signed-out-screen';
 import { spacing } from '@/theme';
 import { styles } from '@/styles';
 
-type Sheet = 'profile' | 'paste' | 'reelMenu' | 'removeBook' | null;
+type Sheet = 'profile' | 'paste' | 'reelMenu' | null;
 
 export default function App() {
   const { width } = useWindowDimensions();
@@ -40,8 +39,6 @@ export default function App() {
     handleDeleteAccount,
   } = useAuthSession();
   const [sheet, setSheet] = useState<Sheet>(null);
-  const [selectedBook, setSelectedBook] = useState<BookMention | null>(null);
-  const [bookRemovalError, setBookRemovalError] = useState<string | null>(null);
   const [confirmingDeleteAccount, setConfirmingDeleteAccount] = useState(false);
 
   const {
@@ -52,7 +49,6 @@ export default function App() {
     isSubmittingUrl,
     isSubmittingSharedUrl,
     retryingCaptureId,
-    removingBookId,
     deletingCaptureId,
     loadError,
     pasteError,
@@ -69,7 +65,6 @@ export default function App() {
     submitPasteUrl,
     submitSharedUrl,
     retryCapture,
-    removeBookMention,
     deleteCapture,
     openSource,
   } = useCaptures(isSignedIn);
@@ -137,32 +132,6 @@ export default function App() {
     }
   }, [submitPasteUrl]);
 
-  const openRemoveBook = useCallback((book: BookMention) => {
-    setSelectedBook(book);
-    setBookRemovalError(null);
-    setSheet('removeBook');
-  }, []);
-
-  const closeRemoveBookSheet = useCallback(() => {
-    setBookRemovalError(null);
-    setSelectedBook(null);
-    setSheet((currentSheet) => (currentSheet === 'removeBook' ? null : currentSheet));
-  }, []);
-
-  const removeSelectedBook = useCallback(async () => {
-    if (!selectedCapture || !selectedBook) {
-      return;
-    }
-
-    setBookRemovalError(null);
-    const result = await removeBookMention(selectedCapture, selectedBook.id);
-    if (result.ok) {
-      closeRemoveBookSheet();
-      return;
-    }
-    setBookRemovalError(result.message);
-  }, [closeRemoveBookSheet, removeBookMention, selectedBook, selectedCapture]);
-
   const deleteSelectedCapture = useCallback(async () => {
     if (!selectedCapture) {
       return;
@@ -173,17 +142,6 @@ export default function App() {
       setSheet(null);
     }
   }, [deleteCapture, selectedCapture]);
-
-  useEffect(() => {
-    if (!selectedBook) {
-      return;
-    }
-
-    const selectedBookStillExists = selectedCapture?.books.some((book) => book.id === selectedBook.id);
-    if (!selectedBookStillExists) {
-      closeRemoveBookSheet();
-    }
-  }, [closeRemoveBookSheet, selectedBook, selectedCapture]);
 
   if (isAuthLoading) {
     return <AuthLoadingScreen />;
@@ -213,10 +171,8 @@ export default function App() {
           width={contentWidth}
           actionError={actionError}
           isRetrying={retryingCaptureId === selectedCapture.id}
-          removingBookId={removingBookId}
           onBack={() => setSelectedCaptureId(null)}
           onOpenMenu={() => setSheet('reelMenu')}
-          onOpenRemoveBook={openRemoveBook}
           onOpenSource={() => void openSource(selectedCapture)}
           onRetry={() => void retryCapture(selectedCapture)}
         />
@@ -268,14 +224,6 @@ export default function App() {
         onClose={() => setSheet(null)}
         onDeletePost={selectedCapture ? () => void deleteSelectedCapture() : undefined}
         onOpenSource={selectedCapture ? () => void openSource(selectedCapture) : undefined}
-      />
-      <RemoveBookSheet
-        visible={sheet === 'removeBook'}
-        book={selectedBook}
-        error={bookRemovalError}
-        isRemoving={selectedBook ? removingBookId === selectedBook.id : false}
-        onClose={closeRemoveBookSheet}
-        onRemove={() => void removeSelectedBook()}
       />
     </SafeAreaView>
   );

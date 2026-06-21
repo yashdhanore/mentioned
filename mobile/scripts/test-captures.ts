@@ -1,80 +1,99 @@
 import assert from 'node:assert/strict';
 
 import {
-  buildCapturesFromJobList,
-  captureFromJobDetail,
-  captureFromJobListItem,
+  buildCapturesFromSavedSources,
+  captureFromSavedSource,
+  captureFromSavedSourceCreated,
 } from '../src/captures';
-import type { JobListItem, JobResponse } from '../src/api';
+import type { SavedSourceResponse } from '../src/api';
 
-const listedDoneJob: JobListItem = {
-  job_id: '11111111-1111-4111-8111-111111111111',
+const savedSource: SavedSourceResponse = {
+  id: '11111111-1111-4111-8111-111111111111',
+  source_id: '99999999-9999-4999-8999-999999999999',
+  source_key: 'instagram:reel:DONE',
   status: 'done',
   source_url: 'https://www.instagram.com/reel/DONE/',
   thumbnail_url: 'https://example.com/thumb.jpg',
   source_creator_handle: 'reader',
+  error_message: null,
   created_at: '2026-06-06T15:49:00Z',
+  items: [],
 };
 
-const listedDoneCapture = captureFromJobListItem(listedDoneJob);
-assert.equal(listedDoneCapture.status, 'ready');
-assert.equal(listedDoneCapture.creatorHandle, 'reader');
-assert.equal(listedDoneCapture.thumbnailUrl, 'https://example.com/thumb.jpg');
-assert.equal(listedDoneCapture.sourceUrl, listedDoneJob.source_url);
-assert.equal(listedDoneCapture.createdAt, listedDoneJob.created_at);
-assert.deepEqual(listedDoneCapture.books, []);
-assert.equal(listedDoneCapture.errorMessage, null);
-
-const listedPendingCapture = captureFromJobListItem({
-  ...listedDoneJob,
-  job_id: '22222222-2222-4222-8222-222222222222',
-  status: 'pending',
+const createdCapture = captureFromSavedSourceCreated({
+  ...savedSource,
+  id: '22222222-2222-4222-8222-222222222222',
+  status: 'processing',
   thumbnail_url: null,
 });
-assert.equal(listedPendingCapture.status, 'processing');
-assert.equal(listedPendingCapture.thumbnailUrl, null);
+assert.equal(createdCapture.status, 'processing');
+assert.equal(createdCapture.thumbnailUrl, null);
+assert.equal(createdCapture.sourceUrl, savedSource.source_url);
 
-const listedFailedCapture = captureFromJobListItem({
-  ...listedDoneJob,
-  job_id: '33333333-3333-4333-8333-333333333333',
+const processingCapture = captureFromSavedSource({
+  ...savedSource,
+  id: '33333333-3333-4333-8333-333333333333',
+  status: 'processing',
+});
+assert.equal(processingCapture.status, 'processing');
+
+const failedCapture = captureFromSavedSource({
+  ...savedSource,
+  id: '44444444-4444-4444-8444-444444444444',
   status: 'failed',
 });
-assert.equal(listedFailedCapture.status, 'failed');
+assert.equal(failedCapture.status, 'failed');
 
 assert.deepEqual(
-  buildCapturesFromJobList([listedDoneJob]).map((capture) => capture.id),
-  [listedDoneJob.job_id],
+  buildCapturesFromSavedSources([savedSource]).map((capture) => capture.id),
+  [savedSource.id],
 );
 
-const detailedNoBooksJob: JobResponse = {
-  ...listedDoneJob,
-  error_message: null,
-  finished_at: '2026-06-06T15:50:00Z',
-  mentions: [],
-};
-assert.equal(captureFromJobDetail(detailedNoBooksJob).status, 'no_books');
+assert.equal(captureFromSavedSource(savedSource).status, 'no_books');
 
-const detailedBookJob: JobResponse = {
-  ...detailedNoBooksJob,
-  mentions: [
+const detailedBookCapture = captureFromSavedSource({
+  ...savedSource,
+  items: [
     {
-      id: '44444444-4444-4444-8444-444444444444',
-      book_id: '55555555-5555-4555-8555-555555555555',
+      id: '55555555-5555-4555-8555-555555555555',
+      book_id: '66666666-6666-4666-8666-666666666666',
+      title: 'Ignored Product',
+      author: null,
+      category: 'product',
+      confidence: 0.99,
+      google_books_url: null,
+      cover_image_url: null,
+      position: 0,
+    },
+    {
+      id: '77777777-7777-4777-8777-777777777777',
+      book_id: '88888888-8888-4888-8888-888888888888',
       title: 'The Left Hand of Darkness',
       author: 'Ursula K. Le Guin',
       category: 'book',
       confidence: 0.99,
       google_books_url: null,
       cover_image_url: 'https://example.com/cover.jpg',
+      position: 2,
+    },
+    {
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      book_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      title: 'A Wizard of Earthsea',
+      author: 'Ursula K. Le Guin',
+      category: 'book',
+      confidence: 0.88,
+      google_books_url: null,
+      cover_image_url: null,
+      position: 1,
     },
   ],
-};
-const detailedBookCapture = captureFromJobDetail(detailedBookJob);
+});
 assert.equal(detailedBookCapture.status, 'ready');
 assert.deepEqual(
   detailedBookCapture.books.map((book) => book.title),
-  ['The Left Hand of Darkness'],
+  ['A Wizard of Earthsea', 'The Left Hand of Darkness'],
 );
-assert.equal(detailedBookCapture.books[0].coverImageUrl, 'https://example.com/cover.jpg');
+assert.equal(detailedBookCapture.books[1].coverImageUrl, 'https://example.com/cover.jpg');
 
 console.log('capture mapping tests passed');
