@@ -75,36 +75,43 @@ def _run_queue_worker(settings: Settings, worker_engine: Engine) -> None:
         settings.worker_queue_visibility_timeout_seconds,
     )
     while True:
-        with Session(worker_engine) as session:
-            recovered = recover_stale_jobs(session, settings.worker_stale_timeout_seconds)
-            if recovered:
-                logger.info("Recovered %d stale jobs", recovered)
-            recovered_sources = recover_stale_sources(session, settings.worker_stale_timeout_seconds)
-            if recovered_sources:
-                logger.info("Recovered %d stale sources", recovered_sources)
-            source_messages = read_source_extraction_messages(
-                session,
-                visibility_timeout_seconds=settings.worker_queue_visibility_timeout_seconds,
-                max_poll_seconds=settings.worker_queue_max_poll_seconds,
-                poll_interval_ms=settings.worker_queue_poll_interval_ms,
-            )
-            session.commit()
+        _run_queue_worker_iteration(settings, worker_engine)
 
-        for message in source_messages:
-            process_source_extraction_message(message, worker_engine, settings)
 
-        with Session(worker_engine) as session:
-            messages = read_extract_job_messages(
-                session,
-                visibility_timeout_seconds=settings.worker_queue_visibility_timeout_seconds,
-                max_poll_seconds=settings.worker_queue_max_poll_seconds,
-                poll_interval_ms=settings.worker_queue_poll_interval_ms,
-            )
-            session.commit()
+def _run_queue_worker_iteration(settings: Settings, worker_engine: Engine) -> None:
+    with Session(worker_engine) as session:
+        recovered = recover_stale_jobs(session, settings.worker_stale_timeout_seconds)
+        if recovered:
+            logger.info("Recovered %d stale jobs", recovered)
+        recovered_sources = recover_stale_sources(session, settings.worker_stale_timeout_seconds)
+        if recovered_sources:
+            logger.info("Recovered %d stale sources", recovered_sources)
+        source_messages = read_source_extraction_messages(
+            session,
+            visibility_timeout_seconds=settings.worker_queue_visibility_timeout_seconds,
+            max_poll_seconds=settings.worker_queue_max_poll_seconds,
+            poll_interval_ms=settings.worker_queue_poll_interval_ms,
+        )
+        session.commit()
 
-        for message in messages:
-            process_extract_job_message(message, worker_engine, settings)
-        _drain_push_notifications(settings, worker_engine)
+    for message in source_messages:
+        process_source_extraction_message(message, worker_engine, settings)
+
+    if source_messages:
+        return
+
+    with Session(worker_engine) as session:
+        messages = read_extract_job_messages(
+            session,
+            visibility_timeout_seconds=settings.worker_queue_visibility_timeout_seconds,
+            max_poll_seconds=settings.worker_queue_max_poll_seconds,
+            poll_interval_ms=settings.worker_queue_poll_interval_ms,
+        )
+        session.commit()
+
+    for message in messages:
+        process_extract_job_message(message, worker_engine, settings)
+    _drain_push_notifications(settings, worker_engine)
 
 
 def run_worker() -> None:

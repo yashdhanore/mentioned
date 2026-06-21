@@ -81,6 +81,40 @@ def _source(engine, *, status: SourceStatus = SourceStatus.PENDING) -> Source:
         return source
 
 
+def test_queue_worker_iteration_skips_legacy_poll_when_source_messages_exist(monkeypatch):
+    from src.worker import _run_queue_worker_iteration
+
+    engine = _engine()
+    calls: list[str] = []
+    source_message = SourceExtractionMessage(msg_id=30, source_id=uuid4(), read_count=1)
+
+    def fake_read_sources(*_args, **_kwargs) -> list[SourceExtractionMessage]:
+        calls.append("read_sources")
+        return [source_message]
+
+    def fake_process_source(message, _worker_engine, _settings) -> None:
+        calls.append(f"process_source:{message.msg_id}")
+
+    def fake_read_jobs(*_args, **_kwargs) -> list[ExtractJobMessage]:
+        calls.append("read_jobs")
+        return []
+
+    def fake_drain_push(_settings, _worker_engine) -> None:
+        calls.append("drain_push")
+
+    monkeypatch.setattr("src.worker.read_source_extraction_messages", fake_read_sources)
+    monkeypatch.setattr("src.worker.process_source_extraction_message", fake_process_source)
+    monkeypatch.setattr("src.worker.read_extract_job_messages", fake_read_jobs)
+    monkeypatch.setattr("src.worker._drain_push_notifications", fake_drain_push)
+
+    try:
+        _run_queue_worker_iteration(Settings(worker_id="worker-queue"), engine)
+    finally:
+        SQLModel.metadata.drop_all(engine)
+
+    assert calls == ["read_sources", "process_source:30"]
+
+
 def test_queue_worker_archives_missing_job(monkeypatch):
     engine = _engine()
     archived = []
