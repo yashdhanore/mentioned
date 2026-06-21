@@ -281,3 +281,18 @@ def test_delete_saved_posts_migration_grants_api_delete_under_rls() -> None:
     assert "CREATE POLICY job_events_api_owner_select ON public.job_events" in migration
     assert "CREATE POLICY job_events_api_owner_delete ON public.job_events" in migration
     assert "current_setting('app.current_user_id', true)::uuid" in migration
+
+
+def test_sources_migration_has_cache_and_owner_scoped_permissions() -> None:
+    migration = (
+        Path("migrations/versions/20260622_0014_sources_saved_sources.py")
+        .read_text()
+    )
+
+    assert 'op.create_table(\n        "sources"' in migration
+    assert 'op.create_table(\n        "source_items"' in migration
+    assert 'op.create_table(\n        "saved_sources"' in migration
+    assert 'sa.UniqueConstraint("source_key", name="sources_source_key_key")' in migration
+    assert 'sa.UniqueConstraint("owner_id", "source_id", name="saved_sources_owner_source_key")' in migration
+    assert "GRANT SELECT ON TABLE public.sources, public.source_items TO mentioned_api" in migration
+    assert "CREATE POLICY saved_sources_api_owner_all ON public.saved_sources" in migration
