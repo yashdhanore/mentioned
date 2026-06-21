@@ -9,7 +9,7 @@ input, install and run the default local backend setup.
 
 ## Process
 
-1. Inspect `pyproject.toml`, `README.md`, and `AGENTS.md` for current setup rules.
+1. Inspect `pyproject.toml`, `README.md`, the root `AGENTS.md`, and any relevant nested `AGENTS.md` for current setup rules.
 2. Ensure a Python 3.11+ virtual environment exists.
 3. Install the project with development dependencies:
 
@@ -32,11 +32,10 @@ input, install and run the default local backend setup.
 6. Start or describe how to start the worker:
 
    ```bash
-   python -m worker.run
+   mentioned-worker
    ```
 
-   If the current package layout uses `src.worker`, follow the entrypoint in
-   `pyproject.toml` and `README.md`.
+   If the console script is unavailable, use `python -m src.worker`.
 
 7. Never print secrets from `.env`.
 

@@ -1,0 +1,16 @@
+# Extraction Agent Guide
+
+`src/extraction/` contains the extraction pipeline, provider clients, URL and download helpers, media handling, and extraction schemas.
+
+## Implementation Notes
+
+- Keep modules narrow and named by action or provider, such as `download.py`, `pipeline.py`, or provider-specific modules.
+- Prefer deterministic fallback behavior when provider calls, OCR, ASR, downloads, or metadata lookups fail.
+- Wrap external binaries and network providers behind small functions so tests can monkeypatch them.
+- Keep artifact structure stable; if extraction output or saved artifacts change, run the visual manifest evaluator.
+
+## Checks
+
+- Run targeted extraction tests with `pytest tests/extraction`.
+- Evaluate saved visual extraction outputs with `python scripts/evaluate_visual_manifest.py --artifacts-dir data/artifacts` when artifact shape or visual extraction output changes.
+- Media extraction paths may require local `ffmpeg`, `yt-dlp`, and `tesseract`.

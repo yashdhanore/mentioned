@@ -1,74 +1,26 @@
-# Repository Guidelines
+# Mentioned Agent Guide
 
-## Project Structure & Module Organization
+Mentioned is a FastAPI, Supabase, Expo, and Astro product for extracting books, products, and places from shared social content.
 
-`src/` contains the FastAPI backend. `src/main.py` registers the app and routers; feature modules such as `src/jobs/`, `src/mentions/`, `src/auth/`, `src/books/`, and `src/push/` contain routers, schemas, SQLModel models, dependencies, and services. `src/extraction/` contains the extraction pipeline, provider clients, URL/download helpers, and extraction schemas. `src/worker.py` runs queued extraction jobs. `mobile/` contains the Expo React Native app. `tests/` contains pytest coverage, `evals/` stores visual regression manifests, and `scripts/` holds utility commands. Runtime outputs such as `app.db` and `data/artifacts/` are generated locally and should not be committed.
+## Working Model
 
-## Build, Test, and Development Commands
+- Keep this root guide small; put scoped instructions in the nearest nested `AGENTS.md`.
+- Before changing a scoped area, read its local guide: [src](src/AGENTS.md), [src/extraction](src/extraction/AGENTS.md), [mobile](mobile/AGENTS.md), [web](web/AGENTS.md), [tests](tests/AGENTS.md), [supabase](supabase/AGENTS.md), or [.agents](.agents/AGENTS.md).
+- For product, design, positioning, growth, or prioritization work, read [CONTEXT.md](CONTEXT.md), [DESIGN.md](DESIGN.md), and [PRODUCT.md](PRODUCT.md) first.
+- Do not commit secrets, `.env` files, local databases, generated artifacts, build outputs, or dependency folders.
 
-Create an environment and install the project with dev dependencies:
+## Core Commands
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-```
+- Install backend dev dependencies: `python -m venv .venv && source .venv/bin/activate && pip install -e ".[dev]"`
+- Run the API: `fastapi dev`
+- Run the worker: `mentioned-worker` or `python -m src.worker`
+- Run backend tests: `pytest`
+- Run mobile checks from `mobile/`: `npm run typecheck`
+- Run web checks from `web/`: `npm test`
 
-Run the API locally with `fastapi dev`. Run the worker with `python -m worker.run` or, after installation, `mentioned-worker`. Run tests with `pytest`. Evaluate saved visual extraction outputs with:
+## Shipping Expectations
 
-```bash
-python scripts/evaluate_visual_manifest.py --artifacts-dir data/artifacts
-```
-
-Media extraction paths may require local `ffmpeg`, `yt-dlp`, and `tesseract` installations.
-
-## AI Layer Workflow
-
-`.agents/commands/` is the source of truth for reusable agent commands. `.agents/skills/` is the
-source of truth for repo-specific skills. `.agents/rules/` is the source of truth for Cursor rule
-files. The files under `.claude/commands/`, `.cursor/commands/`, `.claude/skills/`, and
-`.cursor/rules/` are symlinks to those canonical files and should not be edited directly. When
-changing a command, skill, or rule, edit `.agents/...` first so adapters stay synchronized.
-
-Shared commands are plain Markdown for Claude/Cursor command compatibility and are referenceable
-playbooks for Codex. Codex's active reusable workflows live in `.agents/skills/`. Avoid
-agent-specific argument syntax in shared commands unless a separate adapter is intentionally
-created.
-
-Use the command loop for larger work: `prime` to load context, `plan` to write an implementation
-plan, `implement` to execute it, `validate` to run checks, `review` or `security-review` before
-shipping, and `system-review` after messy runs to improve the AI layer.
-
-For product ideation, marketing ideas, positioning, growth, or prioritization discussions, read
-`PRODUCT.md` alongside `CONTEXT.md` and `DESIGN.md`. Treat `PRODUCT.md` as a living idea dump, not
-as a committed roadmap.
-
-## Backend Deployment & Render Troubleshooting
-
-When investigating hosted backend failures, use the Render plugin to inspect the backend service before guessing from local code alone. Check Render deploy status, runtime logs, health checks, service configuration, and recent deploy/error events to identify production-only issues. Summarize the Render evidence you used, then connect it to any local code or configuration changes.
-
-## Database & Supabase Workflow
-
-For any database schema, migration, seed, RLS, or Supabase configuration change, use the Supabase CLI directly instead of handing migration steps back to the user. Check commands with `supabase --help` and `supabase <group> --help` because CLI behavior changes. Create migration files with `supabase migration new <descriptive_name>` and keep them under `supabase/migrations/`. Apply and verify migrations yourself with the appropriate local command, such as `supabase migration up --local` or `supabase db reset`. For hosted targets, run `supabase db push --dry-run` first, then run `supabase db push` when the intended linked remote target is clear. End with the commands you ran and any errors. Do not stop at "run the migration" unless the CLI, Docker, or credentials are unavailable.
-
-Prefer local/dev verification before touching a hosted project. Once migrations exist, do not make schema changes directly in the Supabase Dashboard or remote SQL editor; keep remote state synchronized through migration files and `supabase db push`.
-
-Do not commit Supabase passwords, access tokens, service-role keys, `.env` files, local database URLs, or generated artifacts. It is fine to commit non-secret config such as `supabase/config.toml`, migration SQL, seed files, and `.env.example` placeholders. For local automation, use `supabase login` and `supabase link --project-ref <ref>` so the CLI can store credentials in the OS credential store when available. For noninteractive CI or agent runs, provide secrets through environment variables such as `SUPABASE_ACCESS_TOKEN` and `SUPABASE_DB_PASSWORD` from the host environment or secret manager.
-
-## Coding Style & Naming Conventions
-
-Use Python 3.11+ syntax, 4-space indentation, type hints, and small focused functions. Follow existing naming: `snake_case` for modules, functions, variables, and stage files; `PascalCase` for classes and Pydantic/SQLModel models. Keep extraction modules in `src/extraction/` narrow and named by action, such as `download.py`, `pipeline.py`, or provider-specific modules. Prefer small wrapper functions around external binaries or services so tests can monkeypatch them cleanly. No formatter or linter config is currently committed; match the style already present in the repository.
-
-## Testing Guidelines
-
-Tests use pytest and should live in `tests/test_*.py` with functions named `test_*`. Prefer `tmp_path` and `monkeypatch` for file, OCR, OpenAI, and subprocess behavior so tests stay deterministic and offline. For provider integrations, cover both the configured-provider path and the fallback path. Run `pytest` before submitting changes; run the visual manifest script when extraction output or artifact structure changes.
-
-## Security & Configuration Tips
-
-Copy `.env.example` to `.env` for local settings. Do not commit secrets, `.env` files, local databases, or generated artifacts. Defaults disable ASR and multimodal LLM calls; enable OpenAI locally with `OPENAI_API_KEY`, `MULTIMODAL_LLM_PROVIDER=openai`, and related model settings only when needed.
-
-Keep environment variables reserved for secrets, deployment-specific endpoints, credentials, and values that truly differ by environment. Stable product defaults such as bucket names, file size limits, and timeouts should be code constants unless there is a concrete operational need to configure them per deployment.
-
-## Commit & Pull Request Guidelines
-
-The current history only establishes an initial commit, so use clear imperative commit messages, for example `Add visual extraction fallback tests`. Pull requests should include a concise summary, linked issue if available, commands run, and sample API responses or screenshots when behavior changes.
+- Match the existing style and boundaries in the files you touch.
+- Add or update focused tests when behavior changes.
+- Use the Supabase CLI for schema, migration, seed, RLS, or Supabase config changes; see [supabase/AGENTS.md](supabase/AGENTS.md).
+- For hosted backend failures, inspect Render evidence before guessing from local code.

@@ -9,7 +9,7 @@ alwaysApply: true
 
 # Mentioned Project Rules
 
-Use `AGENTS.md` for the authoritative repo guidance.
+Use the root `AGENTS.md` plus the nearest nested `AGENTS.md` for authoritative repo guidance.
 
 Key project shape:
 
