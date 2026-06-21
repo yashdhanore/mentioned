@@ -166,20 +166,38 @@ export async function disableRegisteredPushToken(expoPushToken: string | null): 
   }
 }
 
-export function jobIdFromNotificationResponse(
+function notificationDataId(
+  data: Record<string, unknown> | undefined,
+  key: string,
+): string | null {
+  const value = data?.[key];
+  return typeof value === 'string' && value.trim() ? value : null;
+}
+
+export function savedSourceIdFromNotificationResponse(
   response: Notifications.NotificationResponse | null,
 ): string | null {
   if (!response || response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) {
     return null;
   }
 
-  const jobId = response.notification.request.content.data?.job_id;
-  return typeof jobId === 'string' && jobId ? jobId : null;
+  const data = response.notification.request.content.data;
+  return notificationDataId(data, 'saved_source_id') ?? notificationDataId(data, 'job_id');
+}
+
+export function jobIdFromNotificationResponse(
+  response: Notifications.NotificationResponse | null,
+): string | null {
+  return savedSourceIdFromNotificationResponse(response);
+}
+
+export async function getLastNotificationSavedSourceId(): Promise<string | null> {
+  const response = await Notifications.getLastNotificationResponseAsync();
+  return savedSourceIdFromNotificationResponse(response);
 }
 
 export async function getLastNotificationJobId(): Promise<string | null> {
-  const response = await Notifications.getLastNotificationResponseAsync();
-  return jobIdFromNotificationResponse(response);
+  return getLastNotificationSavedSourceId();
 }
 
 export async function clearLastNotificationResponse(): Promise<void> {
@@ -187,12 +205,12 @@ export async function clearLastNotificationResponse(): Promise<void> {
 }
 
 export function addNotificationTapListener(
-  onJobNotification: (jobId: string) => void,
+  onSavedSourceNotification: (savedSourceId: string) => void,
 ): Notifications.EventSubscription {
   return Notifications.addNotificationResponseReceivedListener((response) => {
-    const jobId = jobIdFromNotificationResponse(response);
-    if (jobId) {
-      onJobNotification(jobId);
+    const savedSourceId = savedSourceIdFromNotificationResponse(response);
+    if (savedSourceId) {
+      onSavedSourceNotification(savedSourceId);
     }
   });
 }

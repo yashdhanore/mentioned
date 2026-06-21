@@ -276,6 +276,73 @@ async def test_create_saved_source_reuses_existing_at_burst_limit(
     assert resp.json()["id"] == str(existing.id)
 
 
+async def test_create_saved_source_requeues_existing_failed_source(
+    client,
+    session: Session,
+    monkeypatch,
+) -> None:
+    enqueued: list[str] = []
+    monkeypatch.setattr(
+        "src.sources.service.enqueue_source_extraction",
+        lambda _session, source_id: enqueued.append(str(source_id)),
+    )
+    saved = _save_source(session, "FAILEDRETRY", status=SourceStatus.FAILED)
+    source = session.get(Source, saved.source_id)
+    assert source is not None
+    source.error_message = "network timeout"
+    source.processing_started_at = datetime.utcnow() - timedelta(minutes=5)
+    source.processed_at = datetime.utcnow()
+    session.add(source)
+    session.commit()
+
+    resp = await client.post(
+        "/v1/saved-sources",
+        json={"url": "https://www.instagram.com/reel/FAILEDRETRY/"},
+    )
+
+    session.expire_all()
+    refreshed = session.get(Source, saved.source_id)
+    assert refreshed is not None
+    assert resp.status_code == 202
+    data = resp.json()
+    assert data["id"] == str(saved.id)
+    assert data["status"] == "processing"
+    assert data["error_message"] is None
+    assert refreshed.status == SourceStatus.PENDING
+    assert refreshed.error_message is None
+    assert refreshed.processing_started_at is None
+    assert refreshed.processed_at is None
+    assert enqueued == [str(saved.source_id)]
+
+
+async def test_create_saved_source_does_not_requeue_existing_non_failed_source(
+    client,
+    session: Session,
+    monkeypatch,
+) -> None:
+    enqueued: list[str] = []
+    monkeypatch.setattr(
+        "src.sources.service.enqueue_source_extraction",
+        lambda _session, source_id: enqueued.append(str(source_id)),
+    )
+    saved = _save_source(session, "DONERETRY", status=SourceStatus.DONE)
+
+    resp = await client.post(
+        "/v1/saved-sources",
+        json={"url": "https://www.instagram.com/reel/DONERETRY/"},
+    )
+
+    session.expire_all()
+    refreshed = session.get(Source, saved.source_id)
+    assert refreshed is not None
+    assert resp.status_code == 202
+    data = resp.json()
+    assert data["id"] == str(saved.id)
+    assert data["status"] == "done"
+    assert refreshed.status == SourceStatus.DONE
+    assert enqueued == []
+
+
 async def test_delete_saved_source_unlinks_only_user_save(client) -> None:
     create_resp = await client.post("/v1/saved-sources", json={"url": "https://www.instagram.com/reel/ABC123/"})
     saved_source_id = create_resp.json()["id"]

@@ -5,14 +5,14 @@ import {
   addNotificationTapListener,
   addPushTokenRegistrationListener,
   clearLastNotificationResponse,
-  getLastNotificationJobId,
+  getLastNotificationSavedSourceId,
   registerForPushNotificationsAsync,
 } from '@/notifications';
 
 type UseNotificationRoutingOptions = {
   isSignedIn: boolean;
   refreshCaptures: (options?: { silent?: boolean }) => Promise<void>;
-  openCaptureByJobId: (jobId: string) => Promise<void>;
+  openCaptureBySavedSourceId: (savedSourceId: string) => Promise<void>;
 };
 
 type UseNotificationRoutingResult = {
@@ -23,7 +23,7 @@ type UseNotificationRoutingResult = {
 export function useNotificationRouting({
   isSignedIn,
   refreshCaptures,
-  openCaptureByJobId,
+  openCaptureBySavedSourceId,
 }: UseNotificationRoutingOptions): UseNotificationRoutingResult {
   const [registeredPushToken, setRegisteredPushToken] = useState<string | null>(null);
 
@@ -74,25 +74,25 @@ export function useNotificationRouting({
     }
 
     let isMounted = true;
-    const openJobFromNotification = (jobId: string) => {
-      void openCaptureByJobId(jobId)
+    const openSavedSourceFromNotification = (savedSourceId: string) => {
+      void openCaptureBySavedSourceId(savedSourceId)
         .catch(() => undefined)
         .finally(() => {
           void clearLastNotificationResponse().catch(() => undefined);
         });
     };
 
-    void getLastNotificationJobId()
-      .then((jobId) => {
-        if (isMounted && jobId) {
-          openJobFromNotification(jobId);
+    void getLastNotificationSavedSourceId()
+      .then((savedSourceId) => {
+        if (isMounted && savedSourceId) {
+          openSavedSourceFromNotification(savedSourceId);
         }
       })
       .catch(() => undefined);
 
-    const subscription = addNotificationTapListener((jobId) => {
+    const subscription = addNotificationTapListener((savedSourceId) => {
       if (isMounted) {
-        openJobFromNotification(jobId);
+        openSavedSourceFromNotification(savedSourceId);
       }
     });
 
@@ -100,7 +100,7 @@ export function useNotificationRouting({
       isMounted = false;
       subscription.remove();
     };
-  }, [isSignedIn, openCaptureByJobId]);
+  }, [isSignedIn, openCaptureBySavedSourceId]);
 
   return {
     registeredPushToken,

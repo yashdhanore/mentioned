@@ -61,7 +61,7 @@ export default function App() {
     clearSharedCaptureError,
     refreshCaptures,
     openCapture,
-    openCaptureByJobId,
+    openCaptureBySavedSourceId,
     submitPasteUrl,
     submitSharedUrl,
     retryCapture,
@@ -95,7 +95,7 @@ export default function App() {
   const { registeredPushToken, clearRegisteredPushToken } = useNotificationRouting({
     isSignedIn,
     refreshCaptures,
-    openCaptureByJobId,
+    openCaptureBySavedSourceId,
   });
 
   const signOutAndClose = useCallback(async () => {

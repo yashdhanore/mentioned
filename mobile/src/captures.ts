@@ -90,18 +90,7 @@ export function buildCapturesFromSavedSources(savedSources: SavedSourceResponse[
 }
 
 export function captureFromSavedSourceCreated(savedSource: SavedSourceResponse): Capture {
-  return {
-    id: savedSource.id,
-    creator: 'Instagram',
-    creatorHandle: compact(savedSource.source_creator_handle),
-    status: 'processing',
-    thumbnailUrl: thumbnailForSavedSource(savedSource),
-    sourceUrl: savedSource.source_url,
-    createdAt: savedSource.created_at,
-    sourceContextSnippet: null,
-    books: [],
-    errorMessage: savedSource.error_message,
-  };
+  return captureFromSavedSource(savedSource);
 }
 
 export function captureFromSavedSource(savedSource: SavedSourceResponse): Capture {

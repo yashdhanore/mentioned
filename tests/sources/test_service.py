@@ -17,6 +17,7 @@ from src.sources.service import (
     fail_source_processing,
     get_saved_source_by_key,
     recover_stale_sources,
+    retry_failed_saved_source,
     save_source_for_user,
 )
 
@@ -215,6 +216,72 @@ def test_get_saved_source_by_key_returns_owner_save(session: Session) -> None:
     assert found is not None
     assert found.id == saved.id
     assert get_saved_source_by_key(session, OWNER, "instagram:reel:MISSING") is None
+
+
+def test_retry_failed_saved_source_requeues_and_clears_failure(
+    session: Session, monkeypatch
+) -> None:
+    enqueued: list[str] = []
+    monkeypatch.setattr(
+        "src.sources.service.enqueue_source_extraction",
+        lambda _session, source_id: enqueued.append(str(source_id)),
+    )
+    saved = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/FAILED/")
+    source = session.get(Source, saved.source_id)
+    assert source is not None
+    source.status = SourceStatus.FAILED
+    source.error_message = "network timeout"
+    source.processing_started_at = datetime.utcnow() - timedelta(minutes=5)
+    source.processed_at = datetime.utcnow()
+    session.add(source)
+    session.commit()
+    enqueued.clear()
+
+    did_retry = retry_failed_saved_source(session, saved)
+
+    refreshed = session.get(Source, source.id)
+    assert refreshed is not None
+    assert did_retry is True
+    assert refreshed.status == SourceStatus.PENDING
+    assert refreshed.error_message is None
+    assert refreshed.processing_started_at is None
+    assert refreshed.processed_at is None
+    assert enqueued == [str(source.id)]
+
+
+@pytest.mark.parametrize(
+    "source_status",
+    [SourceStatus.PENDING, SourceStatus.PROCESSING, SourceStatus.DONE],
+)
+def test_retry_failed_saved_source_does_not_requeue_non_failed_source(
+    session: Session,
+    monkeypatch,
+    source_status: SourceStatus,
+) -> None:
+    enqueued: list[str] = []
+    monkeypatch.setattr(
+        "src.sources.service.enqueue_source_extraction",
+        lambda _session, source_id: enqueued.append(str(source_id)),
+    )
+    saved = save_source_for_user(
+        session,
+        OWNER,
+        f"https://www.instagram.com/reel/{source_status.value.upper()}/",
+    )
+    source = session.get(Source, saved.source_id)
+    assert source is not None
+    source.status = source_status
+    session.add(source)
+    session.commit()
+    enqueued.clear()
+
+    did_retry = retry_failed_saved_source(session, saved)
+
+    refreshed = session.get(Source, source.id)
+    assert refreshed is not None
+    assert did_retry is False
+    assert refreshed.status == source_status
+    assert enqueued == []
 
 
 def test_count_active_saved_sources(session: Session) -> None:

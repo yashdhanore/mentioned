@@ -6,22 +6,14 @@ import {
   deleteSavedSource,
   errorMessage,
   getSavedSource,
-  isDevAuthEnabled,
   listSavedSources,
 } from '@/api';
 import {
   captureFromSavedSource,
-  captureFromSavedSourceCreated,
   mergeSavedSourcesWithCaptures,
   type Capture,
 } from '@/captures';
-import { isSupabaseConfigured, supabase } from '@/supabase';
 import { isAllowedInstagramUrl } from '@/utils/source-url';
-
-type JobEventRecord = {
-  job_id?: string;
-  saved_source_id?: string;
-};
 
 type SubmitSourceOptions = {
   setSubmitting: (isSubmitting: boolean) => void;
@@ -31,6 +23,8 @@ type SubmitSourceOptions = {
 };
 
 type CaptureActionResult = { ok: true } | { ok: false; message: string };
+
+const PROCESSING_CAPTURE_POLL_INTERVAL_MS = 4_000;
 
 type UseCapturesResult = {
   captures: Capture[];
@@ -78,6 +72,9 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
   const selectedCapture = useMemo(() => {
     return captures.find((capture) => capture.id === selectedCaptureId) ?? null;
   }, [captures, selectedCaptureId]);
+  const hasProcessingCaptures = useMemo(() => {
+    return captures.some((capture) => capture.status === 'processing');
+  }, [captures]);
 
   const refreshCaptureById = useCallback(async (savedSourceId: string, options: { select?: boolean } = {}) => {
     const savedSource = await getSavedSource(savedSourceId);
@@ -130,54 +127,18 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
   }, [isSignedIn, refreshCaptures]);
 
   useEffect(() => {
-    if (!isSignedIn || !isSupabaseConfigured || isDevAuthEnabled) {
+    if (!isSignedIn || !hasProcessingCaptures) {
       return undefined;
     }
 
-    let isActive = true;
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-
-    void supabase.auth
-      .getSession()
-      .then(({ data }) => {
-        if (!isActive) {
-          return;
-        }
-
-        const userId = data.session?.user.id;
-        if (!userId) {
-          return;
-        }
-
-        channel = supabase
-          .channel(`mentioned-job-events:${userId}`)
-          .on(
-            'postgres_changes',
-            {
-              event: 'INSERT',
-              schema: 'public',
-              table: 'job_events',
-              filter: `owner_id=eq.${userId}`,
-            },
-            (payload) => {
-              const event = payload.new as JobEventRecord;
-              const savedSourceId = event.saved_source_id ?? event.job_id;
-              if (savedSourceId) {
-                void refreshCaptureById(savedSourceId).catch(() => undefined);
-              }
-            },
-          )
-          .subscribe();
-      })
-      .catch(() => undefined);
+    const interval = setInterval(() => {
+      void refreshCaptures({ silent: true }).catch(() => undefined);
+    }, PROCESSING_CAPTURE_POLL_INTERVAL_MS);
 
     return () => {
-      isActive = false;
-      if (channel) {
-        void supabase.removeChannel(channel);
-      }
+      clearInterval(interval);
     };
-  }, [isSignedIn, refreshCaptureById]);
+  }, [hasProcessingCaptures, isSignedIn, refreshCaptures]);
 
   const openCapture = useCallback(
     (capture: Capture) => {
@@ -188,20 +149,19 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
     [refreshCaptureById],
   );
 
-  const openCaptureByJobId = useCallback(
-    async (jobId: string) => {
-      setActionError(null);
-      await refreshCaptureById(jobId, { select: true });
-    },
-    [refreshCaptureById],
-  );
-
   const openCaptureBySavedSourceId = useCallback(
     async (savedSourceId: string) => {
       setActionError(null);
       await refreshCaptureById(savedSourceId, { select: true });
     },
     [refreshCaptureById],
+  );
+
+  const openCaptureByJobId = useCallback(
+    async (jobId: string) => {
+      await openCaptureBySavedSourceId(jobId);
+    },
+    [openCaptureBySavedSourceId],
   );
 
   const setPasteUrl = useCallback((value: string) => {
@@ -228,7 +188,7 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
 
       try {
         const created = await createSavedSource(sourceUrl);
-        const capture = captureFromSavedSourceCreated(created);
+        const capture = captureFromSavedSource(created);
         setCaptures((current) => [capture, ...current.filter((item) => item.id !== capture.id)]);
         setSelectedCaptureId(capture.id);
         options.onSuccess?.();
@@ -283,12 +243,12 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
 
       try {
         const created = await createSavedSource(capture.sourceUrl);
-        const processingCapture = captureFromSavedSourceCreated(created);
+        const updatedCapture = captureFromSavedSource(created);
         setCaptures((current) => [
-          processingCapture,
+          updatedCapture,
           ...current.filter((item) => item.id !== capture.id),
         ]);
-        setSelectedCaptureId(processingCapture.id);
+        setSelectedCaptureId(updatedCapture.id);
         void refreshCaptureById(created.id).catch(() => undefined);
       } catch (error) {
         setActionError(errorMessage(error, 'Could not retry this Reel.'));

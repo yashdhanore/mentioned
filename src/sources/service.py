@@ -74,6 +74,34 @@ def get_saved_source_by_key(session: Session, owner_id: str, source_key: str) ->
     ).first()
 
 
+def retry_failed_saved_source(session: Session, saved_source: SavedSource) -> bool:
+    source = session.get(Source, saved_source.source_id)
+    if source is None:
+        raise RuntimeError(
+            f"Saved source {saved_source.id} points to missing source {saved_source.source_id}"
+        )
+    if source.status != SourceStatus.FAILED:
+        return False
+
+    now = datetime.utcnow()
+    source.status = SourceStatus.PENDING
+    source.error_message = None
+    source.processing_started_at = None
+    source.processed_at = None
+    source.updated_at = now
+    session.add(source)
+
+    try:
+        enqueue_source_extraction(session, source.id)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+
+    session.refresh(saved_source)
+    return True
+
+
 def claim_source_for_processing(session: Session, source_id: str | UUID) -> Source | None:
     parsed_source_id = parse_uuid(source_id)
     now = datetime.utcnow()

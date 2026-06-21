@@ -44,6 +44,15 @@ const failedCapture = captureFromSavedSource({
 });
 assert.equal(failedCapture.status, 'failed');
 
+const failedCreatedCapture = captureFromSavedSourceCreated({
+  ...savedSource,
+  id: '99999999-9999-4999-8999-999999999990',
+  status: 'failed',
+  error_message: 'Could not process this Reel.',
+});
+assert.equal(failedCreatedCapture.status, 'failed');
+assert.equal(failedCreatedCapture.errorMessage, 'Could not process this Reel.');
+
 assert.deepEqual(
   buildCapturesFromSavedSources([savedSource]).map((capture) => capture.id),
   [savedSource.id],

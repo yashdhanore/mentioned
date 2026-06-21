@@ -40,6 +40,7 @@ def create_saved_source(
         session, caller.subject_id, identity.source_key
     )
     if existing is not None:
+        source_service.retry_failed_saved_source(session, existing)
         return saved_source_response(session, existing)
 
     settings = get_settings()
