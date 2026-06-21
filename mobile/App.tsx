@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
-import { AppState, SafeAreaView, useWindowDimensions } from 'react-native';
+import { SafeAreaView, useWindowDimensions } from 'react-native';
 
 import {
   deleteAccount,
@@ -11,13 +11,7 @@ import { PasteSheet, ProfileSheet, ReelMenuSheet, RemoveBookSheet } from '@/comp
 import { useCaptures } from '@/features/captures/use-captures';
 import { useSharedSourceIntake } from '@/features/captures/use-shared-source-intake';
 import { useAuthSession } from '@/features/auth/use-auth-session';
-import {
-  addNotificationTapListener,
-  addPushTokenRegistrationListener,
-  clearLastNotificationResponse,
-  getLastNotificationJobId,
-  registerForPushNotificationsAsync,
-} from '@/notifications';
+import { useNotificationRouting } from '@/features/notifications/use-notification-routing';
 import { AuthLoadingScreen } from '@/screens/auth-loading-screen';
 import { HomeScreen } from '@/screens/home-screen';
 import { ReelDetailScreen } from '@/screens/reel-detail-screen';
@@ -49,7 +43,6 @@ export default function App() {
   const [selectedBook, setSelectedBook] = useState<BookMention | null>(null);
   const [bookRemovalError, setBookRemovalError] = useState<string | null>(null);
   const [confirmingDeleteAccount, setConfirmingDeleteAccount] = useState(false);
-  const [registeredPushToken, setRegisteredPushToken] = useState<string | null>(null);
 
   const {
     captures,
@@ -104,95 +97,27 @@ export default function App() {
     closePasteSheet,
   });
 
-  useEffect(() => {
-    if (!isSignedIn) {
-      return undefined;
-    }
-
-    let isMounted = true;
-    void registerForPushNotificationsAsync().then((expoPushToken) => {
-      if (isMounted && expoPushToken) {
-        setRegisteredPushToken(expoPushToken);
-      }
-    });
-
-    const subscription = addPushTokenRegistrationListener((expoPushToken) => {
-      if (isMounted) {
-        setRegisteredPushToken(expoPushToken);
-      }
-    });
-
-    return () => {
-      isMounted = false;
-      subscription?.remove();
-    };
-  }, [isSignedIn]);
-
-  useEffect(() => {
-    if (!isSignedIn) {
-      return undefined;
-    }
-
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') {
-        void refreshCaptures({ silent: true });
-      }
-    });
-
-    return () => {
-      subscription.remove();
-    };
-  }, [isSignedIn, refreshCaptures]);
-
-  useEffect(() => {
-    if (!isSignedIn) {
-      return undefined;
-    }
-
-    let isMounted = true;
-    const openJobFromNotification = (jobId: string) => {
-      void openCaptureByJobId(jobId)
-        .catch(() => undefined)
-        .finally(() => {
-          void clearLastNotificationResponse().catch(() => undefined);
-        });
-    };
-
-    void getLastNotificationJobId()
-      .then((jobId) => {
-        if (isMounted && jobId) {
-          openJobFromNotification(jobId);
-        }
-      })
-      .catch(() => undefined);
-
-    const subscription = addNotificationTapListener((jobId) => {
-      if (isMounted) {
-        openJobFromNotification(jobId);
-      }
-    });
-
-    return () => {
-      isMounted = false;
-      subscription.remove();
-    };
-  }, [isSignedIn, openCaptureByJobId]);
+  const { registeredPushToken, clearRegisteredPushToken } = useNotificationRouting({
+    isSignedIn,
+    refreshCaptures,
+    openCaptureByJobId,
+  });
 
   const signOutAndClose = useCallback(async () => {
     await handleSignOut(registeredPushToken);
-    setRegisteredPushToken(null);
+    clearRegisteredPushToken();
     setSheet(null);
-  }, [handleSignOut, registeredPushToken]);
+  }, [clearRegisteredPushToken, handleSignOut, registeredPushToken]);
 
   const deleteAccountAndClose = useCallback(async () => {
     const didDelete = await handleDeleteAccount(registeredPushToken, deleteAccount);
     if (!didDelete) {
       return;
     }
-    setRegisteredPushToken(null);
+    clearRegisteredPushToken();
     setConfirmingDeleteAccount(false);
     setSheet(null);
-  }, [handleDeleteAccount, registeredPushToken]);
+  }, [clearRegisteredPushToken, handleDeleteAccount, registeredPushToken]);
 
   const closeProfileSheet = useCallback(() => {
     setProfileError(null);
