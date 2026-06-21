@@ -31,12 +31,18 @@ def create_saved_source(
     caller: CallerDep,
     session: SessionDep,
 ) -> SavedSourceResponse:
-    settings = get_settings()
     try:
-        identify_source(body.url, require_https=False)
+        identity = identify_source(body.url, require_https=False)
     except SourceUrlError as exc:
         raise InvalidSourceUrl() from exc
 
+    existing = source_service.get_saved_source_by_key(
+        session, caller.subject_id, identity.source_key
+    )
+    if existing is not None:
+        return saved_source_response(session, existing)
+
+    settings = get_settings()
     active = source_service.count_active_saved_sources(session, caller.subject_id)
     if active >= settings.max_active_jobs_per_user:
         raise QuotaExceeded()

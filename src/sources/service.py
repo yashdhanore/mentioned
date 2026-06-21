@@ -65,6 +65,15 @@ def _save_source_for_user_once(session: Session, owner_id: str, raw_url: str) ->
     return saved
 
 
+def get_saved_source_by_key(session: Session, owner_id: str, source_key: str) -> SavedSource | None:
+    owner_uuid = parse_uuid(owner_id)
+    return session.exec(
+        select(SavedSource)
+        .join(Source, Source.id == SavedSource.source_id)
+        .where(SavedSource.owner_id == owner_uuid, Source.source_key == source_key)
+    ).first()
+
+
 def claim_source_for_processing(session: Session, source_id: str | UUID) -> Source | None:
     parsed_source_id = parse_uuid(source_id)
     now = datetime.utcnow()

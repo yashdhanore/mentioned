@@ -15,6 +15,7 @@ from src.sources.service import (
     count_saved_sources_created_since,
     delete_saved_source,
     fail_source_processing,
+    get_saved_source_by_key,
     recover_stale_sources,
     save_source_for_user,
 )
@@ -203,6 +204,17 @@ def test_delete_saved_source_removes_only_saved_source(session: Session) -> None
 
     assert session.get(Source, source_id) is not None
     assert len(list(session.exec(select(SavedSource)).all())) == 0
+
+
+def test_get_saved_source_by_key_returns_owner_save(session: Session) -> None:
+    saved = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/ABC123/")
+    save_source_for_user(session, OTHER_OWNER, "https://www.instagram.com/reel/ABC123/")
+
+    found = get_saved_source_by_key(session, OWNER, "instagram:reel:ABC123")
+
+    assert found is not None
+    assert found.id == saved.id
+    assert get_saved_source_by_key(session, OWNER, "instagram:reel:MISSING") is None
 
 
 def test_count_active_saved_sources(session: Session) -> None:

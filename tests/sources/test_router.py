@@ -225,6 +225,57 @@ async def test_create_saved_source_active_quota(client, session: Session, monkey
     assert resp.json()["error_code"] == "quota_exceeded"
 
 
+async def test_create_saved_source_reuses_existing_at_active_quota(
+    client,
+    session: Session,
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr("src.sources.router.get_settings", _quota_settings)
+    existing = _save_source(session, "EXISTINGACTIVE", status=SourceStatus.PENDING)
+    for index in range(4):
+        _save_source(session, f"ACTIVE{index}", status=SourceStatus.PENDING)
+
+    resp = await client.post(
+        "/v1/saved-sources",
+        json={"url": "https://www.instagram.com/reel/EXISTINGACTIVE/"},
+    )
+
+    assert resp.status_code == 202
+    data = resp.json()
+    assert data["id"] == str(existing.id)
+    assert data["source_key"] == "instagram:reel:EXISTINGACTIVE"
+
+
+async def test_create_saved_source_reuses_existing_at_burst_limit(
+    client,
+    session: Session,
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr("src.sources.router.get_settings", _quota_settings)
+    now = datetime.utcnow()
+    existing = _save_source(
+        session,
+        "EXISTINGBURST",
+        status=SourceStatus.DONE,
+        created_at=now,
+    )
+    for index in range(2):
+        _save_source(
+            session,
+            f"BURST{index}",
+            status=SourceStatus.DONE,
+            created_at=now - timedelta(seconds=index),
+        )
+
+    resp = await client.post(
+        "/v1/saved-sources",
+        json={"url": "https://www.instagram.com/reel/EXISTINGBURST/"},
+    )
+
+    assert resp.status_code == 202
+    assert resp.json()["id"] == str(existing.id)
+
+
 async def test_delete_saved_source_unlinks_only_user_save(client) -> None:
     create_resp = await client.post("/v1/saved-sources", json={"url": "https://www.instagram.com/reel/ABC123/"})
     saved_source_id = create_resp.json()["id"]
