@@ -294,8 +294,12 @@ def test_sources_migration_has_cache_and_owner_scoped_permissions() -> None:
     assert 'op.create_table(\n        "saved_sources"' in migration
     assert 'sa.UniqueConstraint("source_key", name="sources_source_key_key")' in migration
     assert 'sa.UniqueConstraint("owner_id", "source_id", name="saved_sources_owner_source_key")' in migration
-    assert "GRANT SELECT ON TABLE public.sources, public.source_items TO mentioned_api" in migration
+    assert "GRANT SELECT, INSERT, UPDATE ON TABLE public.sources TO mentioned_api" in migration
+    assert "GRANT SELECT ON TABLE public.source_items TO mentioned_api" in migration
+    assert "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.saved_sources TO mentioned_api" in migration
     assert "CREATE POLICY saved_sources_api_owner_all ON public.saved_sources" in migration
+    assert "CREATE POLICY sources_api_insert ON public.sources" in migration
+    assert "CREATE POLICY sources_api_retry_update ON public.sources" in migration
     assert "create extension if not exists pgmq" in migration
     assert "pgmq.create('extract_sources')" in migration
     assert "GRANT EXECUTE ON FUNCTION pgmq.send(text, jsonb, integer) TO mentioned_api" in migration

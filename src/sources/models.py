@@ -64,3 +64,8 @@ class SavedSource(SQLModel, table=True):
     owner_id: UUID = Field(nullable=False, index=True)
     source_id: UUID = Field(nullable=False, foreign_key="sources.id", index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
+    last_retry_at: Optional[datetime] = Field(default=None)
+    retry_burst_started_at: Optional[datetime] = Field(default=None)
+    retry_burst_count: int = Field(default=0, nullable=False)
+    retry_daily_started_at: Optional[datetime] = Field(default=None)
+    retry_daily_count: int = Field(default=0, nullable=False)

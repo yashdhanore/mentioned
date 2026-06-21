@@ -55,17 +55,20 @@ def _save_source(
     return saved
 
 
-def _set_source_retry_timestamp(
+def _set_saved_source_retry_attempts(
     session: Session,
     saved: SavedSource,
-    updated_at: datetime,
+    attempted_at: datetime,
+    *,
+    burst_count: int = 1,
+    daily_count: int = 1,
 ) -> None:
-    source = session.get(Source, saved.source_id)
-    assert source is not None
-    source.updated_at = updated_at
-    source.processed_at = updated_at
-    source.error_message = "network timeout"
-    session.add(source)
+    saved.last_retry_at = attempted_at
+    saved.retry_burst_started_at = attempted_at
+    saved.retry_burst_count = burst_count
+    saved.retry_daily_started_at = attempted_at
+    saved.retry_daily_count = daily_count
+    session.add(saved)
     session.commit()
 
 
@@ -376,19 +379,71 @@ async def test_create_saved_source_failed_retry_uses_burst_throttle(
         status=SourceStatus.FAILED,
         created_at=now - timedelta(days=2),
     )
-    _set_source_retry_timestamp(session, target, now - timedelta(hours=2))
-    for index in range(3):
-        saved = _save_source(
-            session,
-            f"RECENTFAILED{index}",
-            status=SourceStatus.FAILED,
-            created_at=now - timedelta(days=2),
-        )
-        _set_source_retry_timestamp(session, saved, now - timedelta(seconds=index))
+    _set_saved_source_retry_attempts(session, target, now - timedelta(hours=2))
+    saved = _save_source(
+        session,
+        "RECENTFAILEDRETRIES",
+        status=SourceStatus.FAILED,
+        created_at=now - timedelta(days=2),
+    )
+    _set_saved_source_retry_attempts(
+        session,
+        saved,
+        now - timedelta(seconds=10),
+        burst_count=3,
+    )
 
     resp = await client.post(
         "/v1/saved-sources",
         json={"url": "https://www.instagram.com/reel/FAILEDBURSTRETRY/"},
+    )
+
+    session.expire_all()
+    refreshed = session.get(Source, target.source_id)
+    assert refreshed is not None
+    assert resp.status_code == 429
+    assert resp.json()["error_code"] == "rate_limited"
+    assert refreshed.status == SourceStatus.FAILED
+    assert enqueued == []
+
+
+async def test_create_saved_source_failed_retry_combines_create_and_retry_burst_counts(
+    client,
+    session: Session,
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr("src.sources.router.get_settings", _quota_settings)
+    enqueued: list[str] = []
+    monkeypatch.setattr(
+        "src.sources.service.enqueue_source_extraction",
+        lambda _session, source_id: enqueued.append(str(source_id)),
+    )
+    now = datetime.utcnow()
+    target = _save_source(
+        session,
+        "FAILEDMIXEDBURST",
+        status=SourceStatus.FAILED,
+        created_at=now - timedelta(days=2),
+    )
+    _set_saved_source_retry_attempts(session, target, now - timedelta(hours=2))
+    for index in range(2):
+        _save_source(
+            session,
+            f"MIXEDBURSTCREATE{index}",
+            status=SourceStatus.DONE,
+            created_at=now - timedelta(seconds=index),
+        )
+    saved = _save_source(
+        session,
+        "MIXEDBURSTRETRY",
+        status=SourceStatus.FAILED,
+        created_at=now - timedelta(days=2),
+    )
+    _set_saved_source_retry_attempts(session, saved, now - timedelta(seconds=10))
+
+    resp = await client.post(
+        "/v1/saved-sources",
+        json={"url": "https://www.instagram.com/reel/FAILEDMIXEDBURST/"},
     )
 
     session.expire_all()
@@ -418,23 +473,76 @@ async def test_create_saved_source_failed_retry_uses_daily_throttle(
         status=SourceStatus.FAILED,
         created_at=now - timedelta(days=2),
     )
-    _set_source_retry_timestamp(session, target, now - timedelta(days=2))
-    for index in range(25):
-        saved = _save_source(
-            session,
-            f"DAILYFAILED{index}",
-            status=SourceStatus.FAILED,
-            created_at=now - timedelta(days=2),
-        )
-        _set_source_retry_timestamp(
-            session,
-            saved,
-            now - timedelta(hours=2, minutes=index),
-        )
+    _set_saved_source_retry_attempts(session, target, now - timedelta(days=2))
+    saved = _save_source(
+        session,
+        "DAILYFAILEDRETRIES",
+        status=SourceStatus.FAILED,
+        created_at=now - timedelta(days=2),
+    )
+    _set_saved_source_retry_attempts(
+        session,
+        saved,
+        now - timedelta(hours=2),
+        daily_count=25,
+    )
 
     resp = await client.post(
         "/v1/saved-sources",
         json={"url": "https://www.instagram.com/reel/FAILEDAILYRETRY/"},
+    )
+
+    session.expire_all()
+    refreshed = session.get(Source, target.source_id)
+    assert refreshed is not None
+    assert resp.status_code == 429
+    assert resp.json()["error_code"] == "quota_exceeded"
+    assert refreshed.status == SourceStatus.FAILED
+    assert enqueued == []
+
+
+async def test_create_saved_source_failed_retry_combines_create_and_retry_daily_counts(
+    client,
+    session: Session,
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr("src.sources.router.get_settings", _quota_settings)
+    enqueued: list[str] = []
+    monkeypatch.setattr(
+        "src.sources.service.enqueue_source_extraction",
+        lambda _session, source_id: enqueued.append(str(source_id)),
+    )
+    now = datetime.utcnow()
+    target = _save_source(
+        session,
+        "FAILEDMIXEDDAILY",
+        status=SourceStatus.FAILED,
+        created_at=now - timedelta(days=2),
+    )
+    _set_saved_source_retry_attempts(session, target, now - timedelta(days=2))
+    for index in range(24):
+        _save_source(
+            session,
+            f"MIXEDDAILYCREATE{index}",
+            status=SourceStatus.DONE,
+            created_at=now - timedelta(hours=2, minutes=index),
+        )
+    saved = _save_source(
+        session,
+        "MIXEDDAILYRETRY",
+        status=SourceStatus.FAILED,
+        created_at=now - timedelta(days=2),
+    )
+    _set_saved_source_retry_attempts(
+        session,
+        saved,
+        now - timedelta(hours=2),
+        daily_count=1,
+    )
+
+    resp = await client.post(
+        "/v1/saved-sources",
+        json={"url": "https://www.instagram.com/reel/FAILEDMIXEDDAILY/"},
     )
 
     session.expire_all()

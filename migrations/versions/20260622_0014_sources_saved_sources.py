@@ -74,6 +74,11 @@ def upgrade() -> None:
         sa.Column("owner_id", UUID, nullable=False),
         sa.Column("source_id", UUID, sa.ForeignKey("sources.id", ondelete="CASCADE"), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.Column("last_retry_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("retry_burst_started_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("retry_burst_count", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("retry_daily_started_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("retry_daily_count", sa.Integer(), nullable=False, server_default="0"),
         sa.UniqueConstraint("owner_id", "source_id", name="saved_sources_owner_source_key"),
     )
     op.create_index("saved_sources_owner_created_idx", "saved_sources", ["owner_id", sa.text("created_at DESC")])
@@ -84,12 +89,15 @@ def upgrade() -> None:
     op.execute("ALTER TABLE public.saved_sources ENABLE ROW LEVEL SECURITY")
 
     op.execute("REVOKE ALL ON TABLE public.sources, public.source_items, public.saved_sources FROM anon, authenticated")
-    op.execute("GRANT SELECT ON TABLE public.sources, public.source_items TO mentioned_api")
+    op.execute("GRANT SELECT, INSERT, UPDATE ON TABLE public.sources TO mentioned_api")
+    op.execute("GRANT SELECT ON TABLE public.source_items TO mentioned_api")
     op.execute("GRANT SELECT, INSERT, UPDATE ON TABLE public.sources, public.source_items TO mentioned_worker")
-    op.execute("GRANT SELECT, INSERT, DELETE ON TABLE public.saved_sources TO mentioned_api")
+    op.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.saved_sources TO mentioned_api")
     op.execute("GRANT SELECT, INSERT, DELETE ON TABLE public.saved_sources TO mentioned_worker")
 
     op.execute("CREATE POLICY sources_api_select ON public.sources FOR SELECT TO mentioned_api USING (true)")
+    op.execute("CREATE POLICY sources_api_insert ON public.sources FOR INSERT TO mentioned_api WITH CHECK (true)")
+    op.execute("CREATE POLICY sources_api_retry_update ON public.sources FOR UPDATE TO mentioned_api USING (true) WITH CHECK (true)")
     op.execute("CREATE POLICY source_items_api_select ON public.source_items FOR SELECT TO mentioned_api USING (true)")
     op.execute(
         """
@@ -160,6 +168,8 @@ def downgrade() -> None:
     op.execute("DROP POLICY IF EXISTS sources_worker_all ON public.sources")
     op.execute("DROP POLICY IF EXISTS saved_sources_api_owner_all ON public.saved_sources")
     op.execute("DROP POLICY IF EXISTS source_items_api_select ON public.source_items")
+    op.execute("DROP POLICY IF EXISTS sources_api_retry_update ON public.sources")
+    op.execute("DROP POLICY IF EXISTS sources_api_insert ON public.sources")
     op.execute("DROP POLICY IF EXISTS sources_api_select ON public.sources")
     op.execute("REVOKE ALL ON TABLE public.sources, public.source_items, public.saved_sources FROM mentioned_api, mentioned_worker")
     op.drop_index("saved_sources_source_id_idx", table_name="saved_sources")

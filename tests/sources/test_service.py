@@ -12,6 +12,7 @@ from src.sources.service import (
     claim_source_for_processing,
     complete_source_processing,
     count_active_saved_sources,
+    count_saved_source_retry_attempts_since,
     count_saved_sources_created_since,
     delete_saved_source,
     fail_source_processing,
@@ -246,6 +247,11 @@ def test_retry_failed_saved_source_requeues_and_clears_failure(
     assert refreshed.error_message is None
     assert refreshed.processing_started_at is None
     assert refreshed.processed_at is None
+    refreshed_saved = session.get(SavedSource, saved.id)
+    assert refreshed_saved is not None
+    assert refreshed_saved.last_retry_at is not None
+    assert refreshed_saved.retry_burst_count == 1
+    assert refreshed_saved.retry_daily_count == 1
     assert enqueued == [str(source.id)]
 
 
@@ -287,6 +293,11 @@ def test_retry_failed_saved_source_is_atomic_for_stale_concurrent_callers(
     assert first_retry is True
     assert second_retry is False
     assert enqueued == [str(source_id)]
+    with Session(bind) as check_session:
+        checked_saved = check_session.get(SavedSource, saved_id)
+        assert checked_saved is not None
+        assert checked_saved.retry_burst_count == 1
+        assert checked_saved.retry_daily_count == 1
 
 
 @pytest.mark.parametrize(
@@ -363,3 +374,52 @@ def test_count_saved_sources_created_since(session: Session) -> None:
     assert count_saved_sources_created_since(session, OWNER, now - timedelta(days=1)) == 1
     assert count_saved_sources_created_since(session, OTHER_OWNER, now - timedelta(days=1)) == 1
     assert session.get(SavedSource, recent.id) is not None
+
+
+def test_count_saved_source_retry_attempts_since_counts_attempt_windows(session: Session) -> None:
+    now = datetime.utcnow()
+    first = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/RETRYCOUNT1/")
+    second = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/RETRYCOUNT2/")
+    old = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/OLDRETRYCOUNT/")
+    other = save_source_for_user(session, OTHER_OWNER, "https://www.instagram.com/reel/OTHERRETRYCOUNT/")
+
+    first.retry_burst_started_at = now - timedelta(seconds=20)
+    first.retry_burst_count = 2
+    first.retry_daily_started_at = now - timedelta(hours=2)
+    first.retry_daily_count = 4
+    second.retry_burst_started_at = now - timedelta(seconds=10)
+    second.retry_burst_count = 1
+    second.retry_daily_started_at = now - timedelta(hours=3)
+    second.retry_daily_count = 3
+    old.retry_burst_started_at = now - timedelta(minutes=2)
+    old.retry_burst_count = 5
+    old.retry_daily_started_at = now - timedelta(days=2)
+    old.retry_daily_count = 10
+    other.retry_burst_started_at = now
+    other.retry_burst_count = 7
+    other.retry_daily_started_at = now
+    other.retry_daily_count = 8
+    session.add(first)
+    session.add(second)
+    session.add(old)
+    session.add(other)
+    session.commit()
+
+    assert (
+        count_saved_source_retry_attempts_since(
+            session,
+            OWNER,
+            now - timedelta(minutes=1),
+            window="burst",
+        )
+        == 3
+    )
+    assert (
+        count_saved_source_retry_attempts_since(
+            session,
+            OWNER,
+            now - timedelta(days=1),
+            window="daily",
+        )
+        == 7
+    )

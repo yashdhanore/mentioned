@@ -36,19 +36,25 @@ def _enforce_failed_retry_quota(session: Session, owner_id: str) -> None:
     create_burst_count = source_service.count_saved_sources_created_since(
         session, owner_id, now - timedelta(minutes=1)
     )
-    retry_burst_count = source_service.count_failed_saved_sources_updated_since(
-        session, owner_id, now - timedelta(minutes=1)
+    retry_burst_count = source_service.count_saved_source_retry_attempts_since(
+        session,
+        owner_id,
+        now - timedelta(minutes=1),
+        window="burst",
     )
-    if max(create_burst_count, retry_burst_count) >= settings.max_job_create_burst_per_minute:
+    if create_burst_count + retry_burst_count >= settings.max_job_create_burst_per_minute:
         raise RateLimited()
 
     create_daily_count = source_service.count_saved_sources_created_since(
         session, owner_id, now - timedelta(days=1)
     )
-    retry_daily_count = source_service.count_failed_saved_sources_updated_since(
-        session, owner_id, now - timedelta(days=1)
+    retry_daily_count = source_service.count_saved_source_retry_attempts_since(
+        session,
+        owner_id,
+        now - timedelta(days=1),
+        window="daily",
     )
-    if max(create_daily_count, retry_daily_count) >= settings.max_jobs_created_per_day:
+    if create_daily_count + retry_daily_count >= settings.max_jobs_created_per_day:
         raise QuotaExceeded()
 
 

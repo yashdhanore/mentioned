@@ -13,6 +13,17 @@ from src.sources.models import SavedSource, Source, SourceItem, SourceStatus
 from src.sources.queue import enqueue_source_extraction
 
 
+def _increment_retry_window(
+    window_started_at: datetime | None,
+    count: int,
+    now: datetime,
+    window: timedelta,
+) -> tuple[datetime, int]:
+    if window_started_at is None or window_started_at < now - window:
+        return now, 1
+    return window_started_at, count + 1
+
+
 def save_source_for_user(session: Session, owner_id: str, raw_url: str) -> SavedSource:
     for attempt in range(2):
         try:
@@ -92,6 +103,30 @@ def retry_failed_saved_source(session: Session, saved_source: SavedSource) -> bo
     if source_id is None:
         session.rollback()
         return False
+
+    saved = session.get(SavedSource, saved_source.id)
+    if saved is None:
+        session.rollback()
+        raise RuntimeError(f"Missing saved source {saved_source.id}")
+
+    retry_burst_started_at, retry_burst_count = _increment_retry_window(
+        saved.retry_burst_started_at,
+        saved.retry_burst_count,
+        now,
+        timedelta(minutes=1),
+    )
+    retry_daily_started_at, retry_daily_count = _increment_retry_window(
+        saved.retry_daily_started_at,
+        saved.retry_daily_count,
+        now,
+        timedelta(days=1),
+    )
+    saved.last_retry_at = now
+    saved.retry_burst_started_at = retry_burst_started_at
+    saved.retry_burst_count = retry_burst_count
+    saved.retry_daily_started_at = retry_daily_started_at
+    saved.retry_daily_count = retry_daily_count
+    session.add(saved)
 
     try:
         enqueue_source_extraction(session, source_id)
@@ -188,20 +223,25 @@ def count_saved_sources_created_since(session: Session, owner_id: str, since: da
     return int(session.exec(stmt).one())
 
 
-def count_failed_saved_sources_updated_since(
+def count_saved_source_retry_attempts_since(
     session: Session,
     owner_id: str,
     since: datetime,
+    *,
+    window: str,
 ) -> int:
     owner_uuid = parse_uuid(owner_id)
-    stmt = (
-        select(func.count())
-        .select_from(SavedSource)
-        .join(Source, Source.id == SavedSource.source_id)
-        .where(
-            SavedSource.owner_id == owner_uuid,
-            Source.status == SourceStatus.FAILED,
-            Source.updated_at >= since,
-        )
+    if window == "burst":
+        started_at = SavedSource.retry_burst_started_at
+        count = SavedSource.retry_burst_count
+    elif window == "daily":
+        started_at = SavedSource.retry_daily_started_at
+        count = SavedSource.retry_daily_count
+    else:
+        raise ValueError("retry attempt window must be burst or daily")
+
+    stmt = select(func.coalesce(func.sum(count), 0)).where(
+        SavedSource.owner_id == owner_uuid,
+        started_at >= since,
     )
     return int(session.exec(stmt).one())
