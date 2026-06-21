@@ -214,13 +214,17 @@ async def test_delete_job_removes_saved_post_and_mentions(client, session):
     session.add(mention)
     session.commit()
     session.refresh(mention)
+    job_id = job.id
+    mention_id = mention.id
 
-    resp = await client.delete(f"/v1/jobs/{job.id}")
+    resp = await client.delete(f"/v1/jobs/{job_id}")
 
     assert resp.status_code == 200
-    assert resp.json() == {"job_id": str(job.id), "deleted": True}
-    assert session.get(Job, job.id) is None
-    assert session.get(Mention, mention.id) is None
+    assert resp.json() == {"job_id": str(job_id), "deleted": True}
+
+    session.expire_all()
+    assert session.get(Job, job_id) is None
+    assert session.get(Mention, mention_id) is None
 
     list_resp = await client.get("/v1/jobs")
     assert list_resp.status_code == 200

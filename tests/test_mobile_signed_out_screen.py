@@ -24,10 +24,18 @@ def test_signed_out_screen_offers_sign_in_with_apple() -> None:
     screen_source = SIGNED_OUT_SCREEN.read_text()
     app_source = APP.read_text()
     supabase_source = SUPABASE.read_text()
+    native_buttons_source = (
+        REPO_ROOT / "mobile" / "src" / "components" / "auth-buttons.native.tsx"
+    ).read_text()
+    web_buttons_source = (
+        REPO_ROOT / "mobile" / "src" / "components" / "auth-buttons.web.tsx"
+    ).read_text()
 
-    assert "Continue with Apple" in screen_source
+    assert "AuthButtons" in screen_source
     assert "onContinueApple" in screen_source
     assert "isAppleLoading" in screen_source
+    assert "Continue with Apple" in native_buttons_source
+    assert "Continue with Apple" in web_buttons_source
     assert "handleSignIn('apple')" in app_source
     assert "authProviderInFlight === 'apple'" in app_source
     assert "'google' | 'apple'" in supabase_source
@@ -38,7 +46,7 @@ def test_signed_out_screen_explains_pending_shared_source() -> None:
     app_source = APP.read_text()
     pending_source = PENDING_SOURCE.read_text()
 
-    assert "Sign in to save this shared source." in screen_source
+    assert "Sign in to save this shared post." in screen_source
     assert "pendingSharedSourceUrl" in screen_source
     assert "onDiscardPendingSharedSource" in screen_source
     assert "pendingSharedSourceStore.clear" in app_source
@@ -63,14 +71,16 @@ def test_pending_shared_source_intake_is_hardened() -> None:
 def test_release_one_state_copy_is_book_first() -> None:
     home_source = HOME_SCREEN.read_text()
     books_source = BOOKS.read_text()
+    empty_state_source = (
+        REPO_ROOT / "mobile" / "src" / "components" / "empty-state.tsx"
+    ).read_text()
 
-    assert "Saved Reels" in home_source
-    assert "No saved Reels yet" in home_source
-    assert "Sources you saved so Mentioned can find the books inside." in home_source
+    assert "Saved posts" in home_source
+    assert "Posts you save so Mentioned can find the books inside." in home_source
     assert "Finding books..." in books_source
-    assert "checking the saved source for book mentions" in books_source
-    assert "The source is still saved." in books_source
-    assert "reading the Instagram post" not in books_source
+    assert "Mentioned is checking this post for book recommendations." in books_source
+    assert "The post is still saved." in books_source
+    assert "Sure looks empty out here" in empty_state_source
     assert "Saved items" not in home_source
 
 
@@ -89,7 +99,7 @@ def test_ready_detail_uses_source_hero_before_books() -> None:
     assert ready_index < source_hero_index < books_index
     assert "OriginalSourceSection" not in ready_block
     assert "SourceSummary" not in detail_source
-    assert "Open source" in detail_source
+    assert "Open post" in detail_source
     assert "sourceHeroPaper" in detail_source
     assert "coverImageUrl" in captures_source
     assert "cover_image_url" in captures_source
@@ -151,7 +161,7 @@ def test_saved_reels_home_refresh_uses_job_list_only() -> None:
     refresh_block = captures_source[refresh_start:refresh_end]
 
     assert "listAllJobs()" in refresh_block
-    assert "buildCapturesFromJobList" in refresh_block
+    assert "mergeJobListItemsWithCaptures" in refresh_block
     assert "Promise.all" not in refresh_block
     assert "getJob(" not in refresh_block
     assert "const job = await getJob(jobId)" in captures_source

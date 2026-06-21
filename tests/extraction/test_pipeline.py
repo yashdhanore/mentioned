@@ -2,8 +2,19 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
+
+from src.config import Settings
 from src.extraction.download import DownloadedAssets
 from src.extraction.pipeline import run_pipeline
+
+
+@pytest.fixture(autouse=True)
+def use_gemini_backend(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "src.extraction.pipeline.get_settings",
+        lambda: Settings(extraction_backend="gemini"),
+    )
 
 
 @patch("src.extraction.pipeline.download_assets_with_metadata")
