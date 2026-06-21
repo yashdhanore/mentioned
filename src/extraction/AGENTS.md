@@ -14,3 +14,4 @@
 - Run targeted extraction tests with `pytest tests/extraction`.
 - Evaluate saved visual extraction outputs with `python scripts/evaluate_visual_manifest.py --artifacts-dir data/artifacts` when artifact shape or visual extraction output changes.
 - Media extraction paths may require local `ffmpeg`, `yt-dlp`, and `tesseract`.
+- Update this guide when extraction commands, artifact shape, provider behavior, or required local tools change.

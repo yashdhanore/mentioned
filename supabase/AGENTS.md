@@ -22,3 +22,4 @@ Use this guide for Supabase schema, migration, seed, RLS, storage bucket, and Su
 ## Closeout
 
 - End Supabase work with the commands run, the target verified, and any CLI, Docker, or credential errors encountered.
+- Update this guide when Supabase CLI workflow, migration policy, secret handling, or hosted-target verification changes.

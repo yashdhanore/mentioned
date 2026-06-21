@@ -13,3 +13,4 @@
 
 - Run all backend tests with `pytest`.
 - Run focused suites with paths such as `pytest tests/jobs`, `pytest tests/extraction`, or `pytest tests/auth`.
+- Update this guide when test layout, required fixtures, offline strategy, or validation commands change.

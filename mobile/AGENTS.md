@@ -16,3 +16,4 @@
 - Use TypeScript types at boundaries that cross API, auth, persistence, notifications, and share-extension flows.
 - Prefer existing design tokens, shared UI components, and `lucide-react-native` icons before adding new visual primitives.
 - Do not commit Expo caches, builds, dependency folders, local app secrets, or generated native artifacts unless the task explicitly requires tracked native changes.
+- Update this guide when mobile commands, package scripts, native artifact policy, app structure, or design-system conventions change.

@@ -20,3 +20,4 @@
 
 - For hosted backend failures, use the Render plugin to inspect deploy status, runtime logs, health checks, service configuration, and recent deploy/error events before changing code.
 - Summarize the Render evidence used, then connect it to any local code or configuration change.
+- Update this guide when backend commands, entrypoints, module boundaries, environment policy, or deployment troubleshooting workflow changes.

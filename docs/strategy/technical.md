@@ -1,8 +1,38 @@
-# Mentioned Product Ideas
+# Technical Decisions And Ideation
 
-Last updated: 2026-06-13
+Last updated: 2026-06-21
 
-This is a living backlog for product, architecture, and learning ideas. It is intentionally not a committed roadmap yet; ideas here should be promoted into specs only after we validate the next smallest step.
+This is the canonical home for Mentioned technical decisions, architecture status, technical
+ideation, and rejected approaches. Technical decisions must start from the product direction in
+`docs/strategy/product.md`; infrastructure work is only valuable when it protects or improves the
+save -> extract -> revisit loop.
+
+## How To Use This File
+
+- Keep technical decisions and architecture ideas here, not scattered across product notes or plans.
+- Record rejected approaches with the reason they were rejected so agents do not resurrect them.
+- Before adding a technical idea, check whether it changes the product contract, v1 app behavior,
+  user trust, cost, privacy, or product vocabulary.
+- Before treating an architecture or implementation approach as new, search this file and
+  `docs/strategy/product.md` for prior notes, rejected approaches, or product constraints.
+- After meaningful technical research, architecture discussion, approach comparison, or implementation
+  decision, add a dated note or update the relevant decision here. Include the product constraint or
+  user-facing goal the technical choice supports.
+- When a technical idea becomes actionable, promote it into a PRD, implementation plan, migration,
+  or issue and leave a link back here.
+
+## Product Constraints For Technical Decisions
+
+- Protect the core loop: save a social source, extract useful mentioned items, let users correct or
+  keep what matters, and make saved sources/items easy to revisit.
+- Preserve the book-first wedge while keeping the data model and architecture ready for generic
+  saved items and future mention types.
+- Do not change the published v1 HTTP contract or user-visible semantics unless the product decision
+  explicitly accepts the app-release cost.
+- Avoid technical choices that increase extraction cost, privacy risk, account deletion complexity,
+  or support burden without a clear product payoff.
+- Prefer technical paths that let product learn from the smallest reliable test before committing to
+  broad platform, category, or pricing expansion.
 
 ## Architecture Status: v1 (shipped) vs v2 (in progress)
 
@@ -37,26 +67,7 @@ The work splits along two independent axes:
 3. *mobile-v2-cutover* (to be written) — point new app build at `/v2`, submit, retire `/v1` routes once old-app traffic hits zero.
 - ⛔ `docs/superpowers/plans/2026-06-13-v2-coexistence-foundation.md` — SUPERSEDED/rejected (schema-split). Record only; do NOT execute or treat as active.
 
-## Product Vision And Scope (read before using domain language)
-
-Mentioned helps users turn social videos into structured, saved, organizable items. **The core object is a generic "mention" / saved item, not a book.** Books are simply the first *type we surface to users* — the data model is already type-agnostic (`MentionCategory` in `src/mentions/models.py` supports `book`, `product`, `place` today). Avoid writing as if the product *is* a book app; write as if books are one supported category among several.
-
-Product direction by version (informal, not a committed roadmap):
-- **v1 (shipped):** the books wedge — extract book recommendations from Instagram Reels. Books is the surfaced type, but the schema underneath is generic.
-- **v2 (in progress):** infrastructure, not new entity types — ingestion/worker hardening + a polished `/v2` contract on shared `public` tables (see "Architecture Status").
-- **v3 (future direction):** generalize beyond books — let users build a list/collection out of *any* reel, across mention types (products, places, quotes, travel, restaurants, etc.). See "Generalized Collections" below.
-
-When writing specs, plans, or UI copy: prefer "saved item" / "mention" / "collection" as the default vocabulary, and treat "book" as a concrete example of a type — not the universal noun.
-
 ## Ideas To Preserve
-
-### Book Catalog And Reading Lists
-
-> Already shipped: the first-class `Book` model (`src/books/models.py`), Google Books enrichment (`src/extraction/google_books.py`), and the worker enrichment path (`src/worker.py:86`). The items below are the remaining UX/normalization GAPS, not greenfield work.
-
-- Add user-facing book catalog UX (the `Book`/enrichment backend exists; the catalog surface does not).
-- Let users create a personal to-read / reading list from extracted books.
-- Tighten saved-book normalization and dedup at the user-catalog level (distinct from the provider-level `books` dedup already in place).
 
 ### Job And Worker Architecture
 
@@ -67,19 +78,30 @@ When writing specs, plans, or UI copy: prefer "saved item" / "mention" / "collec
 - Learn queues through a practical implementation, possibly RabbitMQ, Redis Queue, Celery, Dramatiq, or a managed cloud queue.
 - Decide whether database-backed jobs are enough for the current scale or whether a queue should own job delivery.
 
-### Frontend Refactor And UX
-
-- Break down `mobile/App.tsx` into focused components, screens, hooks, and API/state modules.
-- Improve the mobile UI beyond placeholder assets.
-- Use downloaded reel thumbnails when available instead of generic placeholders.
-- Add UX for a book catalog, reading list, saved sources, and job progress.
-
 ### Ingestion And Cost Control
 
 - Reduce dependence on sending every downloaded reel directly to Gemini.
 - Add cheaper extraction passes before multimodal LLM calls, such as URL parsing, captions, metadata, OCR, transcripts, and frame sampling.
 - Use LLM calls as a fallback or confidence booster rather than the default for every input.
 - Track provider cost, latency, and confidence per extraction.
+
+### Book Catalog And Reading List Support
+
+> Product intent lives in `docs/strategy/product.md`. Technical work here should support the
+> book-first wedge without making the architecture book-only.
+
+- The first-class `Book` model (`src/books/models.py`), Google Books enrichment (`src/extraction/google_books.py`), and worker enrichment path (`src/worker.py`) already exist.
+- Remaining technical gaps should support the user-facing catalog and reading-list UX without changing the frozen v1 contract.
+- Tighten saved-book normalization and dedup at the user-catalog level, distinct from provider-level `books` dedup.
+
+### Mobile Frontend Architecture
+
+> Product UX goals live in `docs/strategy/product.md`; frontend refactors should make those flows
+> easier to ship and validate.
+
+- Break down large mobile surfaces into focused components, screens, hooks, and API/state modules as work touches them.
+- Keep downloaded reel thumbnails available for product surfaces that show saved source history.
+- Support future UX for book catalog, reading list, saved sources, and job progress without coupling the app to books as the only possible mention type.
 
 ### Media And Artifact Retention
 
@@ -93,19 +115,6 @@ When writing specs, plans, or UI copy: prefer "saved item" / "mention" / "collec
 - Add YouTube Shorts support.
 - Design platform handling through source adapters so Instagram, TikTok, and YouTube do not leak platform-specific logic across the whole app.
 
-### Generalized Collections (the v3 direction)
-
-> This is the v3 north star from "Product Vision" above: lists/collections out of *any* reel, across types. The mention schema is already type-agnostic (`book`/`product`/`place` today), so the gap is surfacing + UX + extraction coverage, not a fundamental model rewrite.
-
-- Surface mention types beyond books that the schema already supports (`product`, `place`), then expand the enum to new types:
-  - quotes
-  - outfit ideas
-  - travel destinations
-  - hotels
-  - restaurants
-- Let users build a list/collection out of any reel, mixing types within one collection.
-- Decide how to model collections: typed collections, a generic `SavedItem`/collection-of-mentions, or both. (The per-type enrichment, e.g. Google Books for `book`, stays type-specific.)
-
 ### Chat And Semantic Search
 
 - Let users chat with or search across their saved lists.
@@ -114,7 +123,7 @@ When writing specs, plans, or UI copy: prefer "saved item" / "mention" / "collec
 
 ## Open Questions
 
-- Which non-book mention type should we surface first after books (`product` and `place` already exist in the schema)? (The wedge question is settled: v1 = books, v3 = generalize — see "Product Vision".)
+- Which non-book mention type should we surface first after books (`product` and `place` already exist in the schema)? The wedge question is settled in `docs/strategy/product.md`: v1 = books, v3 = generalize.
 - What book metadata is mandatory for a good first experience: title, author, cover, description, ISBN, published date, categories?
 - Should extracted mentions be considered evidence, while books become normalized saved entities?
 - What is the retention policy for original downloaded videos?

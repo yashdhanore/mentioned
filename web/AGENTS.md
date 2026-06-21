@@ -15,3 +15,4 @@
 - Match the existing Astro, TypeScript, Playwright, and content verification patterns.
 - Verify visual or interaction changes with Playwright screenshots or e2e coverage when behavior is user-facing.
 - Do not commit `web/dist`, `web/test-results`, caches, dependency folders, or local environment files.
+- Update this guide when web commands, package scripts, app structure, build outputs, or validation workflow changes.
