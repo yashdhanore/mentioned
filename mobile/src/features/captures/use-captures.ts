@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking } from 'react-native';
 
 import {
@@ -68,6 +68,7 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
   const [pasteError, setPasteError] = useState<string | null>(null);
   const [sharedCaptureError, setSharedCaptureErrorState] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const isSilentRefreshInFlightRef = useRef(false);
 
   const selectedCapture = useMemo(() => {
     return captures.find((capture) => capture.id === selectedCaptureId) ?? null;
@@ -97,6 +98,13 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
         return;
       }
 
+      if (silent) {
+        if (isSilentRefreshInFlightRef.current) {
+          return;
+        }
+        isSilentRefreshInFlightRef.current = true;
+      }
+
       if (!silent) {
         setIsLoadingCaptures(true);
       }
@@ -108,7 +116,9 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
       } catch (error) {
         setLoadError(errorMessage(error, 'Could not load saved items.'));
       } finally {
-        if (!silent) {
+        if (silent) {
+          isSilentRefreshInFlightRef.current = false;
+        } else {
           setIsLoadingCaptures(false);
         }
       }
@@ -118,6 +128,7 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
 
   useEffect(() => {
     if (!isSignedIn) {
+      isSilentRefreshInFlightRef.current = false;
       setCaptures([]);
       setSelectedCaptureId(null);
       return;

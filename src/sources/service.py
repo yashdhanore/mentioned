@@ -75,24 +75,26 @@ def get_saved_source_by_key(session: Session, owner_id: str, source_key: str) ->
 
 
 def retry_failed_saved_source(session: Session, saved_source: SavedSource) -> bool:
-    source = session.get(Source, saved_source.source_id)
-    if source is None:
-        raise RuntimeError(
-            f"Saved source {saved_source.id} points to missing source {saved_source.source_id}"
+    now = datetime.utcnow()
+    stmt = (
+        update(Source)
+        .where(Source.id == saved_source.source_id, Source.status == SourceStatus.FAILED)
+        .values(
+            status=SourceStatus.PENDING,
+            error_message=None,
+            processing_started_at=None,
+            processed_at=None,
+            updated_at=now,
         )
-    if source.status != SourceStatus.FAILED:
+        .returning(Source.id)
+    )
+    source_id = session.execute(stmt).scalar_one_or_none()
+    if source_id is None:
+        session.rollback()
         return False
 
-    now = datetime.utcnow()
-    source.status = SourceStatus.PENDING
-    source.error_message = None
-    source.processing_started_at = None
-    source.processed_at = None
-    source.updated_at = now
-    session.add(source)
-
     try:
-        enqueue_source_extraction(session, source.id)
+        enqueue_source_extraction(session, source_id)
         session.commit()
     except Exception:
         session.rollback()
@@ -182,5 +184,24 @@ def count_saved_sources_created_since(session: Session, owner_id: str, since: da
     stmt = select(func.count()).select_from(SavedSource).where(
         SavedSource.owner_id == owner_uuid,
         SavedSource.created_at >= since,
+    )
+    return int(session.exec(stmt).one())
+
+
+def count_failed_saved_sources_updated_since(
+    session: Session,
+    owner_id: str,
+    since: datetime,
+) -> int:
+    owner_uuid = parse_uuid(owner_id)
+    stmt = (
+        select(func.count())
+        .select_from(SavedSource)
+        .join(Source, Source.id == SavedSource.source_id)
+        .where(
+            SavedSource.owner_id == owner_uuid,
+            Source.status == SourceStatus.FAILED,
+            Source.updated_at >= since,
+        )
     )
     return int(session.exec(stmt).one())

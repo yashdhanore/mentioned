@@ -55,6 +55,20 @@ def _save_source(
     return saved
 
 
+def _set_source_retry_timestamp(
+    session: Session,
+    saved: SavedSource,
+    updated_at: datetime,
+) -> None:
+    source = session.get(Source, saved.source_id)
+    assert source is not None
+    source.updated_at = updated_at
+    source.processed_at = updated_at
+    source.error_message = "network timeout"
+    session.add(source)
+    session.commit()
+
+
 async def test_create_saved_source(client) -> None:
     resp = await client.post("/v1/saved-sources", json={"url": "https://www.instagram.com/reel/ABC123/"})
 
@@ -313,6 +327,123 @@ async def test_create_saved_source_requeues_existing_failed_source(
     assert refreshed.processing_started_at is None
     assert refreshed.processed_at is None
     assert enqueued == [str(saved.source_id)]
+
+
+async def test_create_saved_source_failed_retry_blocks_at_active_quota(
+    client,
+    session: Session,
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr("src.sources.router.get_settings", _quota_settings)
+    enqueued: list[str] = []
+    monkeypatch.setattr(
+        "src.sources.service.enqueue_source_extraction",
+        lambda _session, source_id: enqueued.append(str(source_id)),
+    )
+    saved = _save_source(session, "FAILEDQUOTA", status=SourceStatus.FAILED)
+    for index in range(5):
+        _save_source(session, f"ACTIVEFAILEDRETRY{index}", status=SourceStatus.PENDING)
+
+    resp = await client.post(
+        "/v1/saved-sources",
+        json={"url": "https://www.instagram.com/reel/FAILEDQUOTA/"},
+    )
+
+    session.expire_all()
+    refreshed = session.get(Source, saved.source_id)
+    assert refreshed is not None
+    assert resp.status_code == 429
+    assert resp.json()["error_code"] == "quota_exceeded"
+    assert refreshed.status == SourceStatus.FAILED
+    assert enqueued == []
+
+
+async def test_create_saved_source_failed_retry_uses_burst_throttle(
+    client,
+    session: Session,
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr("src.sources.router.get_settings", _quota_settings)
+    enqueued: list[str] = []
+    monkeypatch.setattr(
+        "src.sources.service.enqueue_source_extraction",
+        lambda _session, source_id: enqueued.append(str(source_id)),
+    )
+    now = datetime.utcnow()
+    target = _save_source(
+        session,
+        "FAILEDBURSTRETRY",
+        status=SourceStatus.FAILED,
+        created_at=now - timedelta(days=2),
+    )
+    _set_source_retry_timestamp(session, target, now - timedelta(hours=2))
+    for index in range(3):
+        saved = _save_source(
+            session,
+            f"RECENTFAILED{index}",
+            status=SourceStatus.FAILED,
+            created_at=now - timedelta(days=2),
+        )
+        _set_source_retry_timestamp(session, saved, now - timedelta(seconds=index))
+
+    resp = await client.post(
+        "/v1/saved-sources",
+        json={"url": "https://www.instagram.com/reel/FAILEDBURSTRETRY/"},
+    )
+
+    session.expire_all()
+    refreshed = session.get(Source, target.source_id)
+    assert refreshed is not None
+    assert resp.status_code == 429
+    assert resp.json()["error_code"] == "rate_limited"
+    assert refreshed.status == SourceStatus.FAILED
+    assert enqueued == []
+
+
+async def test_create_saved_source_failed_retry_uses_daily_throttle(
+    client,
+    session: Session,
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr("src.sources.router.get_settings", _quota_settings)
+    enqueued: list[str] = []
+    monkeypatch.setattr(
+        "src.sources.service.enqueue_source_extraction",
+        lambda _session, source_id: enqueued.append(str(source_id)),
+    )
+    now = datetime.utcnow()
+    target = _save_source(
+        session,
+        "FAILEDAILYRETRY",
+        status=SourceStatus.FAILED,
+        created_at=now - timedelta(days=2),
+    )
+    _set_source_retry_timestamp(session, target, now - timedelta(days=2))
+    for index in range(25):
+        saved = _save_source(
+            session,
+            f"DAILYFAILED{index}",
+            status=SourceStatus.FAILED,
+            created_at=now - timedelta(days=2),
+        )
+        _set_source_retry_timestamp(
+            session,
+            saved,
+            now - timedelta(hours=2, minutes=index),
+        )
+
+    resp = await client.post(
+        "/v1/saved-sources",
+        json={"url": "https://www.instagram.com/reel/FAILEDAILYRETRY/"},
+    )
+
+    session.expire_all()
+    refreshed = session.get(Source, target.source_id)
+    assert refreshed is not None
+    assert resp.status_code == 429
+    assert resp.json()["error_code"] == "quota_exceeded"
+    assert refreshed.status == SourceStatus.FAILED
+    assert enqueued == []
 
 
 async def test_create_saved_source_does_not_requeue_existing_non_failed_source(

@@ -249,6 +249,46 @@ def test_retry_failed_saved_source_requeues_and_clears_failure(
     assert enqueued == [str(source.id)]
 
 
+def test_retry_failed_saved_source_is_atomic_for_stale_concurrent_callers(
+    session: Session, monkeypatch
+) -> None:
+    enqueued: list[str] = []
+    monkeypatch.setattr(
+        "src.sources.service.enqueue_source_extraction",
+        lambda _session, source_id: enqueued.append(str(source_id)),
+    )
+    saved = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/RACE/")
+    source = session.get(Source, saved.source_id)
+    assert source is not None
+    source.status = SourceStatus.FAILED
+    source.error_message = "network timeout"
+    session.add(source)
+    session.commit()
+    saved_id = saved.id
+    source_id = source.id
+    enqueued.clear()
+
+    bind = session.get_bind()
+    with Session(bind) as first_session, Session(bind) as second_session:
+        first_saved = first_session.get(SavedSource, saved_id)
+        second_saved = second_session.get(SavedSource, saved_id)
+        assert first_saved is not None
+        assert second_saved is not None
+        first_source = first_session.get(Source, source_id)
+        second_source = second_session.get(Source, source_id)
+        assert first_source is not None
+        assert second_source is not None
+        assert first_source.status == SourceStatus.FAILED
+        assert second_source.status == SourceStatus.FAILED
+
+        first_retry = retry_failed_saved_source(first_session, first_saved)
+        second_retry = retry_failed_saved_source(second_session, second_saved)
+
+    assert first_retry is True
+    assert second_retry is False
+    assert enqueued == [str(source_id)]
+
+
 @pytest.mark.parametrize(
     "source_status",
     [SourceStatus.PENDING, SourceStatus.PROCESSING, SourceStatus.DONE],

@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Query, status
+from sqlmodel import Session
 
 from src.auth.dependencies import CallerDep
 from src.config import get_settings
@@ -13,7 +14,7 @@ from src.jobs.exceptions import QuotaExceeded, RateLimited
 from src.sources import service as source_service
 from src.sources.exceptions import InvalidSourceUrl, SavedSourceNotFound
 from src.sources.identity import identify_source
-from src.sources.models import SavedSource
+from src.sources.models import SavedSource, Source, SourceStatus
 from src.sources.read_models import saved_source_list_response, saved_source_response
 from src.sources.schemas import (
     CreateSavedSourceRequest,
@@ -23,6 +24,32 @@ from src.sources.schemas import (
 
 
 router = APIRouter(tags=["saved-sources"])
+
+
+def _enforce_failed_retry_quota(session: Session, owner_id: str) -> None:
+    settings = get_settings()
+    active = source_service.count_active_saved_sources(session, owner_id)
+    if active >= settings.max_active_jobs_per_user:
+        raise QuotaExceeded()
+
+    now = datetime.utcnow()
+    create_burst_count = source_service.count_saved_sources_created_since(
+        session, owner_id, now - timedelta(minutes=1)
+    )
+    retry_burst_count = source_service.count_failed_saved_sources_updated_since(
+        session, owner_id, now - timedelta(minutes=1)
+    )
+    if max(create_burst_count, retry_burst_count) >= settings.max_job_create_burst_per_minute:
+        raise RateLimited()
+
+    create_daily_count = source_service.count_saved_sources_created_since(
+        session, owner_id, now - timedelta(days=1)
+    )
+    retry_daily_count = source_service.count_failed_saved_sources_updated_since(
+        session, owner_id, now - timedelta(days=1)
+    )
+    if max(create_daily_count, retry_daily_count) >= settings.max_jobs_created_per_day:
+        raise QuotaExceeded()
 
 
 @router.post("/v1/saved-sources", status_code=status.HTTP_202_ACCEPTED)
@@ -40,7 +67,10 @@ def create_saved_source(
         session, caller.subject_id, identity.source_key
     )
     if existing is not None:
-        source_service.retry_failed_saved_source(session, existing)
+        source = session.get(Source, existing.source_id)
+        if source is not None and source.status == SourceStatus.FAILED:
+            _enforce_failed_retry_quota(session, caller.subject_id)
+            source_service.retry_failed_saved_source(session, existing)
         return saved_source_response(session, existing)
 
     settings = get_settings()

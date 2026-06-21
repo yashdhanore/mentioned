@@ -21,6 +21,7 @@ AUTH_ORBIT_REEL_PREVIEW = (
 )
 API = REPO_ROOT / "mobile" / "src" / "api.ts"
 USE_CAPTURES = REPO_ROOT / "mobile" / "src" / "features" / "captures" / "use-captures.ts"
+NOTIFICATIONS = REPO_ROOT / "mobile" / "src" / "notifications.ts"
 AUTH_SESSION = (
     REPO_ROOT / "mobile" / "src" / "features" / "auth" / "use-auth-session.ts"
 )
@@ -163,18 +164,32 @@ def test_mobile_dev_auth_bypass_is_explicit_and_production_blocked() -> None:
     assert "Production mobile builds must not define EXPO_PUBLIC_DEV_USER_ID." in api_source
     assert "useAuthSession" in app_source
     assert "setAccessTokenProvider(devAccessToken)" in auth_source
-    assert "isDevAuthEnabled" in captures_source
+    assert "isDevAuthEnabled" not in captures_source
 
 
-def test_saved_reels_home_refresh_uses_job_list_only() -> None:
+def test_saved_reels_home_refresh_uses_saved_source_list_only() -> None:
     captures_source = USE_CAPTURES.read_text()
 
     refresh_start = captures_source.index("const refreshCaptures = useCallback")
     refresh_end = captures_source.index("useEffect(() => {", refresh_start)
     refresh_block = captures_source[refresh_start:refresh_end]
 
-    assert "listAllJobs()" in refresh_block
-    assert "mergeJobListItemsWithCaptures" in refresh_block
+    assert "listSavedSources()" in refresh_block
+    assert "mergeSavedSourcesWithCaptures" in refresh_block
     assert "Promise.all" not in refresh_block
-    assert "getJob(" not in refresh_block
-    assert "const job = await getJob(jobId)" in captures_source
+    assert "getSavedSource(" not in refresh_block
+    assert "listAllJobs()" not in captures_source
+    assert "mergeJobListItemsWithCaptures" not in captures_source
+    assert "getJob(" not in captures_source
+
+
+def test_notification_parser_requires_saved_source_id() -> None:
+    notifications_source = NOTIFICATIONS.read_text()
+
+    parser_start = notifications_source.index("export function savedSourceIdFromNotificationResponse")
+    alias_start = notifications_source.index("export function jobIdFromNotificationResponse", parser_start)
+    parser_block = notifications_source[parser_start:alias_start]
+
+    assert "notificationDataId(data, 'saved_source_id')" in parser_block
+    assert "'job_id'" not in parser_block
+    assert "return savedSourceIdFromNotificationResponse(response)" in notifications_source

@@ -182,7 +182,7 @@ export function savedSourceIdFromNotificationResponse(
   }
 
   const data = response.notification.request.content.data;
-  return notificationDataId(data, 'saved_source_id') ?? notificationDataId(data, 'job_id');
+  return notificationDataId(data, 'saved_source_id');
 }
 
 export function jobIdFromNotificationResponse(
