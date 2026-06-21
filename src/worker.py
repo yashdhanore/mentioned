@@ -16,6 +16,7 @@ from src.jobs.service import claim_next_job, recover_stale_jobs
 from src.push.queue import read_push_notification_messages
 from src.push.worker import process_push_notification_message
 from src.sources.queue import read_source_extraction_messages
+from src.sources.service import recover_stale_sources
 
 
 logger = logging.getLogger(__name__)
@@ -78,13 +79,22 @@ def _run_queue_worker(settings: Settings, worker_engine: Engine) -> None:
             recovered = recover_stale_jobs(session, settings.worker_stale_timeout_seconds)
             if recovered:
                 logger.info("Recovered %d stale jobs", recovered)
-            messages = read_extract_job_messages(
+            recovered_sources = recover_stale_sources(session, settings.worker_stale_timeout_seconds)
+            if recovered_sources:
+                logger.info("Recovered %d stale sources", recovered_sources)
+            source_messages = read_source_extraction_messages(
                 session,
                 visibility_timeout_seconds=settings.worker_queue_visibility_timeout_seconds,
                 max_poll_seconds=settings.worker_queue_max_poll_seconds,
                 poll_interval_ms=settings.worker_queue_poll_interval_ms,
             )
-            source_messages = read_source_extraction_messages(
+            session.commit()
+
+        for message in source_messages:
+            process_source_extraction_message(message, worker_engine, settings)
+
+        with Session(worker_engine) as session:
+            messages = read_extract_job_messages(
                 session,
                 visibility_timeout_seconds=settings.worker_queue_visibility_timeout_seconds,
                 max_poll_seconds=settings.worker_queue_max_poll_seconds,
@@ -94,8 +104,6 @@ def _run_queue_worker(settings: Settings, worker_engine: Engine) -> None:
 
         for message in messages:
             process_extract_job_message(message, worker_engine, settings)
-        for message in source_messages:
-            process_source_extraction_message(message, worker_engine, settings)
         _drain_push_notifications(settings, worker_engine)
 
 

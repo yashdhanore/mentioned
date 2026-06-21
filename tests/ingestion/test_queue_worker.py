@@ -276,6 +276,36 @@ def test_queue_worker_archives_non_pending_source(monkeypatch):
     assert ingestion.processed == []
 
 
+def test_queue_worker_leaves_processing_source_unarchived(monkeypatch, caplog):
+    engine = _engine()
+    archived = []
+    ingestion = FakeSourceIngestion()
+    caplog.set_level(logging.INFO, logger="src.ingestion.queue_worker")
+
+    def fake_archive(_session: Session, msg_id: int) -> None:
+        archived.append(msg_id)
+
+    monkeypatch.setattr("src.ingestion.queue_worker.archive_source_extraction_message", fake_archive)
+
+    try:
+        source = _source(engine, status=SourceStatus.PROCESSING)
+
+        process_source_extraction_message(
+            SourceExtractionMessage(msg_id=24, source_id=source.id, read_count=2),
+            engine,
+            Settings(worker_id="worker-queue"),
+            ingestion=ingestion,
+        )
+    finally:
+        SQLModel.metadata.drop_all(engine)
+
+    assert archived == []
+    assert ingestion.processed == []
+    assert "source queue message 24" in caplog.text
+    assert str(source.id) in caplog.text
+    assert "stale source recovery" in caplog.text
+
+
 def test_queue_worker_leaves_failed_source_claim_race_unarchived(monkeypatch):
     engine = _engine()
     archived = []
@@ -301,6 +331,45 @@ def test_queue_worker_leaves_failed_source_claim_race_unarchived(monkeypatch):
 
     assert archived == []
     assert ingestion.processed == []
+
+
+def test_queue_worker_marks_source_failed_and_archives_when_processor_raises(monkeypatch):
+    engine = _engine()
+    archived = []
+    order = []
+
+    class FailingSourceIngestion:
+        def process_source(self, session: Session, source: Source) -> None:
+            order.append(("process", source.status))
+            raise RuntimeError("thumbnail store unavailable")
+
+    def fake_archive(session: Session, msg_id: int) -> None:
+        refreshed = session.get(Source, source.id)
+        order.append(("archive", refreshed.status if refreshed else None))
+        archived.append(msg_id)
+
+    monkeypatch.setattr("src.ingestion.queue_worker.archive_source_extraction_message", fake_archive)
+
+    try:
+        source = _source(engine)
+
+        process_source_extraction_message(
+            SourceExtractionMessage(msg_id=25, source_id=source.id, read_count=1),
+            engine,
+            Settings(worker_id="worker-queue"),
+            ingestion=FailingSourceIngestion(),
+        )
+
+        with Session(engine) as session:
+            refreshed = session.get(Source, source.id)
+            assert refreshed is not None
+            assert refreshed.status == SourceStatus.FAILED
+            assert refreshed.error_message == "thumbnail store unavailable"
+    finally:
+        SQLModel.metadata.drop_all(engine)
+
+    assert archived == [25]
+    assert order == [("process", SourceStatus.PROCESSING), ("archive", SourceStatus.FAILED)]
 
 
 def test_queue_worker_archives_message_after_source_status_is_saved(monkeypatch, caplog):

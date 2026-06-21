@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import update
@@ -102,6 +102,23 @@ def fail_source_processing(session: Session, source: Source, error: str) -> None
     source.updated_at = now
     session.add(source)
     session.commit()
+
+
+def recover_stale_sources(session: Session, stale_timeout_seconds: int = 900) -> int:
+    cutoff = datetime.utcnow() - timedelta(seconds=stale_timeout_seconds)
+    stmt = select(Source).where(
+        Source.status == SourceStatus.PROCESSING,
+        Source.processing_started_at < cutoff,
+    )
+    stale_sources = list(session.exec(stmt).all())
+    for source in stale_sources:
+        source.status = SourceStatus.PENDING
+        source.processing_started_at = None
+        source.updated_at = datetime.utcnow()
+        session.add(source)
+    if stale_sources:
+        session.commit()
+    return len(stale_sources)
 
 
 def delete_saved_source(session: Session, saved_source: SavedSource) -> None:

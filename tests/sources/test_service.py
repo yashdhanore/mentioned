@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from uuid import UUID
 
 import pytest
@@ -12,6 +13,7 @@ from src.sources.service import (
     complete_source_processing,
     delete_saved_source,
     fail_source_processing,
+    recover_stale_sources,
     save_source_for_user,
 )
 
@@ -152,6 +154,42 @@ def test_fail_source_processing_marks_failed_and_sets_error(session: Session) ->
     assert updated_source.status == SourceStatus.FAILED
     assert updated_source.error_message == "network timeout"
     assert updated_source.processed_at is not None
+
+
+def test_recover_stale_sources_resets_old_processing_sources(session: Session) -> None:
+    old_source = Source(
+        source_key="instagram:reel:OLD",
+        platform="instagram",
+        source_type="reel",
+        external_id="OLD",
+        canonical_url="https://www.instagram.com/reel/OLD/",
+        status=SourceStatus.PROCESSING,
+        processing_started_at=datetime.utcnow() - timedelta(minutes=30),
+    )
+    fresh_source = Source(
+        source_key="instagram:reel:FRESH",
+        platform="instagram",
+        source_type="reel",
+        external_id="FRESH",
+        canonical_url="https://www.instagram.com/reel/FRESH/",
+        status=SourceStatus.PROCESSING,
+        processing_started_at=datetime.utcnow(),
+    )
+    session.add(old_source)
+    session.add(fresh_source)
+    session.commit()
+
+    recovered = recover_stale_sources(session, stale_timeout_seconds=15 * 60)
+
+    refreshed_old = session.get(Source, old_source.id)
+    refreshed_fresh = session.get(Source, fresh_source.id)
+    assert recovered == 1
+    assert refreshed_old is not None
+    assert refreshed_old.status == SourceStatus.PENDING
+    assert refreshed_old.processing_started_at is None
+    assert refreshed_fresh is not None
+    assert refreshed_fresh.status == SourceStatus.PROCESSING
+    assert refreshed_fresh.processing_started_at is not None
 
 
 def test_delete_saved_source_removes_only_saved_source(session: Session) -> None:
