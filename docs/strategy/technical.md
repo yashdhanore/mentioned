@@ -96,6 +96,55 @@ The work splits along two independent axes:
   concurrency, retry budgets, and cost instrumentation remain in the future
   *production-ingestion-hardening* plan.
 
+### 2026-06-21 - Cloudflare Workers, D1, And R2 Cost Exploration
+
+- Status: Explored; do not replace Supabase/Postgres for the active v1/v2 backend yet. Keep R2 as a
+  candidate for future media/artifact storage if Supabase Storage egress or storage cost becomes a
+  real constraint.
+- Product constraint: Supports cost control and media retention decisions for the save -> extract ->
+  revisit loop without breaking the frozen v1 HTTP contract, Supabase Auth, or `job_events`
+  realtime refresh path.
+- Notes: Cloudflare Workers Paid is attractive for small API surfaces at a $5/month base, and D1
+  has generous included row-read/row-write allowances. But D1 is SQLite-based with a 10 GB hard
+  limit per database and single-threaded per-database query execution, while this app currently
+  depends on Supabase Auth, Postgres RLS, pgmq queues, Realtime on `public.job_events`, SQLModel over
+  Postgres, and Supabase Storage thumbnails. A full migration would replace several working
+  primitives at once and risks contract, privacy, account-deletion, and operational regressions for
+  cost savings that are not yet the main bill driver. If Cloudflare is introduced near-term, the
+  lowest-risk wedge is object storage: use R2 for thumbnails or retained derived artifacts behind
+  the existing FastAPI worker, while keeping Supabase as the source of truth. Revisit a larger
+  Workers/D1 architecture only after v1 ingestion hardening and cost instrumentation show database,
+  storage, or Render worker cost is the bottleneck rather than Gemini/extraction cost.
+
+### 2026-06-21 - LLaVA-Video 72B As Gemini Replacement
+
+- Status: Rejected as the default provider for the current book-first extraction loop; keep as an
+  evaluation candidate for a future visual-only or privacy-sensitive provider.
+- Product constraint: Supports cost control and extraction reliability for the save -> extract ->
+  revisit loop without changing the frozen v1 HTTP contract.
+- Notes: `lmms-lab/LLaVA-Video-72B-Qwen2` is an Apache-2.0 73B BF16 video model with a 64-frame
+  input cap and no hosted Hugging Face Inference Provider as of this review, so production use would
+  require self-hosted multi-GPU inference plus our own audio transcription, frame sampling, JSON
+  validation, retries, monitoring, and queue controls. Gemini remains a better default while usage is
+  low because it handles video/audio inputs behind a managed API and current per-extraction API costs
+  are lower than keeping a 72B endpoint warm. Revisit only after provider instrumentation exists and
+  a saved-source eval set shows LLaVA plus ASR/OCR matches or beats Gemini on real Reels.
+
+### 2026-06-21 - Video-MME Provider Shortlist
+
+- Status: Use Video-MME as a directional benchmark, not the deciding eval for Mentioned.
+- Product constraint: Improves cost control and useful-but-imperfect extraction without changing the
+  save -> extract -> revisit loop or the frozen v1 HTTP contract.
+- Notes: Video-MME shows strong commercial-model performance and meaningful gains from subtitles or
+  audio, which aligns with book Reels where titles often appear in speech, captions, overlays, or
+  covers. `gemini-1.5-flash` was evaluated on Video-MME but is no longer a current production target;
+  prefer testing current Flash/Lite Gemini models behind the existing `GEMINI_MODEL` setting. The
+  near-term candidate is a provider A/B between the current default `gemini-2.5-flash` and a cheaper
+  Flash-Lite tier, measured on real saved-source artifacts for mention precision, recall, latency,
+  retry rate, and cost. Open models from the leaderboard, such as Qwen2-VL/Qwen2.5-VL, LLaVA-Video,
+  InternVL, and video-SALMONN, should stay research candidates until they have managed API support,
+  audio/transcript handling, structured-output reliability, and lower total cost than Gemini.
+
 ### Book Catalog And Reading List Support
 
 > Product intent lives in `docs/strategy/product.md`. Technical work here should support the
