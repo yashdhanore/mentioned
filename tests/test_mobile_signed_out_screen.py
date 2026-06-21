@@ -12,6 +12,9 @@ DETAIL_SCREEN = REPO_ROOT / "mobile" / "src" / "screens" / "reel-detail-screen.t
 BOOKS = REPO_ROOT / "mobile" / "src" / "components" / "books.tsx"
 CAPTURES = REPO_ROOT / "mobile" / "src" / "captures.ts"
 PENDING_SOURCE = REPO_ROOT / "mobile" / "src" / "features" / "captures" / "pending-shared-source.ts"
+SHARED_SOURCE_INTAKE = (
+    REPO_ROOT / "mobile" / "src" / "features" / "captures" / "use-shared-source-intake.ts"
+)
 SUPABASE = REPO_ROOT / "mobile" / "src" / "supabase.ts"
 AUTH_ORBIT_REEL_PREVIEW = (
     REPO_ROOT / "mobile" / "assets" / "auth-orbit-reel-preview.png"
@@ -47,12 +50,14 @@ def test_signed_out_screen_offers_sign_in_with_apple() -> None:
 def test_signed_out_screen_explains_pending_shared_source() -> None:
     screen_source = SIGNED_OUT_SCREEN.read_text()
     app_source = APP.read_text()
+    intake_source = SHARED_SOURCE_INTAKE.read_text()
     pending_source = PENDING_SOURCE.read_text()
 
     assert "Sign in to save this shared post." in screen_source
     assert "pendingSharedSourceUrl" in screen_source
     assert "onDiscardPendingSharedSource" in screen_source
-    assert "pendingSharedSourceStore.clear" in app_source
+    assert "useSharedSourceIntake" in app_source
+    assert "pendingSharedSourceStore.clear" in intake_source
     assert "sourceUrl" in pending_source
     assert "createdAtMs" in pending_source
     assert "access_token" not in pending_source
@@ -61,14 +66,16 @@ def test_signed_out_screen_explains_pending_shared_source() -> None:
 
 def test_pending_shared_source_intake_is_hardened() -> None:
     app_source = APP.read_text()
+    intake_source = SHARED_SOURCE_INTAKE.read_text()
     pending_source = PENDING_SOURCE.read_text()
 
-    assert "initialShareUrlProcessedRef" in app_source
-    assert "sourceKey" in app_source
+    assert "useSharedSourceIntake" in app_source
+    assert "initialShareUrlProcessedRef" in intake_source
+    assert "sourceKey" in intake_source
     assert "clearIfCurrent" in pending_source
-    assert "setAuthError('Sign in to save this shared source.')" not in app_source
-    assert 'setAuthError("Sign in to save this shared source.")' not in app_source
-    assert "stored:${source.sourceUrl}" not in app_source
+    assert "setAuthError('Sign in to save this shared source.')" not in intake_source
+    assert 'setAuthError("Sign in to save this shared source.")' not in intake_source
+    assert "stored:${source.sourceUrl}" not in intake_source
 
 
 def test_release_one_state_copy_is_book_first() -> None:
@@ -119,10 +126,11 @@ def test_ready_detail_uses_source_hero_before_books() -> None:
 
 def test_invalid_shared_content_has_visible_message() -> None:
     app_source = APP.read_text()
+    intake_source = SHARED_SOURCE_INTAKE.read_text()
     screen_source = SIGNED_OUT_SCREEN.read_text()
 
-    assert "INVALID_SHARED_SOURCE_MESSAGE" in app_source
-    assert "Share an Instagram Reel or post link to save it." in app_source
+    assert "INVALID_SHARED_SOURCE_MESSAGE" in intake_source
+    assert "Share an Instagram Reel or post link to save it." in intake_source
     assert "shareLinkError" in app_source
     assert "shareLinkError ?? authError" in app_source
     assert "InlineMessage" in screen_source

@@ -9,6 +9,7 @@
     "web": "expo start --web",
     "test:auth-session": "tsx scripts/test-auth-session.ts",
     "test:captures": "tsx scripts/test-captures.ts",
+    "test:shared-source-intake": "tsx scripts/test-shared-source-intake.ts",
     "test:share-url": "tsx scripts/test-share-url-extraction.ts",
     "test:pending-shared-source": "tsx scripts/test-pending-shared-source.ts",
     "test:supabase-config": "tsx scripts/test-supabase-config.ts",

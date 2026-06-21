@@ -1,21 +1,15 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Linking from 'expo-linking';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AppState, SafeAreaView, useWindowDimensions } from 'react-native';
 
 import {
   deleteAccount,
-  errorMessage,
   PRIVACY_POLICY_URL,
 } from '@/api';
 import type { BookMention } from '@/captures';
 import { PasteSheet, ProfileSheet, ReelMenuSheet, RemoveBookSheet } from '@/components/sheets';
-import {
-  createPendingSharedSourceStore,
-  type PendingSharedSource,
-} from '@/features/captures/pending-shared-source';
 import { useCaptures } from '@/features/captures/use-captures';
+import { useSharedSourceIntake } from '@/features/captures/use-shared-source-intake';
 import { useAuthSession } from '@/features/auth/use-auth-session';
 import {
   addNotificationTapListener,
@@ -28,17 +22,10 @@ import { AuthLoadingScreen } from '@/screens/auth-loading-screen';
 import { HomeScreen } from '@/screens/home-screen';
 import { ReelDetailScreen } from '@/screens/reel-detail-screen';
 import { SignedOutScreen } from '@/screens/signed-out-screen';
-import { parseMentionedShareDeepLink } from '@/utils/shared-source-url';
 import { spacing } from '@/theme';
 import { styles } from '@/styles';
 
 type Sheet = 'profile' | 'paste' | 'reelMenu' | 'removeBook' | null;
-type PendingSharedSourceState = PendingSharedSource & {
-  shouldAutoSubmit: boolean;
-};
-
-const INVALID_SHARED_SOURCE_MESSAGE = 'Share an Instagram Reel or post link to save it.';
-const pendingSharedSourceStore = createPendingSharedSourceStore(AsyncStorage);
 
 export default function App() {
   const { width } = useWindowDimensions();
@@ -59,21 +46,10 @@ export default function App() {
     handleDeleteAccount,
   } = useAuthSession();
   const [sheet, setSheet] = useState<Sheet>(null);
-  const [shareLinkError, setShareLinkError] = useState<string | null>(null);
   const [selectedBook, setSelectedBook] = useState<BookMention | null>(null);
   const [bookRemovalError, setBookRemovalError] = useState<string | null>(null);
   const [confirmingDeleteAccount, setConfirmingDeleteAccount] = useState(false);
   const [registeredPushToken, setRegisteredPushToken] = useState<string | null>(null);
-  const [pendingSharedSource, setPendingSharedSource] = useState<PendingSharedSourceState | null>(null);
-  const handledSharedSourceKeysRef = useRef<Set<string>>(new Set());
-  // Synchronous same-tick dedup only: a cold-start getInitialURL and the warm
-  // 'url' listener can deliver the same link before React state settles. Once
-  // pendingSharedSource updates, that state (mirrored in pendingSharedSourceRef)
-  // becomes the source of truth, so this is cleared in the mirror effect below.
-  const inFlightShareKeyRef = useRef<string | null>(null);
-  const pendingSharedSourceRef = useRef<PendingSharedSourceState | null>(null);
-  const authStateRef = useRef({ isAuthLoading: true, isSignedIn: false });
-  const initialShareUrlProcessedRef = useRef(false);
 
   const {
     captures,
@@ -107,155 +83,26 @@ export default function App() {
 
   const tileWidth = (contentWidth - spacing.screen * 2 - spacing.md) / 2;
 
-  useEffect(() => {
-    pendingSharedSourceRef.current = pendingSharedSource;
-    // State has settled and is now the source of truth for "in progress";
-    // release the synchronous same-tick guard so it can never get stuck.
-    if (pendingSharedSource?.sourceKey === inFlightShareKeyRef.current) {
-      inFlightShareKeyRef.current = null;
-    }
-  }, [pendingSharedSource]);
+  const closePasteSheet = useCallback(() => {
+    clearPasteError();
+    setSheet(null);
+  }, [clearPasteError]);
 
-  useEffect(() => {
-    authStateRef.current = { isAuthLoading, isSignedIn };
-  }, [isAuthLoading, isSignedIn]);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    void pendingSharedSourceStore
-      .load()
-      .then((source) => {
-        if (!isMounted || !source) {
-          return;
-        }
-        setPendingSharedSource((currentSource) => {
-          if (currentSource) {
-            return currentSource;
-          }
-          return {
-            ...source,
-            shouldAutoSubmit: false,
-          };
-        });
-      })
-      .catch(() => {
-        if (isMounted) {
-          setAuthError('Could not restore the shared source.');
-        }
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  const handleIncomingShareLink = useCallback(
-    (url: string) => {
-      const result = parseMentionedShareDeepLink(url);
-      if (result.type === 'non-share-link') {
-        return;
-      }
-
-      if (result.type === 'invalid-share-link') {
-        setSelectedCaptureId(null);
-        setShareLinkError(INVALID_SHARED_SOURCE_MESSAGE);
-        setSharedCaptureError(INVALID_SHARED_SOURCE_MESSAGE);
-        setSheet((currentSheet) => (currentSheet === 'paste' ? null : currentSheet));
-        return;
-      }
-
-      const sourceKey = result.sourceUrl;
-      // Dedup against the single source of truth: already handled, already the
-      // pending source (state settled), or in flight this same tick.
-      if (
-        handledSharedSourceKeysRef.current.has(sourceKey) ||
-        pendingSharedSourceRef.current?.sourceKey === sourceKey ||
-        inFlightShareKeyRef.current === sourceKey
-      ) {
-        return;
-      }
-
-      clearSharedCaptureError();
-      setShareLinkError(null);
-      inFlightShareKeyRef.current = sourceKey;
-
-      if (!authStateRef.current.isAuthLoading && authStateRef.current.isSignedIn) {
-        setPendingSharedSource({
-          sourceUrl: result.sourceUrl,
-          sourceKey,
-          createdAtMs: Date.now(),
-          shouldAutoSubmit: true,
-        });
-        return;
-      }
-
-      void pendingSharedSourceStore
-        .save(result.sourceUrl)
-        .then((source) => {
-          setPendingSharedSource((currentSource) => {
-            if (currentSource && currentSource.createdAtMs > source.createdAtMs) {
-              return currentSource;
-            }
-            return {
-              ...source,
-              shouldAutoSubmit: authStateRef.current.isAuthLoading,
-            };
-          });
-        })
-        .catch((error) => {
-          // The save failed: we may keep an existing different pending source
-          // and drop this one, so release the in-flight guard here rather than
-          // relying on the mirror effect (which only clears on a matching key).
-          if (inFlightShareKeyRef.current === sourceKey) {
-            inFlightShareKeyRef.current = null;
-          }
-          setPendingSharedSource((currentSource) =>
-            currentSource ?? {
-              sourceUrl: result.sourceUrl,
-              sourceKey,
-              createdAtMs: Date.now(),
-              shouldAutoSubmit: authStateRef.current.isAuthLoading,
-            },
-          );
-          if (!authStateRef.current.isAuthLoading) {
-            setAuthError(errorMessage(error, 'Could not keep that shared source. Try sharing it again.'));
-          }
-        });
-    },
-    [clearSharedCaptureError, setSelectedCaptureId, setSharedCaptureError],
-  );
-
-  useEffect(() => {
-    if (initialShareUrlProcessedRef.current) {
-      return;
-    }
-    initialShareUrlProcessedRef.current = true;
-
-    let isMounted = true;
-
-    void Linking.getInitialURL()
-      .then((url) => {
-        if (isMounted && url) {
-          handleIncomingShareLink(url);
-        }
-      })
-      .catch(() => undefined);
-
-    return () => {
-      isMounted = false;
-    };
-  }, [handleIncomingShareLink]);
-
-  useEffect(() => {
-    const subscription = Linking.addEventListener('url', (event) => {
-      handleIncomingShareLink(event.url);
-    });
-
-    return () => {
-      subscription.remove();
-    };
-  }, [handleIncomingShareLink]);
+  const {
+    pendingSharedSourceUrl,
+    shareLinkError,
+    submitPendingSharedSource,
+    discardPendingSharedSource,
+  } = useSharedSourceIntake({
+    isAuthLoading,
+    isSignedIn,
+    submitSharedUrl,
+    setSelectedCaptureId,
+    setSharedCaptureError,
+    clearSharedCaptureError,
+    setAuthError,
+    closePasteSheet,
+  });
 
   useEffect(() => {
     if (!isSignedIn) {
@@ -331,96 +178,6 @@ export default function App() {
     };
   }, [isSignedIn, openCaptureByJobId]);
 
-  const clearPendingSharedSource = useCallback(async (expectedSourceKey?: string) => {
-    const currentSource = pendingSharedSourceRef.current;
-    if (expectedSourceKey && currentSource?.sourceKey !== expectedSourceKey) {
-      return;
-    }
-
-    if (currentSource && inFlightShareKeyRef.current === currentSource.sourceKey) {
-      inFlightShareKeyRef.current = null;
-    }
-    try {
-      if (expectedSourceKey) {
-        await pendingSharedSourceStore.clearIfCurrent(expectedSourceKey);
-      } else {
-        await pendingSharedSourceStore.clear();
-      }
-    } catch {
-      // Local cleanup should not block clearing the in-memory prompt.
-    }
-    setPendingSharedSource((latestSource) => {
-      if (expectedSourceKey && latestSource?.sourceKey !== expectedSourceKey) {
-        return latestSource;
-      }
-      return null;
-    });
-  }, []);
-
-  const discardPendingSharedSource = useCallback(async () => {
-    await clearPendingSharedSource(pendingSharedSourceRef.current?.sourceKey);
-    setShareLinkError(null);
-    setAuthError(null);
-    clearSharedCaptureError();
-  }, [clearPendingSharedSource, clearSharedCaptureError]);
-
-  const submitPendingSharedSource = useCallback(async () => {
-    const source = pendingSharedSourceRef.current;
-    if (!source || !isSignedIn) {
-      return;
-    }
-
-    const didSubmit = await submitSharedUrl(source.sourceUrl);
-
-    if (pendingSharedSourceRef.current?.sourceKey !== source.sourceKey) {
-      return;
-    }
-
-    if (didSubmit) {
-      handledSharedSourceKeysRef.current.add(source.sourceKey);
-      await clearPendingSharedSource(source.sourceKey);
-      setShareLinkError(null);
-      clearSharedCaptureError();
-      setSheet((currentSheet) => (currentSheet === 'paste' ? null : currentSheet));
-      return;
-    }
-
-    setPendingSharedSource((currentSource) =>
-      currentSource?.sourceKey === source.sourceKey
-        ? { ...currentSource, shouldAutoSubmit: false }
-        : currentSource,
-    );
-    setSelectedCaptureId(null);
-    setSheet((currentSheet) => (currentSheet === 'paste' ? null : currentSheet));
-  }, [
-    clearPendingSharedSource,
-    clearSharedCaptureError,
-    isSignedIn,
-    setSelectedCaptureId,
-    submitSharedUrl,
-  ]);
-
-  useEffect(() => {
-    if (!pendingSharedSource || isAuthLoading) {
-      return;
-    }
-
-    if (!isSignedIn) {
-      if (pendingSharedSource.shouldAutoSubmit) {
-        setPendingSharedSource((currentSource) =>
-          currentSource?.sourceKey === pendingSharedSource.sourceKey
-            ? { ...currentSource, shouldAutoSubmit: false }
-            : currentSource,
-        );
-      }
-      return;
-    }
-
-    if (pendingSharedSource.shouldAutoSubmit) {
-      void submitPendingSharedSource();
-    }
-  }, [isAuthLoading, isSignedIn, pendingSharedSource, submitPendingSharedSource]);
-
   const signOutAndClose = useCallback(async () => {
     await handleSignOut(registeredPushToken);
     setRegisteredPushToken(null);
@@ -443,13 +200,7 @@ export default function App() {
     setSheet(null);
   }, []);
 
-  const closePasteSheet = useCallback(() => {
-    clearPasteError();
-    setSheet(null);
-  }, [clearPasteError]);
-
   const openPasteSheet = useCallback(() => {
-    setShareLinkError(null);
     clearSharedCaptureError();
     setSheet('paste');
   }, [clearSharedCaptureError]);
@@ -517,7 +268,7 @@ export default function App() {
     return (
       <SignedOutScreen
         error={shareLinkError ?? authError}
-        pendingSharedSourceUrl={pendingSharedSource?.sourceUrl ?? null}
+        pendingSharedSourceUrl={pendingSharedSourceUrl}
         isAppleLoading={authProviderInFlight === 'apple'}
         isDisabled={authProviderInFlight !== null}
         onContinueGoogle={() => void handleSignIn('google')}
@@ -550,7 +301,7 @@ export default function App() {
           error={sharedCaptureError ?? loadError}
           errorActionLabel={sharedCaptureError ? undefined : 'Try again'}
           onErrorAction={sharedCaptureError ? undefined : () => void refreshCaptures()}
-          pendingSharedSourceUrl={pendingSharedSource?.sourceUrl ?? null}
+          pendingSharedSourceUrl={pendingSharedSourceUrl}
           isSubmittingPendingSharedSource={isSubmittingSharedUrl}
           onSavePendingSharedSource={() => void submitPendingSharedSource()}
           onDiscardPendingSharedSource={() => void discardPendingSharedSource()}
