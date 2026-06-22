@@ -86,7 +86,7 @@ SECOND_TOKEN='user-b-access-token' \
 SOURCE_URL='https://www.instagram.com/reel/SHORTCODE/' \
 python scripts/smoke_job_flow.py \
   --api-base-url https://your-beta-api.example \
-  --require-mentions
+  --require-items
 ```
 
 For v1 beta, the frontend may use Supabase Auth only. Direct frontend or mobile reads from Supabase
