@@ -22,5 +22,5 @@ async def test_health_no_auth():
 
 async def test_dev_mode_default_user(client):
     """In dev mode, requests without auth use the default user."""
-    resp = await client.get("/v1/jobs")
+    resp = await client.get("/v1/saved-sources")
     assert resp.status_code == 200

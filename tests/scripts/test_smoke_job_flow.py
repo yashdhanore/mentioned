@@ -12,11 +12,23 @@ from scripts import smoke_job_flow
 API_BASE_URL = "https://api.example"
 
 
-def _args(*, require_mentions: bool) -> argparse.Namespace:
+def _saved_source(*, items: list[dict[str, str]] | None = None) -> dict[str, object]:
+    return {
+        "id": "saved-source-1",
+        "source_id": "source-1",
+        "source_key": "instagram:reel:SHORTCODE",
+        "status": "done",
+        "source_url": "https://www.instagram.com/reel/SHORTCODE/",
+        "created_at": "2026-06-22T12:00:00Z",
+        "items": items if items is not None else [{"id": "item-1", "title": "Atomic Habits"}],
+    }
+
+
+def _args(*, require_mentions: bool, second_token: str | None = None) -> argparse.Namespace:
     return argparse.Namespace(
         api_base_url=API_BASE_URL,
         token="user-a-token",
-        second_token=None,
+        second_token=second_token,
         source_url="https://www.instagram.com/reel/SHORTCODE/",
         poll_interval_seconds=0.01,
         timeout_seconds=1.0,
@@ -27,79 +39,77 @@ def _args(*, require_mentions: bool) -> argparse.Namespace:
 
 
 @respx.mock
-def test_smoke_job_flow_verifies_saved_mentions() -> None:
-    respx.post(f"{API_BASE_URL}/v1/jobs").mock(
-        return_value=httpx.Response(200, json={"job_id": "job-1", "status": "pending"})
+def test_smoke_job_flow_verifies_saved_source_items() -> None:
+    saved_source = _saved_source()
+    respx.post(f"{API_BASE_URL}/v1/saved-sources").mock(
+        return_value=httpx.Response(202, json={**saved_source, "status": "processing", "items": []})
     )
-    respx.get(f"{API_BASE_URL}/v1/jobs/job-1").mock(
-        return_value=httpx.Response(
-            200,
-            json={
-                "job_id": "job-1",
-                "status": "done",
-                "mentions": [{"id": "mention-1", "title": "Atomic Habits"}],
-            },
-        )
+    respx.get(f"{API_BASE_URL}/v1/saved-sources/saved-source-1").mock(
+        return_value=httpx.Response(200, json=saved_source)
     )
-    mentions_route = respx.get(f"{API_BASE_URL}/v1/mentions").mock(
-        return_value=httpx.Response(
-            200,
-            json={
-                "items": [{"id": "mention-1", "title": "Atomic Habits"}],
-                "next_cursor": None,
-            },
-        )
+    saved_sources_route = respx.get(f"{API_BASE_URL}/v1/saved-sources").mock(
+        return_value=httpx.Response(200, json=[saved_source])
     )
 
     assert smoke_job_flow.run(_args(require_mentions=True)) == 0
-    assert mentions_route.called
-    assert mentions_route.calls.last.request.url.params["limit"] == "100"
+    assert saved_sources_route.called
+    assert saved_sources_route.calls.last.request.url.params["limit"] == "100"
 
 
 @respx.mock
-def test_smoke_job_flow_fails_when_saved_mentions_omit_job_mentions() -> None:
-    respx.post(f"{API_BASE_URL}/v1/jobs").mock(
-        return_value=httpx.Response(200, json={"job_id": "job-1", "status": "pending"})
+def test_smoke_job_flow_fails_when_saved_source_list_omits_submission() -> None:
+    saved_source = _saved_source()
+    respx.post(f"{API_BASE_URL}/v1/saved-sources").mock(
+        return_value=httpx.Response(202, json={**saved_source, "status": "processing", "items": []})
     )
-    respx.get(f"{API_BASE_URL}/v1/jobs/job-1").mock(
-        return_value=httpx.Response(
-            200,
-            json={
-                "job_id": "job-1",
-                "status": "done",
-                "mentions": [{"id": "mention-1", "title": "Atomic Habits"}],
-            },
-        )
+    respx.get(f"{API_BASE_URL}/v1/saved-sources/saved-source-1").mock(
+        return_value=httpx.Response(200, json=saved_source)
     )
-    respx.get(f"{API_BASE_URL}/v1/mentions").mock(
-        return_value=httpx.Response(200, json={"items": [], "next_cursor": None})
+    respx.get(f"{API_BASE_URL}/v1/saved-sources").mock(
+        return_value=httpx.Response(200, json=[])
     )
 
     with pytest.raises(
         smoke_job_flow.SmokeError,
-        match="Saved mentions did not include job mention IDs",
+        match="Saved source list did not include submitted saved source id",
     ):
         smoke_job_flow.run(_args(require_mentions=True))
 
 
 @respx.mock
-def test_smoke_job_flow_require_mentions_fails_when_job_returns_no_mentions() -> None:
-    respx.post(f"{API_BASE_URL}/v1/jobs").mock(
-        return_value=httpx.Response(200, json={"job_id": "job-1", "status": "pending"})
+def test_smoke_job_flow_require_mentions_fails_when_saved_source_returns_no_items() -> None:
+    saved_source = _saved_source(items=[])
+    respx.post(f"{API_BASE_URL}/v1/saved-sources").mock(
+        return_value=httpx.Response(202, json={**saved_source, "status": "processing"})
     )
-    respx.get(f"{API_BASE_URL}/v1/jobs/job-1").mock(
-        return_value=httpx.Response(
-            200,
-            json={
-                "job_id": "job-1",
-                "status": "done",
-                "mentions": [],
-            },
-        )
+    respx.get(f"{API_BASE_URL}/v1/saved-sources/saved-source-1").mock(
+        return_value=httpx.Response(200, json=saved_source)
     )
 
     with pytest.raises(
         smoke_job_flow.SmokeError,
-        match="Job completed but returned no mentions",
+        match="Saved source completed but returned no extracted items",
     ):
         smoke_job_flow.run(_args(require_mentions=True))
+
+
+@respx.mock
+def test_smoke_job_flow_checks_second_user_saved_source_isolation() -> None:
+    saved_source = _saved_source()
+    respx.post(f"{API_BASE_URL}/v1/saved-sources").mock(
+        return_value=httpx.Response(202, json={**saved_source, "status": "processing", "items": []})
+    )
+    respx.get(f"{API_BASE_URL}/v1/saved-sources/saved-source-1").mock(
+        side_effect=[
+            httpx.Response(200, json=saved_source),
+            httpx.Response(404, json={"error_code": "saved_source_not_found"}),
+        ]
+    )
+    respx.get(f"{API_BASE_URL}/v1/saved-sources").mock(
+        side_effect=[
+            httpx.Response(200, json=[saved_source]),
+            httpx.Response(200, json=[]),
+        ]
+    )
+
+    assert smoke_job_flow.run(_args(require_mentions=False, second_token="user-b-token")) == 0

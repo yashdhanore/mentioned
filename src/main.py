@@ -81,15 +81,11 @@ if settings.trusted_hosts:
 
 # Import and include routers
 from src.account.router import router as account_router
-from src.jobs.router import router as jobs_router
-from src.mentions.router import router as mentions_router
 from src.push.router import router as push_router
 from src.sources.router import router as sources_router
 from src.waitlist.router import router as waitlist_router
 
 app.include_router(account_router)
-app.include_router(jobs_router)
-app.include_router(mentions_router)
 app.include_router(push_router)
 app.include_router(sources_router)
 app.include_router(waitlist_router)
