@@ -1,6 +1,6 @@
 # Product Decisions And Ideation
 
-Last updated: 2026-06-21
+Last updated: 2026-06-22
 
 This is the canonical home for Mentioned product thinking: product decisions, product
 improvements, UX ideas, marketing ideas, positioning, launch angles, user problems, and future
@@ -275,6 +275,26 @@ Add new notes below this line.
   comprehension, and willingness to pay before committing to a permanent free plan or broad launch.
 - Notes: Keep the initial published proof accessible enough for learning and App Store trust, but
   design future monetization with explicit usage ceilings and clear upgrade moments.
+
+### 2026-06-22 - Saved Source Delete And Future Reading Lists
+
+- Type: Product / Technical-product
+- Status: Accepted for the saved-source cutover.
+- Audience: Recommendation collectors using Mentioned as a source archive before building curated
+  lists.
+- Problem: Users need delete behavior that feels personal and reversible in their own archive, while
+  the product needs shared extraction data to remain stable for other users and future list features.
+- Idea: Deleting a saved source unlinks that user from the canonical source. It does not delete the
+  canonical source, its extracted books/items, or another user's saved source. Individual extracted
+  books are not deleted from the source in this cutover; they remain part of the source's extracted
+  item record.
+- Why it might matter: This keeps the book-first save -> extract -> revisit loop predictable,
+  protects the shared cache, and avoids implying that a user's book action mutates the original post.
+- Smallest test: Remove the per-book delete affordance from the current app flow and keep saved-post
+  deletion scoped to the user's saved-source row.
+- Notes: Future reading lists should add `source_items` to user-created lists rather than copying or
+  deleting canonical extraction rows. A later correction/hide feature can be user-owned, but it is
+  separate from the source cache and reading-list table design.
 
 ### 2026-06-15 - Arc Selection Interaction Inspiration
 

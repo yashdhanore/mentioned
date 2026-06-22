@@ -1,6 +1,6 @@
 # Technical Decisions And Ideation
 
-Last updated: 2026-06-21
+Last updated: 2026-06-22
 
 This is the canonical home for Mentioned technical decisions, architecture status, technical
 ideation, and rejected approaches. Technical decisions must start from the product direction in
@@ -95,6 +95,25 @@ The work splits along two independent axes:
   `src.push.worker`. This does not add Axis A hardening yet; claim safety, timeouts, idempotency,
   concurrency, retry budgets, and cost instrumentation remain in the future
   *production-ingestion-hardening* plan.
+
+### 2026-06-22 - Minimal Saved Source Cache Model
+
+- Status: Accepted and implemented for the pre-release saved-source cutover.
+- Product constraint: Protects the save -> extract -> revisit loop, keeps the book-first wedge
+  simple, preserves v1 contract safety during the cutover, controls extraction cost through
+  canonical source reuse, preserves user privacy and account deletion boundaries, and leaves room
+  for future generic saved items without adding a reading-list product in this change.
+- Decision: The accepted model is `sources + source_items + saved_sources`. `sources` is the
+  canonical social-source cache keyed by deterministic source identity. `source_items` stores stable
+  extracted item rows for books/products/places and future references. `saved_sources` is the
+  user-owned link that makes a canonical source visible in one user's archive.
+- Rejected in this change: do not add `source_extractions`, versioned extraction history, per-user
+  item override tables, or reading-list tables. Those add product and migration complexity before
+  the save -> extract -> revisit loop has proven that users need corrections, historical extractor
+  comparisons, or curated lists.
+- Notes: `/v1/saved-sources` replaces the old job/mention endpoint surface for the app cutover.
+  Legacy `src/jobs/*` and `src/mentions/*` modules remain only as internal compatibility surfaces
+  while worker, push, account deletion, and enrichment code still reference them.
 
 ### 2026-06-21 - AI-Navigable Architecture Review
 
