@@ -11,8 +11,8 @@ This checklist covers backend readiness evidence only:
 - Render `mentioned-api` and `mentioned-worker` deploy shape.
 - Alembic and Supabase migration state.
 - API and worker database role boundaries.
-- Release environment guardrails for production shape and per-user job quotas.
-- Real-source smoke coverage through job detail mentions and saved mentions.
+- Release environment guardrails for production shape and per-user saved-source quotas.
+- Real-source smoke coverage through saved-source status and extracted items.
 - Render logs needed to diagnose queue claim, retry, failure, and archive paths.
 
 ## Non-Goals
@@ -118,7 +118,7 @@ Copy this into the issue or PR and check each item with the collected evidence:
 - [ ] API and worker Render services are deployed from the intended commit.
 - [ ] Release env check passes with one worker replica.
 - [ ] API and worker database roles are non-superuser and non-`BYPASSRLS`.
-- [ ] Per-user job guardrail tests pass and production values are within Release 1 bounds.
+- [ ] Per-user saved-source guardrail tests pass and production values are within Release 1 bounds.
 - [ ] Worker logs show claim, failure, retry, and archive paths clearly enough for diagnosis.
-- [ ] Real-source smoke passes and saved mentions are returned.
+- [ ] Real-source smoke passes and extracted items are returned.
 - [ ] No provider cost redesign or queue architecture redesign was introduced.

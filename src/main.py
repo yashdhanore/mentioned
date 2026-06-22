@@ -127,15 +127,15 @@ async def privacy_policy() -> str:
       <h2>Information We Collect</h2>
       <p>
         We collect account information provided through Supabase authentication, such as your email
-        address and user identifier. We also store the Instagram URLs you submit, extraction job
-        status, saved mention results, related book metadata, and optional Expo push notification
-        tokens if you allow notifications.
+        address and user identifier. We also store the Instagram URLs you submit, saved-source
+        extraction status, extracted item results, related book metadata, and optional Expo push
+        notification tokens if you allow notifications.
       </p>
 
       <h2>How We Use Information</h2>
       <p>
         We use this information to authenticate your account, process submitted links, save your
-        results, show your saved Reels and books, send job-status notifications, prevent abuse, and
+        results, show your saved Reels and books, send saved-source notifications, prevent abuse, and
         diagnose service issues.
       </p>
 

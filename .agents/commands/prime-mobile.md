@@ -25,12 +25,10 @@ build general mobile app context.
    - push notification registration/handling
    - shared components and styling conventions
 4. Inspect backend contracts the mobile app depends on:
-   - `POST /v1/jobs`
-   - `GET /v1/jobs`
-   - `GET /v1/jobs/{job_id}`
-   - `GET /v1/mentions`
-   - `PATCH /v1/mentions/{mention_id}`
-   - `DELETE /v1/mentions/{mention_id}`
+   - `POST /v1/saved-sources`
+   - `GET /v1/saved-sources`
+   - `GET /v1/saved-sources/{saved_source_id}`
+   - `DELETE /v1/saved-sources/{saved_source_id}`
    - push token endpoints when relevant
 5. Inspect mobile tests or scripts if present. If none exist, identify realistic
    verification steps.
