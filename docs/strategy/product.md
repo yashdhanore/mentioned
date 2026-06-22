@@ -290,7 +290,7 @@ Add new notes below this line.
   item record.
 - Why it might matter: This keeps the book-first save -> extract -> revisit loop predictable,
   protects the shared cache, and avoids implying that a user's book action mutates the original post.
-- Smallest test: Remove the per-book delete affordance from the current app flow and keep saved-post
+- Smallest test: Remove the per-book delete affordance from the current app flow and keep saved-source
   deletion scoped to the user's saved-source row.
 - Notes: Future reading lists should add `source_items` to user-created lists rather than copying or
   deleting canonical extraction rows. A later correction/hide feature can be user-owned, but it is

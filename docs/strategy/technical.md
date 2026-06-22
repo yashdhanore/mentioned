@@ -38,6 +38,12 @@ save -> extract -> revisit loop.
 
 > **Read this first if you are an agent working on the backend.** As of 2026-06-13 the app is submitted to the App Store. The shipped mobile binary is frozen against the **v1 HTTP contract**, so v1 **user-visible behavior and HTTP contract must not change** — but internal worker/ingestion behavior *can* (see "Frozen = contract, not internals" below). v2 is being built *alongside* v1 in the same repo and same Supabase project — not as a replacement edit.
 
+> **2026-06-22 update:** The saved-source cutover supersedes the old `/v1/jobs` and
+> `/v1/mentions` surface before public release. Treat the job/mention contract and `/v2`
+> sequencing notes below as historical compatibility context unless an already-shipped binary still
+> calls them. Active app/backend work should target `/v1/saved-sources`, `sources`,
+> `source_items`, and `saved_sources`.
+
 **v1 — live. Frozen CONTRACT, not frozen internals:**
 - What is frozen: the **entire `/v1` HTTP contract and user-visible semantics** the submitted app calls (verified against `mobile/src/api.ts`). These are a promise to the published app and must not change:
   - `/v1/jobs` (POST create, GET list) + `/v1/jobs/{id}` (GET, DELETE) — `src/jobs/router.py`
