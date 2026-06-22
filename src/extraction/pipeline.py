@@ -4,6 +4,7 @@ import logging
 import tempfile
 from pathlib import Path
 
+from src.config import get_settings
 from src.extraction.download import download_assets_with_metadata
 from src.extraction.gemini import extract_mentions_from_media
 from src.extraction.schemas import ExtractedMention, PipelineResult

@@ -24,7 +24,7 @@ def _saved_source(*, items: list[dict[str, str]] | None = None) -> dict[str, obj
     }
 
 
-def _args(*, require_mentions: bool, second_token: str | None = None) -> argparse.Namespace:
+def _args(*, require_items: bool, second_token: str | None = None) -> argparse.Namespace:
     return argparse.Namespace(
         api_base_url=API_BASE_URL,
         token="user-a-token",
@@ -34,7 +34,7 @@ def _args(*, require_mentions: bool, second_token: str | None = None) -> argpars
         timeout_seconds=1.0,
         request_timeout_seconds=5.0,
         verbose=False,
-        require_mentions=require_mentions,
+        require_items=require_items,
     )
 
 
@@ -51,7 +51,7 @@ def test_smoke_job_flow_verifies_saved_source_items() -> None:
         return_value=httpx.Response(200, json=[saved_source])
     )
 
-    assert smoke_job_flow.run(_args(require_mentions=True)) == 0
+    assert smoke_job_flow.run(_args(require_items=True)) == 0
     assert saved_sources_route.called
     assert saved_sources_route.calls.last.request.url.params["limit"] == "100"
 
@@ -73,11 +73,11 @@ def test_smoke_job_flow_fails_when_saved_source_list_omits_submission() -> None:
         smoke_job_flow.SmokeError,
         match="Saved source list did not include submitted saved source id",
     ):
-        smoke_job_flow.run(_args(require_mentions=True))
+        smoke_job_flow.run(_args(require_items=True))
 
 
 @respx.mock
-def test_smoke_job_flow_require_mentions_fails_when_saved_source_returns_no_items() -> None:
+def test_smoke_job_flow_require_items_fails_when_saved_source_returns_no_items() -> None:
     saved_source = _saved_source(items=[])
     respx.post(f"{API_BASE_URL}/v1/saved-sources").mock(
         return_value=httpx.Response(202, json={**saved_source, "status": "processing"})
@@ -90,7 +90,21 @@ def test_smoke_job_flow_require_mentions_fails_when_saved_source_returns_no_item
         smoke_job_flow.SmokeError,
         match="Saved source completed but returned no extracted items",
     ):
-        smoke_job_flow.run(_args(require_mentions=True))
+        smoke_job_flow.run(_args(require_items=True))
+
+
+@respx.mock
+def test_smoke_job_flow_failed_saved_source_returns_status_code_two() -> None:
+    saved_source = _saved_source(items=[])
+    failed_source = {**saved_source, "status": "failed", "error_message": "Extraction failed"}
+    respx.post(f"{API_BASE_URL}/v1/saved-sources").mock(
+        return_value=httpx.Response(202, json={**saved_source, "status": "processing", "items": []})
+    )
+    respx.get(f"{API_BASE_URL}/v1/saved-sources/saved-source-1").mock(
+        return_value=httpx.Response(200, json=failed_source)
+    )
+
+    assert smoke_job_flow.run(_args(require_items=True)) == 2
 
 
 @respx.mock
@@ -112,4 +126,4 @@ def test_smoke_job_flow_checks_second_user_saved_source_isolation() -> None:
         ]
     )
 
-    assert smoke_job_flow.run(_args(require_mentions=False, second_token="user-b-token")) == 0
+    assert smoke_job_flow.run(_args(require_items=False, second_token="user-b-token")) == 0

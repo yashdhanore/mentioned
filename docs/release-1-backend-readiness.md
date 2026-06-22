@@ -34,7 +34,7 @@ Collect this evidence against the same commit and environment values intended fo
 - API and worker roles are non-superuser and non-`BYPASSRLS`.
 - `scripts/check_release_env.py` passes against the same values used on Render.
 - Quota guardrails are set to, or default to, burst `3/min`, daily `25/day`, active `5/user`.
-- A real-source smoke test passes with `--require-mentions`.
+- A real-source smoke test passes with `--require-items`.
 
 ## Local Verification
 
@@ -90,12 +90,12 @@ SECOND_TOKEN='user-b-access-token' \
 SOURCE_URL='https://www.instagram.com/reel/SHORTCODE/' \
 python scripts/smoke_job_flow.py \
   --api-base-url https://mentioned-api.onrender.com \
-  --require-mentions
+  --require-items
 ```
 
-The smoke must create a job, poll it to `done`, print job-detail mentions, fetch
-`GET /v1/mentions?limit=100`, verify saved mentions include the job mention IDs, and prove the
-second user cannot read the first user's job.
+The smoke must create a saved source, poll it to `done`, print extracted items, fetch
+`GET /v1/saved-sources?limit=100`, verify the saved-source list includes the submitted saved source,
+and prove the second user cannot read the first user's saved source.
 
 ## Render Evidence
 

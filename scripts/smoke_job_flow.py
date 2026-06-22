@@ -123,7 +123,10 @@ def run(args: argparse.Namespace) -> int:
             raise SmokeError("GET /v1/saved-sources/{id} response did not include an items list")
         _print_json("extracted items", {"count": len(extracted_items), "items": extracted_items})
 
-        if args.require_mentions and not extracted_items:
+        if saved_source.get("status") not in SUCCESS_STATUSES:
+            return 2
+
+        if args.require_items and not extracted_items:
             raise SmokeError("Saved source completed but returned no extracted items")
 
         saved_sources = _saved_sources_for_smoke(client)
@@ -150,8 +153,6 @@ def run(args: argparse.Namespace) -> int:
 
                 print("cross-user isolation checks passed")
 
-        if saved_source.get("status") not in SUCCESS_STATUSES:
-            return 2
         return 0
 
 
@@ -166,7 +167,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--request-timeout-seconds", type=float, default=30.0)
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument(
-        "--require-mentions",
+        "--require-items",
+        dest="require_items",
         action="store_true",
         help="Fail if the completed saved source returns no extracted items. Use for Release 1 real-source smoke tests.",
     )

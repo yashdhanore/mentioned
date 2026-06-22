@@ -156,9 +156,9 @@ async def privacy_policy() -> str:
 
       <h2>Data Retention and Deletion</h2>
       <p>
-        We keep account data, submitted URLs, jobs, mentions, and push tokens while your account is
-        active or as needed to operate and protect the service. You can delete saved mentions in the
-        app. To request account or data deletion, contact support.
+        We keep account data, submitted URLs, saved sources, extracted items, and push tokens while
+        your account is active or as needed to operate and protect the service. You can delete saved
+        sources in the app. To request account or data deletion, contact support.
       </p>
 
       <h2>Security</h2>

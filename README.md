@@ -70,16 +70,16 @@ background worker backed by Supabase Postgres/Auth. See
 [`docs/render-supabase-deploy.md`](docs/render-supabase-deploy.md) for the production setup,
 required environment variables, role setup, and mobile app configuration.
 
-## Smoke test the full job flow
+## Smoke test the saved-source flow
 
-With the API and worker running, submit a real job, poll until terminal, verify job-detail mentions,
-and verify saved mentions through `/v1/mentions`:
+With the API and worker running, submit a real saved source, poll until terminal, verify extracted
+items, and prove another user cannot read the saved source:
 
 ```bash
 TOKEN='paste-supabase-access-token'
 SECOND_TOKEN='paste-second-user-supabase-access-token'
 SOURCE_URL='https://www.instagram.com/reel/SHORTCODE/'
-python scripts/smoke_job_flow.py --require-mentions
+python scripts/smoke_job_flow.py --require-items
 ```
 
 Optional overrides:
@@ -90,19 +90,17 @@ python scripts/smoke_job_flow.py \
   --source-url "$SOURCE_URL" \
   --token "$TOKEN" \
   --timeout-seconds 600 \
-  --require-mentions
+  --require-items
 ```
 
 ## API
 
-- `POST /v1/jobs` queues an extraction job for a URL.
-- `GET /v1/jobs` lists the authenticated user's most recent jobs.
-- `GET /v1/jobs/{job_id}` returns job status and is the required v1 polling endpoint.
-- `GET /v1/mentions` lists auto-saved mention evidence for the authenticated user.
-- `PATCH /v1/mentions/{mention_id}` and `DELETE /v1/mentions/{mention_id}` support correction
-  and soft delete.
+- `POST /v1/saved-sources` saves an Instagram Reel/post URL and queues canonical extraction when needed.
+- `GET /v1/saved-sources` lists the authenticated user's saved sources.
+- `GET /v1/saved-sources/{saved_source_id}` returns source extraction status and extracted items.
+- `DELETE /v1/saved-sources/{saved_source_id}` unlinks that saved source for the authenticated user.
 
-Current MVP job polling status values are `pending`, `done`, and `failed`.
+Current saved-source status values are `processing`, `done`, and `failed`.
 
 Public endpoints use Supabase Auth in production (`AUTH_MODE=supabase`). Local development defaults
 to `AUTH_MODE=dev`; omit `Authorization` to use `DEV_USER_ID`, or pass

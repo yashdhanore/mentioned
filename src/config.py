@@ -58,6 +58,7 @@ class Settings:
     cors_allowed_origins: tuple[str, ...] = ()
     trusted_hosts: tuple[str, ...] = ()
     source_require_https: bool = False
+    extraction_backend: str = "gemini"
 
     # Worker
     worker_poll_interval_seconds: float = 2.0
