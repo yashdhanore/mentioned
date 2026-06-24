@@ -59,27 +59,27 @@ assert.deepEqual(
   [savedSource.id],
 );
 
-const noBooksCapture = captureFromSavedSource(savedSource);
-assert.equal(noBooksCapture.status, 'no_books');
-assert.equal(noBooksCapture.skipReason, null);
+const noMentionsCapture = captureFromSavedSource(savedSource);
+assert.equal(noMentionsCapture.status, 'no_mentions');
+assert.equal(noMentionsCapture.skipReason, null);
 
 const skippedCapture = captureFromSavedSource({
   ...savedSource,
   skip_reason: 'dance clip',
 });
-assert.equal(skippedCapture.status, 'no_books');
+assert.equal(skippedCapture.status, 'no_mentions');
 assert.equal(skippedCapture.skipReason, 'dance clip');
 
-const detailedBookCapture = captureFromSavedSource({
+const mixedCapture = captureFromSavedSource({
   ...savedSource,
   items: [
     {
       id: '55555555-5555-4555-8555-555555555555',
-      book_id: '66666666-6666-4666-8666-666666666666',
-      title: 'Ignored Product',
+      book_id: null,
+      title: 'Cafe Nero',
       author: null,
-      category: 'product',
-      confidence: 0.99,
+      category: 'place',
+      confidence: 0.7,
       google_books_url: null,
       cover_image_url: null,
       position: 0,
@@ -97,22 +97,49 @@ const detailedBookCapture = captureFromSavedSource({
     },
     {
       id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-      book_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-      title: 'A Wizard of Earthsea',
-      author: 'Ursula K. Le Guin',
-      category: 'book',
-      confidence: 0.88,
+      book_id: null,
+      title: 'Low Confidence Place',
+      author: null,
+      category: 'place',
+      confidence: 0.5,
       google_books_url: null,
       cover_image_url: null,
       position: 1,
     },
   ],
 });
-assert.equal(detailedBookCapture.status, 'ready');
+// Place at 0.7 surfaces; book surfaces; place at 0.5 hidden by the 0.6 floor.
+assert.equal(mixedCapture.status, 'ready');
 assert.deepEqual(
-  detailedBookCapture.books.map((book) => book.title),
-  ['A Wizard of Earthsea', 'The Left Hand of Darkness'],
+  mixedCapture.mentions.map((mention) => mention.title),
+  ['Cafe Nero', 'The Left Hand of Darkness'],
 );
-assert.equal(detailedBookCapture.books[1].coverImageUrl, 'https://example.com/cover.jpg');
+assert.deepEqual(
+  mixedCapture.mentions.map((mention) => mention.category),
+  ['place', 'book'],
+);
+// subtitle: author for books, null for place/product.
+assert.equal(mixedCapture.mentions[0].subtitle, null);
+assert.equal(mixedCapture.mentions[1].subtitle, 'Ursula K. Le Guin');
+assert.equal(mixedCapture.mentions[1].coverImageUrl, 'https://example.com/cover.jpg');
+
+const productCapture = captureFromSavedSource({
+  ...savedSource,
+  items: [
+    {
+      id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      book_id: null,
+      title: 'Oura Ring',
+      author: null,
+      category: 'product',
+      confidence: 0.9,
+      google_books_url: null,
+      cover_image_url: null,
+      position: 0,
+    },
+  ],
+});
+assert.equal(productCapture.status, 'ready');
+assert.equal(productCapture.mentions[0].category, 'product');
 
 console.log('capture mapping tests passed');

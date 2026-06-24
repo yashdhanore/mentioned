@@ -1,12 +1,14 @@
 import type { SavedSourceResponse, SavedSourceStatus, SourceItemInSavedSource } from './api';
 
-export type CaptureStatus = 'ready' | 'processing' | 'no_books' | 'failed';
+export type CaptureStatus = 'ready' | 'processing' | 'no_mentions' | 'failed';
 
-export type BookMention = {
+export type MentionCategory = 'book' | 'place' | 'product';
+
+export type Mention = {
   id: string;
+  category: MentionCategory;
   title: string;
-  author: string | null;
-  synopsis: string | null;
+  subtitle: string | null;
   coverImageUrl: string | null;
   initials: string;
   color: string;
@@ -21,7 +23,7 @@ export type Capture = {
   sourceUrl: string;
   createdAt: string;
   sourceContextSnippet: string | null;
-  books: BookMention[];
+  mentions: Mention[];
   errorMessage: string | null;
   skipReason: string | null;
 };
@@ -59,29 +61,42 @@ function thumbnailForSavedSource(savedSource: Pick<SavedSourceResponse, 'thumbna
   return compact(savedSource.thumbnail_url);
 }
 
-function visibleBookItems(items: SourceItemInSavedSource[]): BookMention[] {
+const MENTION_CATEGORIES: readonly MentionCategory[] = ['book', 'place', 'product'];
+
+function asMentionCategory(value: string): MentionCategory | null {
+  return (MENTION_CATEGORIES as readonly string[]).includes(value)
+    ? (value as MentionCategory)
+    : null;
+}
+
+function visibleMentions(items: SourceItemInSavedSource[]): Mention[] {
   return items
-    .filter((item) => item.category === 'book')
+    // MIN_VISIBLE_CONFIDENCE is shared across all types for now; revisit per
+    // type once we have real place/product extraction quality data.
     .filter((item) => item.confidence === null || item.confidence >= MIN_VISIBLE_CONFIDENCE)
     .filter((item) => compact(item.title))
-    .sort((left, right) => left.position - right.position)
-    .map((item) => ({
+    .map((item) => ({ item, category: asMentionCategory(item.category) }))
+    .filter((entry): entry is { item: SourceItemInSavedSource; category: MentionCategory } =>
+      entry.category !== null,
+    )
+    .sort((left, right) => left.item.position - right.item.position)
+    .map(({ item, category }) => ({
       id: item.id,
+      category,
       title: item.title.trim(),
-      author: compact(item.author),
-      synopsis: null,
+      subtitle: compact(item.author),
       coverImageUrl: compact(item.cover_image_url),
       initials: initialsFor(item.title),
       color: colorFor(item.id),
     }));
 }
 
-function statusFor(savedSourceStatus: SavedSourceStatus, books: BookMention[]): CaptureStatus {
+function statusFor(savedSourceStatus: SavedSourceStatus, mentions: Mention[]): CaptureStatus {
   if (savedSourceStatus === 'processing') {
     return 'processing';
   }
   if (savedSourceStatus === 'done') {
-    return books.length > 0 ? 'ready' : 'no_books';
+    return mentions.length > 0 ? 'ready' : 'no_mentions';
   }
   return 'failed';
 }
@@ -95,17 +110,17 @@ export function captureFromSavedSourceCreated(savedSource: SavedSourceResponse):
 }
 
 export function captureFromSavedSource(savedSource: SavedSourceResponse): Capture {
-  const books = visibleBookItems(savedSource.items);
+  const mentions = visibleMentions(savedSource.items);
   return {
     id: savedSource.id,
     creator: 'Instagram',
     creatorHandle: compact(savedSource.source_creator_handle),
-    status: statusFor(savedSource.status, books),
+    status: statusFor(savedSource.status, mentions),
     thumbnailUrl: thumbnailForSavedSource(savedSource),
     sourceUrl: savedSource.source_url,
     createdAt: savedSource.created_at,
     sourceContextSnippet: null,
-    books,
+    mentions,
     errorMessage: savedSource.error_message,
     skipReason: compact(savedSource.skip_reason),
   };
