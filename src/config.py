@@ -11,6 +11,8 @@ from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 SUPPORTED_AUTH_MODES = {"dev", "supabase"}
+SUPPORTED_EXTRACTION_BACKENDS = {"gemini", "local"}
+SUPPORTED_RELEVANCE_GATE_MODES = {"off", "shadow", "active"}
 HARD_MAX_MEDIA_DURATION_SECONDS = 300
 HARD_MAX_MEDIA_FILE_BYTES = 100 * 1024 * 1024
 HARD_MAX_MEDIA_TOTAL_BYTES = 150 * 1024 * 1024
@@ -39,6 +41,7 @@ class AuthConfig:
 class GeminiConfig:
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-2.5-flash"
+    gemini_gate_model: str = "gemini-2.5-flash-lite"
     gemini_total_attempts: int = 3
     use_vertexai: bool = False
     vertex_project: str | None = None
@@ -59,6 +62,7 @@ class Settings:
     trusted_hosts: tuple[str, ...] = ()
     source_require_https: bool = False
     extraction_backend: str = "gemini"
+    relevance_gate_mode: str = "active"
 
     # Worker
     worker_poll_interval_seconds: float = 2.0
@@ -166,6 +170,10 @@ def _is_invalid_production_host(host: str) -> bool:
 def validate_settings(settings: Settings) -> None:
     if settings.auth.auth_mode not in SUPPORTED_AUTH_MODES:
         raise RuntimeError(f"Unsupported AUTH_MODE: {settings.auth.auth_mode}")
+    if settings.extraction_backend not in SUPPORTED_EXTRACTION_BACKENDS:
+        raise RuntimeError(f"Unsupported EXTRACTION_BACKEND: {settings.extraction_backend}")
+    if settings.relevance_gate_mode not in SUPPORTED_RELEVANCE_GATE_MODES:
+        raise RuntimeError(f"Unsupported RELEVANCE_GATE_MODE: {settings.relevance_gate_mode}")
     if not 1 <= settings.max_media_duration_seconds <= HARD_MAX_MEDIA_DURATION_SECONDS:
         raise RuntimeError(
             f"MAX_MEDIA_DURATION_SECONDS must be between 1 and {HARD_MAX_MEDIA_DURATION_SECONDS}"
@@ -223,6 +231,8 @@ def get_settings() -> Settings:
         cors_allowed_origins=_env_csv("CORS_ALLOWED_ORIGINS"),
         trusted_hosts=_env_csv("TRUSTED_HOSTS"),
         source_require_https=_env_bool("SOURCE_REQUIRE_HTTPS", app_env == "production"),
+        extraction_backend=os.getenv("EXTRACTION_BACKEND", "gemini").strip().casefold(),
+        relevance_gate_mode=os.getenv("RELEVANCE_GATE_MODE", "active").strip().casefold(),
         worker_poll_interval_seconds=_env_float("WORKER_POLL_INTERVAL_SECONDS", 2.0),
         worker_stale_timeout_seconds=_env_int("WORKER_STALE_TIMEOUT_SECONDS", 15 * 60),
         worker_queue_visibility_timeout_seconds=_env_int(
@@ -258,6 +268,7 @@ def get_settings() -> Settings:
         gemini=GeminiConfig(
             gemini_api_key=_env_optional("GEMINI_API_KEY"),
             gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip(),
+            gemini_gate_model=os.getenv("GEMINI_GATE_MODEL", "gemini-2.5-flash-lite").strip(),
             gemini_total_attempts=_env_int("GEMINI_TOTAL_ATTEMPTS", 3),
             use_vertexai=_env_bool(
                 "GEMINI_USE_VERTEXAI",

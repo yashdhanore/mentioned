@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import func, update
+from sqlalchemy import delete, func, update
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
@@ -156,26 +156,83 @@ def claim_source_for_processing(session: Session, source_id: str | UUID) -> Sour
     return session.get(Source, claimed_id)
 
 
-def complete_source_processing(session: Session, source: Source, items: list[SourceItem]) -> None:
+def complete_source_processing(
+    session: Session,
+    source: Source,
+    items: list[SourceItem],
+    *,
+    skip_reason: str | None = None,
+) -> bool:
     now = datetime.utcnow()
-    source.status = SourceStatus.DONE
-    source.error_message = None
-    source.processed_at = now
-    source.updated_at = now
-    session.add(source)
+    source_id = source.id
+    processing_started_at = source.processing_started_at
+    creator_handle = source.creator_handle
+    thumbnail_url = source.thumbnail_url
+    stmt = (
+        update(Source)
+        .where(
+            Source.id == source_id,
+            Source.status == SourceStatus.PROCESSING,
+            Source.processing_started_at == processing_started_at,
+        )
+        .values(
+            status=SourceStatus.DONE,
+            creator_handle=creator_handle,
+            thumbnail_url=thumbnail_url,
+            error_message=None,
+            skip_reason=skip_reason,
+            processed_at=now,
+            updated_at=now,
+        )
+        .returning(Source.id)
+    )
+    with session.no_autoflush:
+        completed_id = session.execute(stmt).scalar_one_or_none()
+    if completed_id is None:
+        session.rollback()
+        return False
+
+    session.expire(source)
+    session.execute(delete(SourceItem).where(SourceItem.source_id == source_id))
     for item in items:
+        item.source_id = source_id
         session.add(item)
     session.commit()
+    return True
 
 
-def fail_source_processing(session: Session, source: Source, error: str) -> None:
+def fail_source_processing(session: Session, source: Source, error: str) -> bool:
     now = datetime.utcnow()
-    source.status = SourceStatus.FAILED
-    source.error_message = error
-    source.processed_at = now
-    source.updated_at = now
-    session.add(source)
+    source_id = source.id
+    processing_started_at = source.processing_started_at
+    creator_handle = source.creator_handle
+    thumbnail_url = source.thumbnail_url
+    stmt = (
+        update(Source)
+        .where(
+            Source.id == source_id,
+            Source.status == SourceStatus.PROCESSING,
+            Source.processing_started_at == processing_started_at,
+        )
+        .values(
+            status=SourceStatus.FAILED,
+            creator_handle=creator_handle,
+            thumbnail_url=thumbnail_url,
+            error_message=error,
+            processed_at=now,
+            updated_at=now,
+        )
+        .returning(Source.id)
+    )
+    with session.no_autoflush:
+        failed_id = session.execute(stmt).scalar_one_or_none()
+    if failed_id is None:
+        session.rollback()
+        return False
+
+    session.expire(source)
     session.commit()
+    return True
 
 
 def recover_stale_sources(session: Session, stale_timeout_seconds: int = 900) -> int:

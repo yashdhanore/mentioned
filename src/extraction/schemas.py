@@ -17,3 +17,4 @@ class PipelineResult:
     thumbnail_url: str | None = None
     source_creator_handle: str | None = None
     error: str | None = None
+    skip_reason: str | None = None

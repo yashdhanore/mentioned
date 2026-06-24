@@ -31,6 +31,7 @@ class Source(SQLModel, table=True):
     creator_handle: Optional[str] = Field(default=None)
     thumbnail_url: Optional[str] = Field(default=None)
     error_message: Optional[str] = Field(default=None)
+    skip_reason: Optional[str] = Field(default=None)
     processing_started_at: Optional[datetime] = Field(default=None)
     processed_at: Optional[datetime] = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)

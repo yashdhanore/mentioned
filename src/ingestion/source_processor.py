@@ -39,7 +39,7 @@ class SourceIngestion:
         self._thumbnail_store = thumbnail_store
         self._book_finder = book_finder
 
-    def process_source(self, session: Session, source: Source) -> None:
+    def process_source(self, session: Session, source: Source) -> bool:
         logger.info("Starting pipeline for source %s -> %s", source.id, source.canonical_url)
         result = self._extraction_runner(source.canonical_url)
         source.creator_handle = result.source_creator_handle
@@ -49,8 +49,7 @@ class SourceIngestion:
             job_id=source.id,
         )
         if result.error:
-            fail_source_processing(session, source, result.error)
-            return
+            return fail_source_processing(session, source, result.error)
 
         items: list[SourceItem] = []
         for position, extracted in enumerate(result.mentions):
@@ -86,7 +85,7 @@ class SourceIngestion:
                 item.confidence = mention.confidence
             items.append(item)
 
-        complete_source_processing(session, source, items)
+        return complete_source_processing(session, source, items, skip_reason=result.skip_reason)
 
 
 default_source_ingestion = SourceIngestion()

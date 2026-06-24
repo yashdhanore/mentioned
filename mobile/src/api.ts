@@ -106,6 +106,7 @@ export type SavedSourceResponse = {
   thumbnail_url: string | null;
   source_creator_handle: string | null;
   error_message: string | null;
+  skip_reason: string | null;
   created_at: string;
   items: SourceItemInSavedSource[];
 };

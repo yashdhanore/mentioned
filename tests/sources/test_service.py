@@ -135,10 +135,11 @@ def test_complete_source_processing_marks_done_and_persists_items(session: Sessi
         position=0,
     )
 
-    complete_source_processing(session, source, [item])
+    completed = complete_source_processing(session, source, [item])
 
     updated_source = session.get(Source, source.id)
     assert updated_source is not None
+    assert completed is True
     assert updated_source.status == SourceStatus.DONE
     assert updated_source.error_message is None
     assert updated_source.processed_at is not None
@@ -148,18 +149,113 @@ def test_complete_source_processing_marks_done_and_persists_items(session: Sessi
     assert persisted_item.title == "Atomic Habits"
 
 
+def test_complete_source_processing_persists_skip_reason(session: Session) -> None:
+    saved = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/SKIPME/")
+    source = claim_source_for_processing(session, saved.source_id)
+    assert source is not None
+
+    completed = complete_source_processing(session, source, [], skip_reason="dance clip")
+
+    updated_source = session.get(Source, source.id)
+    assert completed is True
+    assert updated_source is not None
+    assert updated_source.status == SourceStatus.DONE
+    assert updated_source.skip_reason == "dance clip"
+
+
+def test_complete_source_processing_clears_skip_reason_on_normal_completion(session: Session) -> None:
+    saved = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/CLEARSKIP/")
+    source = claim_source_for_processing(session, saved.source_id)
+    assert source is not None
+    source.skip_reason = "stale skip"
+    item = SourceItem(source_id=source.id, category="book", title="Real Book", position=0)
+
+    completed = complete_source_processing(session, source, [item])
+
+    updated_source = session.get(Source, source.id)
+    assert completed is True
+    assert updated_source is not None
+    assert updated_source.skip_reason is None
+
+
+def test_complete_source_processing_rejects_stale_attempt(session: Session) -> None:
+    saved = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/STALECOMPLETE/")
+    source = claim_source_for_processing(session, saved.source_id)
+    assert source is not None
+    source_id = source.id
+    bind = session.get_bind()
+
+    with Session(bind) as current_session:
+        current_source = current_session.get(Source, source_id)
+        assert current_source is not None
+        current_source.status = SourceStatus.PROCESSING
+        current_source.processing_started_at = datetime.utcnow() + timedelta(seconds=1)
+        current_source.thumbnail_url = "https://cdn.example/current.jpg"
+        current_session.add(current_source)
+        current_session.commit()
+
+    source.thumbnail_url = "https://cdn.example/stale.jpg"
+    item = SourceItem(
+        source_id=source_id,
+        category="book",
+        title="Stale Result",
+        author="Old Worker",
+        confidence=0.5,
+        position=0,
+    )
+
+    completed = complete_source_processing(session, source, [item])
+
+    with Session(bind) as check_session:
+        refreshed = check_session.get(Source, source_id)
+        items = list(check_session.exec(select(SourceItem).where(SourceItem.source_id == source_id)).all())
+    assert completed is False
+    assert refreshed is not None
+    assert refreshed.status == SourceStatus.PROCESSING
+    assert refreshed.processed_at is None
+    assert refreshed.thumbnail_url == "https://cdn.example/current.jpg"
+    assert items == []
+
+
 def test_fail_source_processing_marks_failed_and_sets_error(session: Session) -> None:
     saved = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/ABC123/")
     source = claim_source_for_processing(session, saved.source_id)
     assert source is not None
 
-    fail_source_processing(session, source, "network timeout")
+    failed = fail_source_processing(session, source, "network timeout")
 
     updated_source = session.get(Source, source.id)
     assert updated_source is not None
+    assert failed is True
     assert updated_source.status == SourceStatus.FAILED
     assert updated_source.error_message == "network timeout"
     assert updated_source.processed_at is not None
+
+
+def test_fail_source_processing_rejects_stale_attempt(session: Session) -> None:
+    saved = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/STALEFAIL/")
+    source = claim_source_for_processing(session, saved.source_id)
+    assert source is not None
+    source_id = source.id
+    bind = session.get_bind()
+
+    with Session(bind) as current_session:
+        current_source = current_session.get(Source, source_id)
+        assert current_source is not None
+        current_source.status = SourceStatus.DONE
+        current_source.processed_at = datetime.utcnow()
+        current_source.error_message = None
+        current_session.add(current_source)
+        current_session.commit()
+
+    failed = fail_source_processing(session, source, "old timeout")
+
+    with Session(bind) as check_session:
+        refreshed = check_session.get(Source, source_id)
+    assert failed is False
+    assert refreshed is not None
+    assert refreshed.status == SourceStatus.DONE
+    assert refreshed.error_message is None
 
 
 def test_recover_stale_sources_resets_old_processing_sources(session: Session) -> None:

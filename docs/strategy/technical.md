@@ -1,6 +1,6 @@
 # Technical Decisions And Ideation
 
-Last updated: 2026-06-22
+Last updated: 2026-06-24
 
 This is the canonical home for Mentioned technical decisions, architecture status, technical
 ideation, and rejected approaches. Technical decisions must start from the product direction in
@@ -75,6 +75,20 @@ The work splits along two independent axes:
 
 ## Ideas To Preserve
 
+### 2026-06-24 - Website Footer Animation Implementation
+
+- Status: Accepted for the landing page footer
+- Product constraint: Supports the website as a vision and waitlist surface while keeping the
+  book-first save -> extract -> revisit loop concrete.
+- Notes: Build footer animation as native Astro markup, CSS, optimized generated image assets, and
+  a HyperFrames-style GSAP/ScrollTrigger motion layer where HTML remains the source of truth. Use a
+  short generated row-strip frame sequence so the swipe reads as fingers changing position inside
+  the image itself, not as DOM overlays or moving phone-screen content. Use the hatch-pet-style
+  discipline of rejecting drifted candidates, accepting one consistent frame strip, and only using
+  deterministic cropping/resizing after the visual frames exist. Reserve rendered Remotion or
+  HyperFrames video assets for cases where the website truly needs a baked transparent WebM overlay.
+  Keep reduced-motion behavior static and animate only opacity/transform.
+
 ### Job And Worker Architecture
 
 > Now being actioned — see "Architecture Status" above. Hardening specifics live in the planned *production-ingestion-hardening* plan (Axis A, in place on `public.jobs`). NOTE: the old `2026-06-13-v2-coexistence-foundation.md` is a REJECTED record — do not follow it.
@@ -91,6 +105,48 @@ The work splits along two independent axes:
 - Use LLM calls as a fallback or confidence booster rather than the default for every input.
 - Track provider cost, latency, and confidence per extraction.
 
+### 2026-06-24 - Cheap Relevance Gate Before Video Extraction
+
+- Status: Accepted and implemented (first concrete step of the Ingestion And Cost Control
+  direction above). 2026-06-24 update: launched directly in `active` mode (skips confident
+  `irrelevant`) rather than shadow — the user accepted the false-skip risk for immediate cost
+  savings, relying on the conservative fail-open criteria. `shadow` remains available via
+  `RELEVANCE_GATE_MODE` as the rollback/measurement lane if false-skips show up.
+- Skip visibility: a gated skip persists `sources.skip_reason` (Alembic
+  `781a3572bbaf`), surfaced additively as `SavedSourceResponse.skip_reason` and rendered in the
+  *next* mobile build as a distinct "Nothing to extract from this post" empty state. The frozen v1
+  app ignores the new field. A normal empty extraction leaves `skip_reason` null so the UI can tell
+  "gated out" from "looked and found nothing".
+- Product constraint: Supports cost control for the save -> extract -> revisit loop without changing
+  the frozen v1 HTTP contract. Stops spending full video+audio Gemini tokens on saved sources that
+  plausibly contain no book/product/place, while protecting recall so users are never wrongly told
+  "nothing found" on a real book reel.
+- Decision: Before the expensive multimodal extraction, run one cheap multimodal call on signals we
+  already fetch for free in the yt-dlp preflight — the caption (`description`/`title`) plus the post
+  thumbnail. The gate returns a three-way enum verdict (`relevant`/`irrelevant`/`uncertain`) via
+  Gemini structured output, on a cheaper model (`GEMINI_GATE_MODEL`, default `gemini-2.5-flash-lite`).
+  Lives in `src/extraction/relevance.py`, called from `src/extraction/pipeline.py` after download.
+- Fail open: the pipeline skips the expensive call ONLY on a confident `irrelevant`; `relevant` and
+  `uncertain` both escalate to full extraction. Any gate error, empty, unparseable, or unknown
+  verdict resolves to `uncertain` (proceed). Rationale: a wasted video call is far cheaper than a
+  silent false "nothing found".
+- Rollout: `RELEVANCE_GATE_MODE` = `off` | `shadow` | `active`, default `shadow`. Shadow logs the
+  verdict on every reel but always extracts, so the false-skip rate can be measured on real traffic
+  before any token-saving skip happens. Flip to `active` only after shadow data shows skips are safe.
+- Research basis (2026-06-24): matches Anthropic routing/gate workflow and the FrugalGPT/RouteLLM
+  cascade pattern. Deliberately avoids brittle caption keyword/regex matching (no semantic intent)
+  and avoids trusting an LLM self-reported float confidence (poorly calibrated/overconfident) in
+  favour of a 3-way enum with `uncertain` as a first-class abstention. Caption is treated as
+  untrusted input; the thumbnail image is an independent signal so caption text alone cannot force a
+  skip.
+- Known limitation to watch: a book shown only mid-video or named only in speech may be absent from
+  both caption and thumbnail, so an `active` gate could false-skip it. This is the main reason for
+  shadow-first rollout and the fail-open bias. Revisit frame sampling/OCR/ASR as a richer gate only
+  if shadow data shows caption+thumbnail recall is insufficient (see the 2026-06-21 frame-sampling
+  note).
+- Open contribution: the gate's verdict criteria prompt (`GATE_CRITERIA` in `relevance.py`) is the
+  real skip bar and is owner-tuned; the schema/IO/fail-open wrapper are fixed.
+
 ### 2026-06-21 - Behavior-Preserving Ingestion Module Seam
 
 - Status: Accepted as the first architecture step before production ingestion hardening.
@@ -101,6 +157,24 @@ The work splits along two independent axes:
   `src.push.worker`. This does not add Axis A hardening yet; claim safety, timeouts, idempotency,
   concurrency, retry budgets, and cost instrumentation remain in the future
   *production-ingestion-hardening* plan.
+
+### 2026-06-21 - Shared Source Cache And User-Owned Saved State
+
+- Status: Accepted as the implementation direction for reel/post caching.
+- Product constraint: Supports cost control and the save -> extract -> revisit loop while protecting
+  privacy, account deletion, and frozen `/v1` contract safety.
+- Notes: Do not make `public.jobs` or `public.mentions` the canonical shared cache. They are
+  user-owned saved-source and correction state in the current `/v1` contract. Add a separate
+  canonical source cache keyed by normalized platform/source identity plus cache version, storing
+  extractor output, source metadata, and thumbnail source data without an owner id. A user saving a
+  cached source should create or reuse only that user's saved-source row and user-owned mention rows
+  or link rows. Deleting a saved post should unlink/delete the user's saved-source relationship,
+  job events, and per-user rows only; it must not delete the canonical cache when other users may
+  depend on it. Account deletion should remove all user-owned rows and can garbage-collect
+  unreferenced cache rows according to the eventual retention policy. Individual book removal should
+  never mutate canonical extraction output; either remove that UI capability in the next app version
+  or represent it as a user-level hidden/incorrect override while keeping `/v1/mentions/{id}` DELETE
+  backward-compatible as a soft-hide operation until the old app contract is retired.
 
 ### 2026-06-22 - Minimal Saved Source Cache Model
 
@@ -121,6 +195,30 @@ The work splits along two independent axes:
   Legacy `src/jobs/*` and `src/mentions/*` modules remain only as internal compatibility surfaces
   while worker, push, account deletion, and enrichment code still reference them.
 
+### 2026-06-24 - Source Processing Attempt Guard
+
+- Status: Accepted and implemented for saved-source ingestion robustness.
+- Product constraint: Protects the save -> extract -> revisit loop when several users save the same
+  source or when queue visibility/stale recovery causes duplicate delivery.
+- Notes: Source completion and failure now only finalize the row when the source is still in the same
+  `processing_started_at` attempt that the worker claimed. A stale worker cannot overwrite a newer
+  attempt or archive the source queue message when its result was rejected. Completion also replaces
+  existing source items for the accepted attempt so retries remain deterministic.
+
+### 2026-06-21 - Worker Scale Audit For 1,000-Job Backlogs
+
+- Status: Reviewed; current beta worker can hold and drain a 1,000-job backlog, but should be treated
+  as serial beta infrastructure rather than scale-hardened ingestion.
+- Product constraint: Protects the save -> extract -> revisit loop, frozen v1 contract safety, cost
+  control, and user trust in processing states.
+- Notes: A synthetic 1,000-job lifecycle pass with fake extraction completed locally, which suggests
+  the SQLModel job state machine is not the main bottleneck. Real throughput is dominated by
+  `yt-dlp`, optional `ffmpeg`, Gemini, Google Books enrichment, provider quotas, and the current
+  single-worker loop. Before relying on large backlogs, finish Axis A hardening: per-job timeout,
+  idempotent mention/job-event writes, bounded provider concurrency, retry/dead-letter budgets, and
+  cost/latency instrumentation. The pgmq queue path uses atomic `claim_job_by_id`, but the non-queue
+  polling fallback remains select-then-update and should not be used as the scale path.
+
 ### 2026-06-21 - AI-Navigable Architecture Review
 
 - Status: Reviewed; codebase partially follows deep-module practice, with backend ingestion as the
@@ -135,6 +233,22 @@ The work splits along two independent axes:
   shape currently leaks through extraction schemas into books persistence and ingestion. The web
   landing surface has good validation and lower urgency; split its global stylesheet only when
   another substantial web section lands.
+
+### 2026-06-21 - Affordable Production-Safe Development Workflow
+
+- Status: Accepted as the default operating model once the store app has production users.
+- Product constraint: Protects the save -> extract -> revisit loop, frozen v1 contract safety, user
+  trust, privacy, and cost control while allowing post-publication iteration.
+- Notes: Do not create a full always-on cloud stack per feature branch. Default to local-first
+  development with local Supabase/Postgres, fake seeded users, fake or budget-capped extraction
+  providers, Expo dev builds, tests, and contract checks. Keep production on one protected backend
+  and one production Supabase project. Use one shared staging lane only for work that cannot be
+  validated locally: a separate Supabase project with fake data, a staging API, and a worker that is
+  run manually or cheaply during testing rather than kept fully scaled at all times. Production
+  safety comes from never breaking `/v1`, adding visible app changes behind feature flags or a new
+  `/v2` contract, using backward-compatible expand/contract migrations, testing TestFlight/internal
+  builds against staging, and rolling out flags gradually before making features generally
+  available.
 
 ### 2026-06-21 - Cloudflare Workers, D1, And R2 Cost Exploration
 

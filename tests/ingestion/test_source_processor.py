@@ -58,12 +58,13 @@ def test_source_processor_writes_canonical_source_items(session: Session) -> Non
         book_finder=lambda _title, _author: None,
     )
 
-    processor.process_source(session, source)
+    processed = processor.process_source(session, source)
 
     refreshed = session.get(Source, source.id)
     items = list(session.exec(select(SourceItem).where(SourceItem.source_id == source.id)).all())
 
     assert refreshed is not None
+    assert processed is True
     assert refreshed.status == SourceStatus.DONE
     assert refreshed.thumbnail_url == "https://cdn.example/thumb.jpg"
     assert refreshed.creator_handle == "jamesclear"
@@ -100,11 +101,12 @@ def test_source_processor_copies_google_books_enrichment_to_source_item(session:
         book_finder=lambda _title, _author: _google_book(),
     )
 
-    processor.process_source(session, source)
+    processed = processor.process_source(session, source)
 
     books = list(session.exec(select(Book)).all())
     item = session.exec(select(SourceItem).where(SourceItem.source_id == source.id)).one()
 
+    assert processed is True
     assert len(books) == 1
     assert item.book_id == books[0].id
     assert item.google_books_url == books[0].info_link

@@ -23,6 +23,7 @@ export type Capture = {
   sourceContextSnippet: string | null;
   books: BookMention[];
   errorMessage: string | null;
+  skipReason: string | null;
 };
 
 const MIN_VISIBLE_CONFIDENCE = 0.6;
@@ -106,6 +107,7 @@ export function captureFromSavedSource(savedSource: SavedSourceResponse): Captur
     sourceContextSnippet: null,
     books,
     errorMessage: savedSource.error_message,
+    skipReason: compact(savedSource.skip_reason),
   };
 }
 

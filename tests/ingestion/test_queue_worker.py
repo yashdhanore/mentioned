@@ -35,12 +35,13 @@ class FakeSourceIngestion:
     def __init__(self) -> None:
         self.processed: list[UUID] = []
 
-    def process_source(self, session: Session, source: Source) -> None:
+    def process_source(self, session: Session, source: Source) -> bool:
         self.processed.append(source.id)
         source.status = SourceStatus.DONE
         source.processed_at = datetime.utcnow()
         session.add(source)
         session.commit()
+        return True
 
 
 def _engine():
@@ -406,6 +407,35 @@ def test_queue_worker_marks_source_failed_and_archives_when_processor_raises(mon
     assert order == [("process", SourceStatus.PROCESSING), ("archive", SourceStatus.FAILED)]
 
 
+def test_queue_worker_leaves_source_message_unarchived_when_attempt_not_finalized(monkeypatch):
+    engine = _engine()
+    archived = []
+
+    class StaleSourceIngestion:
+        def process_source(self, _session: Session, source: Source) -> bool:
+            source.status = SourceStatus.PROCESSING
+            return False
+
+    def fake_archive(_session: Session, msg_id: int) -> None:
+        archived.append(msg_id)
+
+    monkeypatch.setattr("src.ingestion.queue_worker.archive_source_extraction_message", fake_archive)
+
+    try:
+        source = _source(engine)
+
+        process_source_extraction_message(
+            SourceExtractionMessage(msg_id=26, source_id=source.id, read_count=1),
+            engine,
+            Settings(worker_id="worker-queue"),
+            ingestion=StaleSourceIngestion(),
+        )
+    finally:
+        SQLModel.metadata.drop_all(engine)
+
+    assert archived == []
+
+
 def test_queue_worker_archives_message_after_source_status_is_saved(monkeypatch, caplog):
     engine = _engine()
     archived = []
@@ -414,9 +444,9 @@ def test_queue_worker_archives_message_after_source_status_is_saved(monkeypatch,
     original_process_source = ingestion.process_source
     caplog.set_level(logging.INFO, logger="src.ingestion.queue_worker")
 
-    def fake_process(session: Session, source: Source) -> None:
+    def fake_process(session: Session, source: Source) -> bool:
         order.append(("process", source.status))
-        original_process_source(session, source)
+        return original_process_source(session, source)
 
     def fake_archive(session: Session, msg_id: int) -> None:
         refreshed = session.get(Source, source.id)

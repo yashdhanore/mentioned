@@ -54,6 +54,7 @@ def saved_source_response(session: Session, saved_source: SavedSource) -> SavedS
         thumbnail_url=source.thumbnail_url,
         source_creator_handle=source.creator_handle,
         error_message=source.error_message,
+        skip_reason=source.skip_reason,
         created_at=saved_source.created_at,
         items=_source_items_response(session, source.id),
     )

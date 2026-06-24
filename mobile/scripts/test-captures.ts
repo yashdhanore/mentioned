@@ -16,6 +16,7 @@ const savedSource: SavedSourceResponse = {
   thumbnail_url: 'https://example.com/thumb.jpg',
   source_creator_handle: 'reader',
   error_message: null,
+  skip_reason: null,
   created_at: '2026-06-06T15:49:00Z',
   items: [],
 };
@@ -58,7 +59,16 @@ assert.deepEqual(
   [savedSource.id],
 );
 
-assert.equal(captureFromSavedSource(savedSource).status, 'no_books');
+const noBooksCapture = captureFromSavedSource(savedSource);
+assert.equal(noBooksCapture.status, 'no_books');
+assert.equal(noBooksCapture.skipReason, null);
+
+const skippedCapture = captureFromSavedSource({
+  ...savedSource,
+  skip_reason: 'dance clip',
+});
+assert.equal(skippedCapture.status, 'no_books');
+assert.equal(skippedCapture.skipReason, 'dance clip');
 
 const detailedBookCapture = captureFromSavedSource({
   ...savedSource,

@@ -92,12 +92,22 @@ function BookRow({ book, showDivider }: BookRowProps) {
   );
 }
 
-export function NoBooks({ onOpenSource }: { onOpenSource: () => void }) {
+export function NoBooks({
+  onOpenSource,
+  wasSkipped = false,
+}: {
+  onOpenSource: () => void;
+  wasSkipped?: boolean;
+}) {
   return (
     <View style={styles.stateCard}>
-      <Text style={styles.stateTitle}>No books found in this post</Text>
+      <Text style={styles.stateTitle}>
+        {wasSkipped ? 'Nothing to extract from this post' : 'No books found in this post'}
+      </Text>
       <Text style={styles.stateBody}>
-        The post is still saved. Mentioned did not find a clear book mention to show here.
+        {wasSkipped
+          ? "The post is still saved. This one doesn't look like it features any books, products, or places."
+          : 'The post is still saved. Mentioned did not find a clear book mention to show here.'}
       </Text>
       <View style={styles.statePreviewWrap}>
         <SourceToBooksPreview />

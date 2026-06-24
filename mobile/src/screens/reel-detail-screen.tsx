@@ -72,7 +72,7 @@ export function ReelDetailScreen({
       {capture.status === 'no_books' ? (
         <>
           {inlineError}
-          <NoBooks onOpenSource={onOpenSource} />
+          <NoBooks onOpenSource={onOpenSource} wasSkipped={Boolean(capture.skipReason)} />
           <OriginalSourceSection
             capture={capture}
             previewWidth={sourcePreviewWidth}

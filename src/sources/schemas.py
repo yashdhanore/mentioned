@@ -33,6 +33,7 @@ class SavedSourceResponse(BaseModel):
     thumbnail_url: Optional[str] = None
     source_creator_handle: Optional[str] = None
     error_message: Optional[str] = None
+    skip_reason: Optional[str] = None
     created_at: datetime
     items: list[SourceItemResponse] = Field(default_factory=list)
 

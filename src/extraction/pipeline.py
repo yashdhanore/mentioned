@@ -7,13 +7,15 @@ from pathlib import Path
 from src.config import get_settings
 from src.extraction.download import download_assets_with_metadata
 from src.extraction.gemini import extract_mentions_from_media
+from src.extraction.local_pipeline import extract_mentions_locally
+from src.extraction.relevance import Verdict, assess_relevance
 from src.extraction.schemas import ExtractedMention, PipelineResult
 
 logger = logging.getLogger(__name__)
 
 
 def run_pipeline(source_url: str) -> PipelineResult:
-    """Download media, send to Gemini, return structured mentions."""
+    """Download media and return structured mentions."""
     with tempfile.TemporaryDirectory() as tmp:
         logger.info("Downloading media from %s", source_url)
         try:
@@ -33,18 +35,45 @@ def run_pipeline(source_url: str) -> PipelineResult:
         total_size_mb = sum(path.stat().st_size for path in paths) / 1024 / 1024
         logger.info("Downloaded %d media file(s) (%.1f MB)", len(paths), total_size_mb)
 
-        logger.info("Sending to Gemini for extraction...")
+        settings = get_settings()
+
+        gate_mode = settings.relevance_gate_mode
+        if gate_mode != "off":
+            assessment = assess_relevance(
+                caption=assets.caption,
+                thumbnail_url=assets.thumbnail_url,
+            )
+            logger.info(
+                "Relevance gate (mode=%s) for %s: verdict=%s reason=%s",
+                gate_mode,
+                source_url,
+                assessment.verdict.value,
+                assessment.reason,
+            )
+            if gate_mode == "active" and assessment.verdict is Verdict.IRRELEVANT:
+                logger.info("Relevance gate skipping extraction for %s", source_url)
+                return PipelineResult(
+                    thumbnail_url=assets.thumbnail_url,
+                    source_creator_handle=assets.source_creator_handle,
+                    skip_reason=assessment.reason or "gated as irrelevant",
+                )
+
+        backend = settings.extraction_backend
+        logger.info("Using %s extraction backend", backend)
         try:
-            raw = extract_mentions_from_media(paths)
+            if backend == "local":
+                raw = extract_mentions_locally(paths)
+            else:
+                raw = extract_mentions_from_media(paths)
         except Exception as exc:
-            logger.warning("Gemini extraction failed: %s", exc)
+            logger.warning("%s extraction failed: %s", backend, exc)
             return PipelineResult(
                 thumbnail_url=assets.thumbnail_url,
                 source_creator_handle=assets.source_creator_handle,
                 error=f"Extraction failed: {exc}",
             )
 
-        logger.info("Gemini returned %d mentions", len(raw.get("mentions", [])))
+        logger.info("%s extraction returned %d mentions", backend, len(raw.get("mentions", [])))
 
         mentions = []
         for item in raw.get("mentions", []):

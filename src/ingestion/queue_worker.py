@@ -26,7 +26,7 @@ class IngestionProcessor(Protocol):
 
 
 class SourceIngestionProcessor(Protocol):
-    def process_source(self, session: Session, source: Source) -> None:
+    def process_source(self, session: Session, source: Source) -> bool:
         ...
 
 
@@ -190,14 +190,15 @@ def process_source_extraction_message(
             archive_source_extraction_message(session, message.msg_id)
             session.commit()
             return
+        should_archive = False
         try:
-            ingestion.process_source(session, source)
+            should_archive = ingestion.process_source(session, source)
         except Exception as exc:
             logger.exception("Source %s failed while processing queue message %s", source.id, message.msg_id)
             session.rollback()
             failed_source = session.get(Source, source.id)
             if failed_source:
-                fail_source_processing(session, failed_source, str(exc))
+                should_archive = fail_source_processing(session, failed_source, str(exc))
             else:
                 logger.warning(
                     "Archiving source queue message %s for missing failed source %s (read_count=%s)",
@@ -205,6 +206,17 @@ def process_source_extraction_message(
                     message.source_id,
                     message.read_count,
                 )
+                should_archive = True
+        if not should_archive:
+            logger.info(
+                "Leaving source queue message %s unarchived because source %s attempt was not finalized "
+                "(read_count=%s)",
+                message.msg_id,
+                message.source_id,
+                message.read_count,
+            )
+            return
+
         archive_source_extraction_message(session, message.msg_id)
         session.commit()
         logger.info(
