@@ -147,6 +147,41 @@ The work splits along two independent axes:
 - Open contribution: the gate's verdict criteria prompt (`GATE_CRITERIA` in `relevance.py`) is the
   real skip bar and is owner-tuned; the schema/IO/fail-open wrapper are fixed.
 
+### 2026-06-25 - Place Enrichment Via Google Places (First Non-Book Enrichment)
+
+- Status: Accepted, pre-implementation. Spec:
+  `docs/superpowers/specs/2026-06-25-enrich-places-design.md`. Follows the 2026-06-25 surfacing
+  phase that made the mobile client type-neutral.
+- Product constraint: Improves the save -> extract -> revisit loop by making a saved place worth
+  revisiting (address + map), while preserving the book-first wedge, frozen v1 contract safety,
+  the canonical shared-source cache model, and cost control.
+- Decision: Enrich `place` mentions inline in the worker, mirroring the Google Books template.
+  New `src/places/` package (`Place` model + `upsert_google_place` + `enrich_extracted_place_item`)
+  deduped by Google `place_id`; new `places` table; additive `place_id`/`formatted_address`/
+  `latitude`/`longitude` columns on `source_items` (denormalized for the read path, no join);
+  additive optional API fields; mobile place row shows the address and deep-links to Google Maps.
+  Provider lives in `src/extraction/google_places.py` (Text Search New, `places:searchText`).
+- Matching: Gemini emits an optional transient `location_hint` (city/neighborhood, "do not guess")
+  that biases the Places query. Save only high-confidence matches (hint present, or single
+  candidate); otherwise FAIL OPEN to a bare title — same philosophy as the relevance gate. Dropping
+  unmatched places was rejected (hides real mentions).
+- Storage rationale: dedicated typed table + FK chosen over loose `source_items` columns or a JSON
+  blob, to keep one enrichment pattern across types (consistency with `books`, AI-navigable). Sits
+  on the canonical shared cache per the 2026-06-21/2026-06-22 source-cache decisions, never per-user.
+  The frozen v1 `Mention` table is left untouched; place enrichment writes only `SourceItem`.
+- Cost: address + map pin requires `formattedAddress`/`displayName`/`location`, all *Text Search
+  Pro* SKU (only `places.id` is the cheaper Essentials/IDs-Only SKU), and Places bills at the
+  highest requested SKU — so this is unavoidably Pro tier (accepted). Field mask is deliberately
+  minimal; widening it to rating/hours/photos jumps to Atmosphere/Enterprise SKUs. Do not widen
+  without re-pricing. New `GOOGLE_PLACES_API_KEY` setting; unset key degrades to no enrichment.
+- Rejected alternatives: async enrichment queue and enrich-on-read (premature for one cheap call at
+  current volume; enrich-on-read also breaks the canonical-cache model). OpenStreetMap/Nominatim and
+  Gemini-only enrichment were considered for the provider but rejected in favor of Google Places for
+  match quality + a stable dedup id.
+- Follow-ups: product enrichment is the next phase (uses `places` as the template); revisit the
+  per-type confidence floor and add per-extraction provider cost instrumentation once real data
+  exists.
+
 ### 2026-06-21 - Behavior-Preserving Ingestion Module Seam
 
 - Status: Accepted as the first architecture step before production ingestion hardening.
@@ -376,7 +411,7 @@ The work splits along two independent axes:
 
 ## Open Questions
 
-- Which non-book mention type should we surface first after books (`product` and `place` already exist in the schema)? The wedge question is settled in `docs/strategy/product.md`: v1 = books, v3 = generalize.
+- ~~Which non-book mention type should we surface first after books?~~ Settled 2026-06-25: **places first** for enrichment (see the dated note above); products are the next enrichment phase. The wedge question remains as in `docs/strategy/product.md`: v1 = books, v3 = generalize.
 - What book metadata is mandatory for a good first experience: title, author, cover, description, ISBN, published date, categories?
 - Should extracted mentions be considered evidence, while books become normalized saved entities?
 - What is the retention policy for original downloaded videos?
