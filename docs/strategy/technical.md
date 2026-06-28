@@ -198,6 +198,25 @@ The work splits along two independent axes:
   (not in the deploy pipeline). The place migration is one additive Alembic revision. Root + Supabase
   agent guides corrected to point at Alembic for table/column changes.
 
+### 2026-06-28 - Place Walking Skeleton: maps_url Denormalized As 5th Field
+
+- Built the place-enrichment walking skeleton (faked provider, injected `place_finder`) per the
+  2026-06-25 spec. Migration `20260628_0015` adds the `places` table and denormalized columns on
+  `source_items`.
+- Decision: the spec's §6 calls for the mobile place row to deep-link to the provider `maps_url`,
+  but the canonical link could not be reconstructed client-side — the API exposes our internal
+  `places.id` UUID, not Google's `provider_place_id`, and the minimal Pro-tier field mask omits
+  `googleMapsUri`. So `maps_url` is denormalized onto `source_items` and serialized as a **5th**
+  additive API field (beyond the four the slice's issue enumerated), mirroring how
+  `cover_image_url` rides the item for books. Mobile prefers `maps_url`, falling back to a
+  `maps/search/?api=1&query=<lat>,<lng>` link; a bare/coordless place stays non-tappable.
+  **Why:** honors the spec's revisit-value intent (a named Google place card beats a raw pin)
+  without widening the billed field mask. **How to apply:** when the real provider lands (issue
+  #46), keep building `maps_url` deterministically as
+  `https://www.google.com/maps/place/?q=place_id:<provider_place_id>`; do not add `googleMapsUri`
+  to the field mask (it would re-price the SKU). The read path still needs no join — display
+  fields live on `source_items`.
+
 ### 2026-06-21 - Behavior-Preserving Ingestion Module Seam
 
 - Status: Accepted as the first architecture step before production ingestion hardening.

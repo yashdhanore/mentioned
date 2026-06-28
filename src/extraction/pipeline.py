@@ -86,6 +86,7 @@ def run_pipeline(source_url: str) -> PipelineResult:
                     author=item.get("author"),
                     category=item.get("category", "book"),
                     confidence=float(item.get("confidence", 0.5)),
+                    location_hint=item.get("location_hint"),
                 )
             )
 

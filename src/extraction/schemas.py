@@ -9,6 +9,7 @@ class ExtractedMention:
     author: str | None = None
     category: str = "book"
     confidence: float = 0.5
+    location_hint: str | None = None
 
 
 @dataclass

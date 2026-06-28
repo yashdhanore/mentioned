@@ -4,6 +4,7 @@ import {
   buildCapturesFromSavedSources,
   captureFromSavedSource,
   captureFromSavedSourceCreated,
+  mapsUrlForMention,
 } from '../src/captures';
 import type { SavedSourceResponse } from '../src/api';
 
@@ -82,6 +83,11 @@ const mixedCapture = captureFromSavedSource({
       confidence: 0.7,
       google_books_url: null,
       cover_image_url: null,
+      place_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      formatted_address: '12 King St, London, UK',
+      latitude: 51.5072,
+      longitude: -0.1276,
+      maps_url: 'https://www.google.com/maps/place/?q=place_id:ChIJ-place-1',
       position: 0,
     },
     {
@@ -93,6 +99,11 @@ const mixedCapture = captureFromSavedSource({
       confidence: 0.99,
       google_books_url: null,
       cover_image_url: 'https://example.com/cover.jpg',
+      place_id: null,
+      formatted_address: null,
+      latitude: null,
+      longitude: null,
+      maps_url: null,
       position: 2,
     },
     {
@@ -104,6 +115,11 @@ const mixedCapture = captureFromSavedSource({
       confidence: 0.5,
       google_books_url: null,
       cover_image_url: null,
+      place_id: null,
+      formatted_address: null,
+      latitude: null,
+      longitude: null,
+      maps_url: null,
       position: 1,
     },
   ],
@@ -118,10 +134,47 @@ assert.deepEqual(
   mixedCapture.mentions.map((mention) => mention.category),
   ['place', 'book'],
 );
-// subtitle: author for books, null for place/product.
-assert.equal(mixedCapture.mentions[0].subtitle, null);
+// subtitle: formatted_address for enriched places, author for books.
+assert.equal(mixedCapture.mentions[0].subtitle, '12 King St, London, UK');
 assert.equal(mixedCapture.mentions[1].subtitle, 'Ursula K. Le Guin');
 assert.equal(mixedCapture.mentions[1].coverImageUrl, 'https://example.com/cover.jpg');
+// Enriched place carries coords for the Maps deep-link; book does not.
+assert.equal(mixedCapture.mentions[0].formattedAddress, '12 King St, London, UK');
+assert.equal(mixedCapture.mentions[0].latitude, 51.5072);
+assert.equal(mixedCapture.mentions[0].longitude, -0.1276);
+assert.equal(
+  mixedCapture.mentions[0].mapsUrl,
+  'https://www.google.com/maps/place/?q=place_id:ChIJ-place-1',
+);
+assert.equal(mixedCapture.mentions[1].latitude, null);
+assert.equal(mixedCapture.mentions[1].mapsUrl, null);
+
+// A bare (unmatched) place still renders with no address subtitle.
+const barePlaceCapture = captureFromSavedSource({
+  ...savedSource,
+  items: [
+    {
+      id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+      book_id: null,
+      title: 'Some Unmatched Cafe',
+      author: null,
+      category: 'place',
+      confidence: 0.8,
+      google_books_url: null,
+      cover_image_url: null,
+      place_id: null,
+      formatted_address: null,
+      latitude: null,
+      longitude: null,
+      maps_url: null,
+      position: 0,
+    },
+  ],
+});
+assert.equal(barePlaceCapture.status, 'ready');
+assert.equal(barePlaceCapture.mentions[0].title, 'Some Unmatched Cafe');
+assert.equal(barePlaceCapture.mentions[0].subtitle, null);
+assert.equal(barePlaceCapture.mentions[0].latitude, null);
 
 const productCapture = captureFromSavedSource({
   ...savedSource,
@@ -135,11 +188,52 @@ const productCapture = captureFromSavedSource({
       confidence: 0.9,
       google_books_url: null,
       cover_image_url: null,
+      place_id: null,
+      formatted_address: null,
+      latitude: null,
+      longitude: null,
+      maps_url: null,
       position: 0,
     },
   ],
 });
 assert.equal(productCapture.status, 'ready');
 assert.equal(productCapture.mentions[0].category, 'product');
+
+// Deep-link: prefer the canonical maps_url for an enriched place.
+assert.equal(
+  mapsUrlForMention(mixedCapture.mentions[0]),
+  'https://www.google.com/maps/place/?q=place_id:ChIJ-place-1',
+);
+// Books never deep-link to Maps.
+assert.equal(mapsUrlForMention(mixedCapture.mentions[1]), null);
+// A bare place with no maps_url and no coords is not tappable.
+assert.equal(mapsUrlForMention(barePlaceCapture.mentions[0]), null);
+// Coords-only place (no maps_url) falls back to a lat/lng search link.
+const coordsOnlyPlace = captureFromSavedSource({
+  ...savedSource,
+  items: [
+    {
+      id: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+      book_id: null,
+      title: 'Coords Only Cafe',
+      author: null,
+      category: 'place',
+      confidence: 0.8,
+      google_books_url: null,
+      cover_image_url: null,
+      place_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      formatted_address: '1 Some Rd',
+      latitude: 40.0,
+      longitude: -73.0,
+      maps_url: null,
+      position: 0,
+    },
+  ],
+});
+assert.equal(
+  mapsUrlForMention(coordsOnlyPlace.mentions[0]),
+  'https://www.google.com/maps/search/?api=1&query=40,-73',
+);
 
 console.log('capture mapping tests passed');

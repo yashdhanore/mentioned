@@ -11,6 +11,7 @@ from src.books.enrichment import BookFinder, enrich_extracted_book_mention, find
 from src.extraction.pipeline import run_pipeline
 from src.extraction.schemas import PipelineResult
 from src.mentions.models import Mention
+from src.places.enrichment import PlaceFinder, enrich_extracted_place_item, find_google_place_sync
 from src.sources.models import Source, SourceItem
 from src.sources.service import complete_source_processing, fail_source_processing
 from src.storage.thumbnails import store_job_thumbnail
@@ -34,10 +35,12 @@ class SourceIngestion:
         extraction_runner: ExtractionRunner = run_pipeline,
         thumbnail_store: ThumbnailStore = store_job_thumbnail,
         book_finder: BookFinder = find_google_book_sync,
+        place_finder: PlaceFinder = find_google_place_sync,
     ) -> None:
         self._extraction_runner = extraction_runner
         self._thumbnail_store = thumbnail_store
         self._book_finder = book_finder
+        self._place_finder = place_finder
 
     def process_source(self, session: Session, source: Source) -> bool:
         logger.info("Starting pipeline for source %s -> %s", source.id, source.canonical_url)
@@ -83,6 +86,13 @@ class SourceIngestion:
                 item.google_books_url = mention.google_books_url
                 item.cover_image_url = mention.cover_image_url
                 item.confidence = mention.confidence
+            elif extracted.category == "place":
+                enrich_extracted_place_item(
+                    session,
+                    item,
+                    extracted,
+                    place_finder=self._place_finder,
+                )
             items.append(item)
 
         return complete_source_processing(session, source, items, skip_reason=result.skip_reason)

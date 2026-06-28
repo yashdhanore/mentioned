@@ -9,6 +9,7 @@ from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 from src.books.models import Book  # noqa: F401 - register foreign key target
+from src.places.models import Place  # noqa: F401 - register foreign key target
 
 
 class SourceStatus(StrEnum):
@@ -50,6 +51,11 @@ class SourceItem(SQLModel, table=True):
     confidence: Optional[float] = Field(default=None)
     google_books_url: Optional[str] = Field(default=None)
     cover_image_url: Optional[str] = Field(default=None)
+    place_id: Optional[UUID] = Field(default=None, foreign_key="places.id", index=True)
+    formatted_address: Optional[str] = Field(default=None)
+    latitude: Optional[float] = Field(default=None)
+    longitude: Optional[float] = Field(default=None)
+    maps_url: Optional[str] = Field(default=None)
     position: int = Field(default=0, nullable=False)
     created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
     updated_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)

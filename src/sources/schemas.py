@@ -21,6 +21,11 @@ class SourceItemResponse(BaseModel):
     confidence: Optional[float] = None
     google_books_url: Optional[str] = None
     cover_image_url: Optional[str] = None
+    place_id: Optional[str] = None
+    formatted_address: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    maps_url: Optional[str] = None
     position: int
 
 

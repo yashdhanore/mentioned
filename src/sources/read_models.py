@@ -35,6 +35,11 @@ def _source_items_response(session: Session, source_id: UUID) -> list[SourceItem
             confidence=item.confidence,
             google_books_url=item.google_books_url,
             cover_image_url=item.cover_image_url,
+            place_id=str(item.place_id) if item.place_id else None,
+            formatted_address=item.formatted_address,
+            latitude=item.latitude,
+            longitude=item.longitude,
+            maps_url=item.maps_url,
             position=item.position,
         )
         for item in items

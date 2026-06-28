@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Image, Text, View } from 'react-native';
+import { Image, Linking, Pressable, Text, View } from 'react-native';
 
 import type { Mention, MentionCategory } from '@/captures';
+import { mapsUrlForMention } from '@/captures';
 import { PlaceIcon, ProductIcon } from '@/components/icons';
 import { FadeInView } from '@/components/motion';
 import { SourceToBooksPreview } from '@/components/product-preview';
@@ -97,24 +98,39 @@ function MentionRow({ mention, showDivider }: MentionRowProps) {
     setDidFailCoverLoad(false);
   }, [mention.coverImageUrl]);
 
+  const mapsUrl = mapsUrlForMention(mention);
+
+  const rowContent = (
+    <View style={styles.bookRow}>
+      {shouldShowCoverImage && mention.coverImageUrl ? (
+        <Image
+          source={{ uri: mention.coverImageUrl }}
+          resizeMode="cover"
+          style={styles.bookCoverImage}
+          onError={() => setDidFailCoverLoad(true)}
+        />
+      ) : (
+        <MentionTile mention={mention} />
+      )}
+      <View style={styles.bookCopy}>
+        <Text style={styles.bookTitle}>{mention.title}</Text>
+        {mention.subtitle ? <Text style={styles.bookAuthor}>{mention.subtitle}</Text> : null}
+      </View>
+    </View>
+  );
+
   return (
     <View>
-      <View style={styles.bookRow}>
-        {shouldShowCoverImage && mention.coverImageUrl ? (
-          <Image
-            source={{ uri: mention.coverImageUrl }}
-            resizeMode="cover"
-            style={styles.bookCoverImage}
-            onError={() => setDidFailCoverLoad(true)}
-          />
-        ) : (
-          <MentionTile mention={mention} />
-        )}
-        <View style={styles.bookCopy}>
-          <Text style={styles.bookTitle}>{mention.title}</Text>
-          {mention.subtitle ? <Text style={styles.bookAuthor}>{mention.subtitle}</Text> : null}
-        </View>
-      </View>
+      {mapsUrl ? (
+        <Pressable
+          accessibilityRole="link"
+          onPress={() => void Linking.openURL(mapsUrl)}
+        >
+          {rowContent}
+        </Pressable>
+      ) : (
+        rowContent
+      )}
       {showDivider ? <View style={styles.bookRowDivider} /> : null}
     </View>
   );

@@ -94,6 +94,11 @@ export type SourceItemInSavedSource = {
   confidence: number | null;
   google_books_url: string | null;
   cover_image_url: string | null;
+  place_id: string | null;
+  formatted_address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  maps_url: string | null;
   position: number;
 };
 

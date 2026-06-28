@@ -10,6 +10,10 @@ export type Mention = {
   title: string;
   subtitle: string | null;
   coverImageUrl: string | null;
+  formattedAddress: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  mapsUrl: string | null;
   initials: string;
   color: string;
 };
@@ -84,11 +88,29 @@ function visibleMentions(items: SourceItemInSavedSource[]): Mention[] {
       id: item.id,
       category,
       title: item.title.trim(),
-      subtitle: compact(item.author),
+      // Places surface their resolved address here; books use the author.
+      subtitle: category === 'place' ? compact(item.formatted_address) : compact(item.author),
       coverImageUrl: compact(item.cover_image_url),
+      formattedAddress: compact(item.formatted_address),
+      latitude: item.latitude,
+      longitude: item.longitude,
+      mapsUrl: compact(item.maps_url),
       initials: initialsFor(item.title),
       color: colorFor(item.id),
     }));
+}
+
+export function mapsUrlForMention(mention: Mention): string | null {
+  if (mention.category !== 'place') {
+    return null;
+  }
+  if (mention.mapsUrl) {
+    return mention.mapsUrl;
+  }
+  if (mention.latitude !== null && mention.longitude !== null) {
+    return `https://www.google.com/maps/search/?api=1&query=${mention.latitude},${mention.longitude}`;
+  }
+  return null;
 }
 
 function statusFor(savedSourceStatus: SavedSourceStatus, mentions: Mention[]): CaptureStatus {
