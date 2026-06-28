@@ -312,3 +312,13 @@ def test_sources_migration_has_cache_and_owner_scoped_permissions() -> None:
     assert "GRANT SELECT, INSERT ON TABLE pgmq.q_extract_sources TO mentioned_api" in migration
     assert "GRANT SELECT, UPDATE, DELETE ON TABLE pgmq.q_extract_sources TO mentioned_worker" in migration
     assert "GRANT SELECT, INSERT ON TABLE pgmq.a_extract_sources TO mentioned_worker" in migration
+
+
+def test_worker_source_items_delete_grant_migration() -> None:
+    migration = (
+        Path("migrations/versions/20260628_0016_worker_source_items_delete.py")
+        .read_text()
+    )
+
+    assert "GRANT DELETE ON TABLE public.source_items TO mentioned_worker" in migration
+    assert "REVOKE DELETE ON TABLE public.source_items FROM mentioned_worker" in migration
