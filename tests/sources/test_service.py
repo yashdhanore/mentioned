@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 import pytest
@@ -9,6 +9,7 @@ from sqlmodel import Session, select
 
 from src.sources.models import SavedSource, Source, SourceItem, SourceStatus
 from src.sources.service import (
+    _increment_retry_window,
     claim_source_for_processing,
     complete_source_processing,
     count_active_saved_sources,
@@ -26,6 +27,42 @@ from src.sources.service import (
 OWNER = "00000000-0000-4000-8000-000000000001"
 OWNER_UUID = UUID(OWNER)
 OTHER_OWNER = "00000000-0000-4000-8000-000000000002"
+
+
+def test_increment_retry_window_handles_timezone_aware_started_at() -> None:
+    # Postgres returns timezone-aware datetimes for DateTime(timezone=True)
+    # columns, while datetime.utcnow() is naive. The window comparison must not
+    # raise "can't compare offset-naive and offset-aware datetimes".
+    now = datetime.utcnow()
+    aware_started_at = (now - timedelta(seconds=10)).replace(tzinfo=timezone.utc)
+
+    started_at, count = _increment_retry_window(
+        aware_started_at,
+        2,
+        now,
+        timedelta(minutes=1),
+    )
+
+    # Within the window: same instant (normalized to naive UTC), incremented count.
+    assert count == 3
+    assert started_at == aware_started_at.replace(tzinfo=None)
+    assert started_at.tzinfo is None
+
+
+def test_increment_retry_window_resets_when_aware_started_at_is_stale() -> None:
+    now = datetime.utcnow()
+    aware_started_at = (now - timedelta(minutes=5)).replace(tzinfo=timezone.utc)
+
+    started_at, count = _increment_retry_window(
+        aware_started_at,
+        9,
+        now,
+        timedelta(minutes=1),
+    )
+
+    # Outside the window: reset to now / count 1.
+    assert count == 1
+    assert started_at == now
 
 
 def test_save_source_for_user_creates_source_and_saved_source(
