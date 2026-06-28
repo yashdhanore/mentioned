@@ -48,6 +48,33 @@ def _yt_dlp_size_limit(max_file_bytes: int) -> str:
     return f"{mib}M"
 
 
+def _summarize_yt_dlp_error(exc: subprocess.CalledProcessError) -> str:
+    """Build a diagnostic message from a failed yt-dlp invocation.
+
+    ``CalledProcessError.__str__`` only reports the command + exit code, so the
+    actual reason (geo-block, login wall, impersonation failure, rate limit) is
+    lost unless we read ``exc.stderr`` ourselves. This is what made the prior
+    Instagram download failures impossible to diagnose from Render logs.
+
+    Return a single-line string suitable for ``logger.warning``.
+    """
+    stderr = exc.stderr or ""
+    lines = [line.strip() for line in stderr.splitlines() if line.strip()]
+    error_lines = [line for line in lines if line.startswith("ERROR:")]
+    if error_lines:
+        message = " | ".join(error_lines[-3:])
+    elif lines:
+        message = lines[-1]
+    else:
+        message = f"yt-dlp exited {exc.returncode} with no stderr"
+    return _redact_signed_urls(message)
+
+
+def _redact_signed_urls(message: str) -> str:
+    """Strip query strings from CDN URLs so access tokens don't reach logs."""
+    return re.sub(r"(https?://[^\s?]+)\?\S*", r"\1?<redacted>", message)
+
+
 def _default_format_selector(max_file_bytes: int) -> str:
     size_limit = _yt_dlp_size_limit(max_file_bytes)
     return (
@@ -80,11 +107,16 @@ def _preflight_metadata(url: str, *, timeout_seconds: int) -> dict[str, Any]:
             "--skip-download",
             url,
         ],
-        check=True,
+        check=False,
         capture_output=True,
         text=True,
         timeout=timeout_seconds,
     )
+    if completed.returncode != 0:
+        error = subprocess.CalledProcessError(
+            completed.returncode, completed.args, completed.stdout, completed.stderr
+        )
+        raise RuntimeError(_summarize_yt_dlp_error(error)) from error
     try:
         metadata = json.loads(completed.stdout)
     except json.JSONDecodeError as exc:
@@ -384,11 +416,16 @@ def download_assets_with_metadata(url: str, output_dir: Path) -> DownloadedAsset
             str(output_template),
             url,
         ],
-        check=True,
+        check=False,
         capture_output=True,
         text=True,
         timeout=settings.media_download_timeout_seconds,
     )
+    if completed.returncode != 0:
+        error = subprocess.CalledProcessError(
+            completed.returncode, completed.args, completed.stdout, completed.stderr
+        )
+        raise RuntimeError(_summarize_yt_dlp_error(error)) from error
     output_lines = [line.strip() for line in completed.stdout.splitlines() if line.strip()]
     if not output_lines:
         raise RuntimeError("yt-dlp did not report any output paths")
