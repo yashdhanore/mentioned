@@ -10,7 +10,8 @@ __pycache__/
 .codex/plugins/
 .cursor/hooks/state/
 .playwright-mcp/
-app.db
+*.db
+TEMP_README.md
 data/artifacts/
 supabase/.temp/
 web/.astro/
