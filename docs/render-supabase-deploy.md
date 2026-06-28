@@ -141,7 +141,7 @@ SECOND_TOKEN='user-b-access-token' \
 SOURCE_URL='https://www.instagram.com/reel/SHORTCODE/' \
 python scripts/smoke_job_flow.py \
   --api-base-url https://mentioned-api.onrender.com \
-  --require-mentions
+  --require-items
 ```
 
 In Render, inspect deploy status, runtime logs, health checks, service configuration, and recent

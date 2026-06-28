@@ -57,13 +57,13 @@ export function HomeScreen({
 
       <View style={styles.homeHeader}>
         <Text style={styles.screenTitle}>Saved posts</Text>
-        <Text style={styles.screenSubtitle}>Posts you save so Mentioned can find the books inside.</Text>
+        <Text style={styles.screenSubtitle}>Posts you save so Mentioned can find the books, places, and products inside.</Text>
       </View>
 
       {pendingSharedSourceUrl ? (
         <View style={styles.pendingSourcePrompt}>
           <View style={styles.pendingSourceCopy}>
-            <Text style={styles.pendingSourceTitle}>Ready to find books</Text>
+            <Text style={styles.pendingSourceTitle}>Ready to extract</Text>
             <Text ellipsizeMode="middle" numberOfLines={1} style={styles.pendingSourceUrl}>
               {pendingSharedSourceUrl}
             </Text>

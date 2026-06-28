@@ -12,6 +12,7 @@ from src.config import get_settings
 from src.database import check_api_database_role, create_db_and_tables
 from src.jobs.exceptions import JobError
 from src.mentions.exceptions import MentionError
+from src.sources.exceptions import SourceError
 
 
 settings = get_settings()
@@ -57,6 +58,14 @@ async def mention_error_handler(_: object, exc: MentionError) -> JSONResponse:
     )
 
 
+@app.exception_handler(SourceError)
+async def source_error_handler(_: object, exc: SourceError) -> JSONResponse:
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error_code": exc.error_code, "message": exc.message},
+    )
+
+
 if settings.cors_allowed_origins:
     app.add_middleware(
         CORSMiddleware,
@@ -72,15 +81,13 @@ if settings.trusted_hosts:
 
 # Import and include routers
 from src.account.router import router as account_router
-from src.jobs.router import router as jobs_router
-from src.mentions.router import router as mentions_router
 from src.push.router import router as push_router
+from src.sources.router import router as sources_router
 from src.waitlist.router import router as waitlist_router
 
 app.include_router(account_router)
-app.include_router(jobs_router)
-app.include_router(mentions_router)
 app.include_router(push_router)
+app.include_router(sources_router)
 app.include_router(waitlist_router)
 
 
@@ -120,15 +127,15 @@ async def privacy_policy() -> str:
       <h2>Information We Collect</h2>
       <p>
         We collect account information provided through Supabase authentication, such as your email
-        address and user identifier. We also store the Instagram URLs you submit, extraction job
-        status, saved mention results, related book metadata, and optional Expo push notification
-        tokens if you allow notifications.
+        address and user identifier. We also store the Instagram URLs you submit, saved-source
+        extraction status, extracted item results, related book metadata, and optional Expo push
+        notification tokens if you allow notifications.
       </p>
 
       <h2>How We Use Information</h2>
       <p>
         We use this information to authenticate your account, process submitted links, save your
-        results, show your saved Reels and books, send job-status notifications, prevent abuse, and
+        results, show your saved Reels and books, send saved-source notifications, prevent abuse, and
         diagnose service issues.
       </p>
 
@@ -149,9 +156,9 @@ async def privacy_policy() -> str:
 
       <h2>Data Retention and Deletion</h2>
       <p>
-        We keep account data, submitted URLs, jobs, mentions, and push tokens while your account is
-        active or as needed to operate and protect the service. You can delete saved mentions in the
-        app. To request account or data deletion, contact support.
+        We keep account data, submitted URLs, saved sources, extracted items, and push tokens while
+        your account is active or as needed to operate and protect the service. You can delete saved
+        sources in the app. To request account or data deletion, contact support.
       </p>
 
       <h2>Security</h2>

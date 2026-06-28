@@ -6,6 +6,7 @@
 
 - Keep modules narrow and named by action or provider, such as `download.py`, `pipeline.py`, or provider-specific modules.
 - Prefer deterministic fallback behavior when provider calls, OCR, ASR, downloads, or metadata lookups fail.
+- `relevance.py` is a cheap caption+thumbnail gate that runs in `pipeline.py` before the expensive Gemini video call. It fails open: only a confident `irrelevant` verdict skips extraction, and it skips only when `RELEVANCE_GATE_MODE=active`. See the dated note in `docs/strategy/technical.md`.
 - Wrap external binaries and network providers behind small functions so tests can monkeypatch them.
 - Keep artifact structure stable; if extraction output or saved artifacts change, run the visual manifest evaluator.
 

@@ -11,8 +11,8 @@ This checklist covers backend readiness evidence only:
 - Render `mentioned-api` and `mentioned-worker` deploy shape.
 - Alembic and Supabase migration state.
 - API and worker database role boundaries.
-- Release environment guardrails for production shape and per-user job quotas.
-- Real-source smoke coverage through job detail mentions and saved mentions.
+- Release environment guardrails for production shape and per-user saved-source quotas.
+- Real-source smoke coverage through saved-source status and extracted items.
 - Render logs needed to diagnose queue claim, retry, failure, and archive paths.
 
 ## Non-Goals
@@ -34,7 +34,7 @@ Collect this evidence against the same commit and environment values intended fo
 - API and worker roles are non-superuser and non-`BYPASSRLS`.
 - `scripts/check_release_env.py` passes against the same values used on Render.
 - Quota guardrails are set to, or default to, burst `3/min`, daily `25/day`, active `5/user`.
-- A real-source smoke test passes with `--require-mentions`.
+- A real-source smoke test passes with `--require-items`.
 
 ## Local Verification
 
@@ -90,12 +90,12 @@ SECOND_TOKEN='user-b-access-token' \
 SOURCE_URL='https://www.instagram.com/reel/SHORTCODE/' \
 python scripts/smoke_job_flow.py \
   --api-base-url https://mentioned-api.onrender.com \
-  --require-mentions
+  --require-items
 ```
 
-The smoke must create a job, poll it to `done`, print job-detail mentions, fetch
-`GET /v1/mentions?limit=100`, verify saved mentions include the job mention IDs, and prove the
-second user cannot read the first user's job.
+The smoke must create a saved source, poll it to `done`, print extracted items, fetch
+`GET /v1/saved-sources?limit=100`, verify the saved-source list includes the submitted saved source,
+and prove the second user cannot read the first user's saved source.
 
 ## Render Evidence
 
@@ -118,7 +118,7 @@ Copy this into the issue or PR and check each item with the collected evidence:
 - [ ] API and worker Render services are deployed from the intended commit.
 - [ ] Release env check passes with one worker replica.
 - [ ] API and worker database roles are non-superuser and non-`BYPASSRLS`.
-- [ ] Per-user job guardrail tests pass and production values are within Release 1 bounds.
+- [ ] Per-user saved-source guardrail tests pass and production values are within Release 1 bounds.
 - [ ] Worker logs show claim, failure, retry, and archive paths clearly enough for diagnosis.
-- [ ] Real-source smoke passes and saved mentions are returned.
+- [ ] Real-source smoke passes and extracted items are returned.
 - [ ] No provider cost redesign or queue architecture redesign was introduced.

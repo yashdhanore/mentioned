@@ -66,14 +66,13 @@ def _assert_status(client: httpx.Client, method: str, path: str, expected_status
     return payload
 
 
-def _saved_mentions_for_smoke(client: httpx.Client) -> list[dict[str, Any]]:
-    payload = _request_json(client, "GET", "/v1/mentions", params={"limit": 100})
-    items = payload.get("items")
-    if not isinstance(items, list):
-        raise SmokeError("GET /v1/mentions response did not include an items list")
-    if any(not isinstance(item, dict) for item in items):
-        raise SmokeError("GET /v1/mentions items must be JSON objects")
-    return items
+def _saved_sources_for_smoke(client: httpx.Client) -> list[dict[str, Any]]:
+    payload = _request_json_value(client, "GET", "/v1/saved-sources", params={"limit": 100})
+    if not isinstance(payload, list):
+        raise SmokeError("GET /v1/saved-sources response was not a list")
+    if any(not isinstance(item, dict) for item in payload):
+        raise SmokeError("GET /v1/saved-sources items must be JSON objects")
+    return payload
 
 
 def _required(value: str | None, message: str) -> str:
@@ -94,19 +93,21 @@ def run(args: argparse.Namespace) -> int:
         print(f"Source URL: {source_url}")
 
         create_payload = {"url": source_url}
-        created = _request_json(client, "POST", "/v1/jobs", json=create_payload)
-        _print_json("submitted job", created)
+        created = _request_json(client, "POST", "/v1/saved-sources", json=create_payload)
+        _print_json("submitted saved source", created)
 
-        job_id = created.get("job_id")
-        if not isinstance(job_id, str) or not job_id:
-            raise SmokeError("POST /v1/jobs response did not include job_id")
+        saved_source_id = created.get("id")
+        if not isinstance(saved_source_id, str) or not saved_source_id:
+            raise SmokeError("POST /v1/saved-sources response did not include id")
+        if not isinstance(created.get("status"), str):
+            raise SmokeError("POST /v1/saved-sources response did not include status")
 
         deadline = time.monotonic() + args.timeout_seconds
         last_status = None
-        job: dict[str, Any] = created
+        saved_source: dict[str, Any] = created
         while time.monotonic() < deadline:
-            job = _request_json(client, "GET", f"/v1/jobs/{job_id}")
-            status = job.get("status")
+            saved_source = _request_json(client, "GET", f"/v1/saved-sources/{saved_source_id}")
+            status = saved_source.get("status")
             if status != last_status or args.verbose:
                 print(f"poll: status={status}")
                 last_status = status
@@ -114,54 +115,49 @@ def run(args: argparse.Namespace) -> int:
                 break
             time.sleep(args.poll_interval_seconds)
         else:
-            raise SmokeError(f"Timed out after {args.timeout_seconds}s waiting for job {job_id}")
+            raise SmokeError(f"Timed out after {args.timeout_seconds}s waiting for saved source {saved_source_id}")
 
-        _print_json("final job", job)
-        mentions = job.get("mentions", [])
-        if not isinstance(mentions, list):
-            raise SmokeError("GET /v1/jobs/{job_id} response did not include a mentions list")
-        _print_json("job mentions", {"count": len(mentions), "items": mentions})
+        _print_json("final saved source", saved_source)
+        extracted_items = saved_source.get("items", [])
+        if not isinstance(extracted_items, list):
+            raise SmokeError("GET /v1/saved-sources/{id} response did not include an items list")
+        _print_json("extracted items", {"count": len(extracted_items), "items": extracted_items})
 
-        if args.require_mentions and not mentions:
-            raise SmokeError("Job completed but returned no mentions")
+        if saved_source.get("status") not in SUCCESS_STATUSES:
+            return 2
 
-        saved_mentions = _saved_mentions_for_smoke(client)
-        _print_json("saved mentions", {"count": len(saved_mentions), "items": saved_mentions})
+        if args.require_items and not extracted_items:
+            raise SmokeError("Saved source completed but returned no extracted items")
 
-        job_mention_ids = {
+        saved_sources = _saved_sources_for_smoke(client)
+        _print_json("saved sources", {"count": len(saved_sources), "items": saved_sources})
+
+        saved_source_ids = {
             item.get("id")
-            for item in mentions
+            for item in saved_sources
             if isinstance(item, dict) and isinstance(item.get("id"), str)
         }
-        saved_mention_ids = {
-            item.get("id")
-            for item in saved_mentions
-            if isinstance(item.get("id"), str)
-        }
-        if job_mention_ids and not job_mention_ids.issubset(saved_mention_ids):
-            missing = sorted(job_mention_ids - saved_mention_ids)
-            raise SmokeError(f"Saved mentions did not include job mention IDs: {missing}")
+        if saved_source_id not in saved_source_ids:
+            raise SmokeError(f"Saved source list did not include submitted saved source id: {saved_source_id}")
 
         if second_token:
             second_headers = {"Authorization": f"Bearer {second_token}"}
             with httpx.Client(base_url=args.api_base_url.rstrip("/"), headers=second_headers, timeout=timeout) as second_client:
-                _assert_status(second_client, "GET", f"/v1/jobs/{job_id}", 404)
+                _assert_status(second_client, "GET", f"/v1/saved-sources/{saved_source_id}", 404)
 
-                second_jobs = _request_json_value(second_client, "GET", "/v1/jobs")
-                if not isinstance(second_jobs, list):
-                    raise SmokeError("GET /v1/jobs response for second user was not a list")
-                if any(isinstance(item, dict) and item.get("job_id") == job_id for item in second_jobs):
-                    raise SmokeError("Second user job list included the first user's job")
+                second_saved_sources = _request_json_value(second_client, "GET", "/v1/saved-sources")
+                if not isinstance(second_saved_sources, list):
+                    raise SmokeError("GET /v1/saved-sources response for second user was not a list")
+                if any(isinstance(item, dict) and item.get("id") == saved_source_id for item in second_saved_sources):
+                    raise SmokeError("Second user saved-source list included the first user's saved source")
 
                 print("cross-user isolation checks passed")
 
-        if job.get("status") not in SUCCESS_STATUSES:
-            return 2
         return 0
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Submit one backend job, poll it, then inspect saved mentions.")
+    parser = argparse.ArgumentParser(description="Submit one saved source, poll it, then inspect extracted items.")
     parser.add_argument("--api-base-url", default=_env("API_BASE_URL") or "http://127.0.0.1:8000")
     parser.add_argument("--token", default=None, help="Bearer access token. Defaults to TOKEN or SUPABASE_ACCESS_TOKEN.")
     parser.add_argument("--second-token", default=None, help="Second user's bearer token. Defaults to SECOND_TOKEN or SUPABASE_SECOND_ACCESS_TOKEN.")
@@ -171,9 +167,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--request-timeout-seconds", type=float, default=30.0)
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument(
-        "--require-mentions",
+        "--require-items",
+        dest="require_items",
         action="store_true",
-        help="Fail if the completed job returns no mentions. Use for Release 1 real-source smoke tests.",
+        help="Fail if the completed saved source returns no extracted items. Use for Release 1 real-source smoke tests.",
     )
     return parser.parse_args()
 

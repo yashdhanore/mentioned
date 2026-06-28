@@ -6,7 +6,7 @@ from typing import Any
 from sqlmodel import Session, select
 
 from src.books.models import Book
-from src.extraction.schemas import GoogleBook
+from src.books.schemas import GoogleBook
 
 
 def _identifier_value(

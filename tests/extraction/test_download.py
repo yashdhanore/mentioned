@@ -88,6 +88,65 @@ def test_download_assets_with_metadata_returns_largest_thumbnail(monkeypatch, tm
     assert assets.source_creator_handle == "jamesclear"
 
 
+def test_download_assets_with_metadata_captures_caption_from_description(monkeypatch, tmp_path):
+    media_file = tmp_path / "media_001.mp4"
+
+    def fake_run(args, **kwargs):
+        if "--dump-single-json" in args:
+            return _completed(
+                json.dumps(
+                    {
+                        "duration": 8,
+                        "description": "My top 5 reads of 2025 \U0001f4da #booktok",
+                        "title": "Instagram reel",
+                    }
+                )
+            )
+        media_file.write_bytes(b"12345")
+        return _completed(str(media_file))
+
+    monkeypatch.setattr("src.extraction.download.is_available", lambda: True)
+    monkeypatch.setattr("src.extraction.download.subprocess.run", fake_run)
+
+    assets = download_assets_with_metadata("https://instagram.com/reel/ABC123/", tmp_path)
+
+    assert assets.caption == "My top 5 reads of 2025 \U0001f4da #booktok"
+
+
+def test_download_assets_with_metadata_falls_back_to_title_for_caption(monkeypatch, tmp_path):
+    media_file = tmp_path / "media_001.mp4"
+
+    def fake_run(args, **kwargs):
+        if "--dump-single-json" in args:
+            return _completed(json.dumps({"duration": 8, "title": "A book haul"}))
+        media_file.write_bytes(b"12345")
+        return _completed(str(media_file))
+
+    monkeypatch.setattr("src.extraction.download.is_available", lambda: True)
+    monkeypatch.setattr("src.extraction.download.subprocess.run", fake_run)
+
+    assets = download_assets_with_metadata("https://instagram.com/reel/ABC123/", tmp_path)
+
+    assert assets.caption == "A book haul"
+
+
+def test_download_assets_with_metadata_caption_none_when_absent(monkeypatch, tmp_path):
+    media_file = tmp_path / "media_001.mp4"
+
+    def fake_run(args, **kwargs):
+        if "--dump-single-json" in args:
+            return _completed(json.dumps({"duration": 8}))
+        media_file.write_bytes(b"12345")
+        return _completed(str(media_file))
+
+    monkeypatch.setattr("src.extraction.download.is_available", lambda: True)
+    monkeypatch.setattr("src.extraction.download.subprocess.run", fake_run)
+
+    assets = download_assets_with_metadata("https://instagram.com/reel/ABC123/", tmp_path)
+
+    assert assets.caption is None
+
+
 def test_download_assets_with_metadata_prefers_channel_over_numeric_uploader_id(monkeypatch, tmp_path):
     media_file = tmp_path / "media_001.mp4"
 

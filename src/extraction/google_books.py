@@ -6,8 +6,8 @@ from urllib.parse import urlparse, urlunparse
 
 import httpx
 
+from src.books.schemas import BookEnrichment, GoogleBook
 from src.config import get_settings
-from src.extraction.schemas import BookEnrichment, GoogleBook
 
 logger = logging.getLogger(__name__)
 

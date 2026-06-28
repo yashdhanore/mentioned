@@ -13,6 +13,7 @@
 ## Implementation Notes
 
 - Keep app code under `mobile/src/` and follow the existing component, screen, API, theme, and utility organization.
+- Keep `mobile/App.tsx` as the composition shell; auth session, shared-source intake, notification routing, and capture state live under `mobile/src/features/`.
 - Use TypeScript types at boundaries that cross API, auth, persistence, notifications, and share-extension flows.
 - Prefer existing design tokens, shared UI components, and `lucide-react-native` icons before adding new visual primitives.
 - Do not commit Expo caches, builds, dependency folders, local app secrets, or generated native artifacts unless the task explicitly requires tracked native changes.

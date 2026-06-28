@@ -36,6 +36,7 @@ class DownloadedAssets:
     paths: list[Path]
     thumbnail_url: str | None = None
     source_creator_handle: str | None = None
+    caption: str | None = None
 
 
 def is_available() -> bool:
@@ -132,6 +133,14 @@ def _thumbnail_url(metadata: dict[str, Any]) -> str | None:
     if best_url:
         return best_url
     return _text_or_none(metadata.get("thumbnail"))
+
+
+def _caption(metadata: dict[str, Any]) -> str | None:
+    for field in ("description", "title"):
+        caption = _text_or_none(metadata.get(field))
+        if caption:
+            return caption
+    return None
 
 
 def _handle_from_text(value: Any, *, allow_plain: bool) -> str | None:
@@ -348,6 +357,7 @@ def download_assets_with_metadata(url: str, output_dir: Path) -> DownloadedAsset
     metadata = _preflight_metadata(url, timeout_seconds=settings.media_download_timeout_seconds)
     thumbnail_url = _thumbnail_url(metadata)
     source_creator_handle = _source_creator_handle(metadata)
+    caption = _caption(metadata)
     _check_duration_limit(
         metadata,
         max_duration_seconds=settings.max_media_duration_seconds,
@@ -403,6 +413,7 @@ def download_assets_with_metadata(url: str, output_dir: Path) -> DownloadedAsset
         paths=paths,
         thumbnail_url=thumbnail_url,
         source_creator_handle=source_creator_handle,
+        caption=caption,
     )
 
 

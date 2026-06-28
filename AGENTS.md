@@ -36,5 +36,5 @@ Mentioned is a FastAPI, Supabase, Expo, and Astro product for extracting books, 
 
 - Match the existing style and boundaries in the files you touch.
 - Add or update focused tests when behavior changes.
-- Use the Supabase CLI for schema, migration, seed, RLS, or Supabase config changes; see [supabase/AGENTS.md](supabase/AGENTS.md).
+- Use Alembic for table/column schema changes: add a revision under `migrations/versions/`; prod applies it via `alembic upgrade head` in the worker pre-deploy step. Use the Supabase CLI only for Supabase-managed concerns (RLS policies, storage buckets, auth/Supabase config); see [supabase/AGENTS.md](supabase/AGENTS.md).
 - For hosted backend failures, inspect Render evidence before guessing from local code.

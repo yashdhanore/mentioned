@@ -2,7 +2,9 @@ import {
   ArrowLeft,
   Ellipsis,
   ExternalLink,
+  MapPin,
   Plus,
+  Tag,
   User,
   type LucideProps,
 } from 'lucide-react-native';
@@ -43,4 +45,12 @@ export function MoreIcon({ color = '#101A17', size }: IconProps) {
 
 export function ExternalLinkIcon({ color = '#101A17', size }: IconProps) {
   return <ExternalLink {...iconProps(color, size)} />;
+}
+
+export function PlaceIcon({ color = '#101A17', size }: IconProps) {
+  return <MapPin {...iconProps(color, size)} />;
+}
+
+export function ProductIcon({ color = '#101A17', size }: IconProps) {
+  return <Tag {...iconProps(color, size)} />;
 }

@@ -1,0 +1,1 @@
+"""Canonical social source domain."""

@@ -83,21 +83,9 @@ function validateRuntimeConfig(): void {
 
 validateRuntimeConfig();
 
-export type JobStatus = 'pending' | 'done' | 'failed';
+export type SavedSourceStatus = 'processing' | 'done' | 'failed';
 
-export type JobResponse = {
-  job_id: string;
-  source_url: string;
-  thumbnail_url: string | null;
-  source_creator_handle: string | null;
-  status: JobStatus;
-  error_message: string | null;
-  created_at: string;
-  finished_at: string | null;
-  mentions: MentionInJob[];
-};
-
-export type MentionInJob = {
+export type SourceItemInSavedSource = {
   id: string;
   book_id: string | null;
   title: string;
@@ -106,28 +94,29 @@ export type MentionInJob = {
   confidence: number | null;
   google_books_url: string | null;
   cover_image_url: string | null;
+  place_id: string | null;
+  formatted_address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  maps_url: string | null;
+  position: number;
 };
 
-export type JobListItem = {
-  job_id: string;
-  status: JobStatus;
+export type SavedSourceResponse = {
+  id: string;
+  source_id: string;
+  source_key: string;
+  status: SavedSourceStatus;
   source_url: string;
   thumbnail_url: string | null;
   source_creator_handle: string | null;
+  error_message: string | null;
+  skip_reason: string | null;
   created_at: string;
+  items: SourceItemInSavedSource[];
 };
 
 export type PushPlatform = 'ios' | 'android';
-
-export type DeleteMentionResponse = {
-  id: string;
-  deleted: boolean;
-};
-
-export type DeleteJobResponse = {
-  job_id: string;
-  deleted: boolean;
-};
 
 type ApiErrorPayload = {
   error_code?: string;
@@ -255,38 +244,28 @@ export function errorMessage(error: unknown, fallback = 'Something went wrong. P
   return fallback;
 }
 
-// --- Jobs ---
+// --- Saved sources ---
 
-export async function createJob(url: string): Promise<{ job_id: string; status: JobStatus }> {
-  return requestJson<{ job_id: string; status: JobStatus }>('/v1/jobs', {
+export async function createSavedSource(url: string): Promise<SavedSourceResponse> {
+  return requestJson<SavedSourceResponse>('/v1/saved-sources', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ url }),
   });
 }
 
-export async function listJobs(): Promise<JobListItem[]> {
-  return requestJson<JobListItem[]>('/v1/jobs');
+export async function listSavedSources(): Promise<SavedSourceResponse[]> {
+  return requestJson<SavedSourceResponse[]>('/v1/saved-sources');
 }
 
-export async function listAllJobs(): Promise<JobListItem[]> {
-  return listJobs();
+export async function getSavedSource(savedSourceId: string): Promise<SavedSourceResponse> {
+  return requestJson<SavedSourceResponse>(`/v1/saved-sources/${savedSourceId}`);
 }
 
-export async function getJob(jobId: string): Promise<JobResponse> {
-  return requestJson<JobResponse>(`/v1/jobs/${jobId}`);
-}
-
-export async function deleteJob(jobId: string): Promise<DeleteJobResponse> {
-  return requestJson<DeleteJobResponse>(`/v1/jobs/${jobId}`, {
-    method: 'DELETE',
-  });
-}
-
-// --- Mentions ---
-
-export async function deleteMention(mentionId: string): Promise<DeleteMentionResponse> {
-  return requestJson<DeleteMentionResponse>(`/v1/mentions/${mentionId}`, {
+export async function deleteSavedSource(
+  savedSourceId: string,
+): Promise<{ id: string; deleted: boolean }> {
+  return requestJson<{ id: string; deleted: boolean }>(`/v1/saved-sources/${savedSourceId}`, {
     method: 'DELETE',
   });
 }

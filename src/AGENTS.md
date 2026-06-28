@@ -2,6 +2,8 @@
 
 `src/` contains the FastAPI backend, worker, SQLModel data access, job queues, auth, mentions, books, push notifications, storage helpers, waitlist endpoints, and extraction integration points.
 Saved source ingestion behavior lives under `src/ingestion/`; keep `src/worker.py` focused on process wiring.
+Job response assembly lives in `src/jobs/read_models.py`; keep routers focused on HTTP/auth/quota adapters.
+Book enrichment behavior lives under `src/books/`; keep provider-specific fetch/parsing out of ingestion callers.
 
 ## Commands
 

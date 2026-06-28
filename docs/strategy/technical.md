@@ -1,6 +1,6 @@
 # Technical Decisions And Ideation
 
-Last updated: 2026-06-21
+Last updated: 2026-06-24
 
 This is the canonical home for Mentioned technical decisions, architecture status, technical
 ideation, and rejected approaches. Technical decisions must start from the product direction in
@@ -38,6 +38,12 @@ save -> extract -> revisit loop.
 
 > **Read this first if you are an agent working on the backend.** As of 2026-06-13 the app is submitted to the App Store. The shipped mobile binary is frozen against the **v1 HTTP contract**, so v1 **user-visible behavior and HTTP contract must not change** — but internal worker/ingestion behavior *can* (see "Frozen = contract, not internals" below). v2 is being built *alongside* v1 in the same repo and same Supabase project — not as a replacement edit.
 
+> **2026-06-22 update:** The saved-source cutover supersedes the old `/v1/jobs` and
+> `/v1/mentions` surface before public release. Treat the job/mention contract and `/v2`
+> sequencing notes below as historical compatibility context unless an already-shipped binary still
+> calls them. Active app/backend work should target `/v1/saved-sources`, `sources`,
+> `source_items`, and `saved_sources`.
+
 **v1 — live. Frozen CONTRACT, not frozen internals:**
 - What is frozen: the **entire `/v1` HTTP contract and user-visible semantics** the submitted app calls (verified against `mobile/src/api.ts`). These are a promise to the published app and must not change:
   - `/v1/jobs` (POST create, GET list) + `/v1/jobs/{id}` (GET, DELETE) — `src/jobs/router.py`
@@ -69,6 +75,20 @@ The work splits along two independent axes:
 
 ## Ideas To Preserve
 
+### 2026-06-24 - Website Footer Animation Implementation
+
+- Status: Accepted for the landing page footer
+- Product constraint: Supports the website as a vision and waitlist surface while keeping the
+  book-first save -> extract -> revisit loop concrete.
+- Notes: Build footer animation as native Astro markup, CSS, optimized generated image assets, and
+  a HyperFrames-style GSAP/ScrollTrigger motion layer where HTML remains the source of truth. Use a
+  short generated row-strip frame sequence so the swipe reads as fingers changing position inside
+  the image itself, not as DOM overlays or moving phone-screen content. Use the hatch-pet-style
+  discipline of rejecting drifted candidates, accepting one consistent frame strip, and only using
+  deterministic cropping/resizing after the visual frames exist. Reserve rendered Remotion or
+  HyperFrames video assets for cases where the website truly needs a baked transparent WebM overlay.
+  Keep reduced-motion behavior static and animate only opacity/transform.
+
 ### Job And Worker Architecture
 
 > Now being actioned — see "Architecture Status" above. Hardening specifics live in the planned *production-ingestion-hardening* plan (Axis A, in place on `public.jobs`). NOTE: the old `2026-06-13-v2-coexistence-foundation.md` is a REJECTED record — do not follow it.
@@ -85,6 +105,118 @@ The work splits along two independent axes:
 - Use LLM calls as a fallback or confidence booster rather than the default for every input.
 - Track provider cost, latency, and confidence per extraction.
 
+### 2026-06-24 - Cheap Relevance Gate Before Video Extraction
+
+- Status: Accepted and implemented (first concrete step of the Ingestion And Cost Control
+  direction above). 2026-06-24 update: launched directly in `active` mode (skips confident
+  `irrelevant`) rather than shadow — the user accepted the false-skip risk for immediate cost
+  savings, relying on the conservative fail-open criteria. `shadow` remains available via
+  `RELEVANCE_GATE_MODE` as the rollback/measurement lane if false-skips show up.
+- Skip visibility: a gated skip persists `sources.skip_reason` (Alembic
+  `781a3572bbaf`), surfaced additively as `SavedSourceResponse.skip_reason` and rendered in the
+  *next* mobile build as a distinct "Nothing to extract from this post" empty state. The frozen v1
+  app ignores the new field. A normal empty extraction leaves `skip_reason` null so the UI can tell
+  "gated out" from "looked and found nothing".
+- Product constraint: Supports cost control for the save -> extract -> revisit loop without changing
+  the frozen v1 HTTP contract. Stops spending full video+audio Gemini tokens on saved sources that
+  plausibly contain no book/product/place, while protecting recall so users are never wrongly told
+  "nothing found" on a real book reel.
+- Decision: Before the expensive multimodal extraction, run one cheap multimodal call on signals we
+  already fetch for free in the yt-dlp preflight — the caption (`description`/`title`) plus the post
+  thumbnail. The gate returns a three-way enum verdict (`relevant`/`irrelevant`/`uncertain`) via
+  Gemini structured output, on a cheaper model (`GEMINI_GATE_MODEL`, default `gemini-2.5-flash-lite`).
+  Lives in `src/extraction/relevance.py`, called from `src/extraction/pipeline.py` after download.
+- Fail open: the pipeline skips the expensive call ONLY on a confident `irrelevant`; `relevant` and
+  `uncertain` both escalate to full extraction. Any gate error, empty, unparseable, or unknown
+  verdict resolves to `uncertain` (proceed). Rationale: a wasted video call is far cheaper than a
+  silent false "nothing found".
+- Rollout: `RELEVANCE_GATE_MODE` = `off` | `shadow` | `active`, default `shadow`. Shadow logs the
+  verdict on every reel but always extracts, so the false-skip rate can be measured on real traffic
+  before any token-saving skip happens. Flip to `active` only after shadow data shows skips are safe.
+- Research basis (2026-06-24): matches Anthropic routing/gate workflow and the FrugalGPT/RouteLLM
+  cascade pattern. Deliberately avoids brittle caption keyword/regex matching (no semantic intent)
+  and avoids trusting an LLM self-reported float confidence (poorly calibrated/overconfident) in
+  favour of a 3-way enum with `uncertain` as a first-class abstention. Caption is treated as
+  untrusted input; the thumbnail image is an independent signal so caption text alone cannot force a
+  skip.
+- Known limitation to watch: a book shown only mid-video or named only in speech may be absent from
+  both caption and thumbnail, so an `active` gate could false-skip it. This is the main reason for
+  shadow-first rollout and the fail-open bias. Revisit frame sampling/OCR/ASR as a richer gate only
+  if shadow data shows caption+thumbnail recall is insufficient (see the 2026-06-21 frame-sampling
+  note).
+- Open contribution: the gate's verdict criteria prompt (`GATE_CRITERIA` in `relevance.py`) is the
+  real skip bar and is owner-tuned; the schema/IO/fail-open wrapper are fixed.
+
+### 2026-06-25 - Place Enrichment Via Google Places (First Non-Book Enrichment)
+
+- Status: Accepted, pre-implementation. Spec:
+  `docs/superpowers/specs/2026-06-25-enrich-places-design.md`. Follows the 2026-06-25 surfacing
+  phase that made the mobile client type-neutral.
+- Product constraint: Improves the save -> extract -> revisit loop by making a saved place worth
+  revisiting (address + map), while preserving the book-first wedge, frozen v1 contract safety,
+  the canonical shared-source cache model, and cost control.
+- Decision: Enrich `place` mentions inline in the worker, mirroring the Google Books template.
+  New `src/places/` package (`Place` model + `upsert_google_place` + `enrich_extracted_place_item`)
+  deduped by Google `place_id`; new `places` table; additive `place_id`/`formatted_address`/
+  `latitude`/`longitude` columns on `source_items` (denormalized for the read path, no join);
+  additive optional API fields; mobile place row shows the address and deep-links to Google Maps.
+  Provider lives in `src/extraction/google_places.py` (Text Search New, `places:searchText`).
+- Matching: Gemini emits an optional transient `location_hint` (city/neighborhood, "do not guess")
+  that biases the Places query. Save only high-confidence matches (hint present, or single
+  candidate); otherwise FAIL OPEN to a bare title — same philosophy as the relevance gate. Dropping
+  unmatched places was rejected (hides real mentions).
+- Storage rationale: dedicated typed table + FK chosen over loose `source_items` columns or a JSON
+  blob, to keep one enrichment pattern across types (consistency with `books`, AI-navigable). Sits
+  on the canonical shared cache per the 2026-06-21/2026-06-22 source-cache decisions, never per-user.
+  The frozen v1 `Mention` table is left untouched; place enrichment writes only `SourceItem`.
+- Cost: address + map pin requires `formattedAddress`/`displayName`/`location`, all *Text Search
+  Pro* SKU (only `places.id` is the cheaper Essentials/IDs-Only SKU), and Places bills at the
+  highest requested SKU — so this is unavoidably Pro tier (accepted). Field mask is deliberately
+  minimal; widening it to rating/hours/photos jumps to Atmosphere/Enterprise SKUs. Do not widen
+  without re-pricing. New `GOOGLE_PLACES_API_KEY` setting; unset key degrades to no enrichment.
+- Rejected alternatives: async enrichment queue and enrich-on-read (premature for one cheap call at
+  current volume; enrich-on-read also breaks the canonical-cache model). OpenStreetMap/Nominatim and
+  Gemini-only enrichment were considered for the provider but rejected in favor of Google Places for
+  match quality + a stable dedup id.
+- Follow-ups: product enrichment is the next phase (uses `places` as the template); revisit the
+  per-type confidence floor and add per-extraction provider cost instrumentation once real data
+  exists.
+
+### 2026-06-28 - Place Enrichment Grilling Confirmations
+
+- Re-grilled the 2026-06-25 place spec before implementation; the spec stands. Confirmations:
+- Scope: the iOS published proof has shipped, so the `CONTEXT.md` "non-book categories" Release 1
+  exclusion is now being lifted deliberately, places first. Products are confirmed DEFERRED again
+  this round (no clean single-call provider analog to Google Books/Places; revisit after real
+  place data). Book is now framed as one mention category, not the product.
+- Terminology: "Mention" is the canonical glossary term for an extracted candidate item (carries a
+  `category`); "extracted item" demoted to `_Avoid_`.
+- Matching: keep the spec's fail-open high-confidence bar; add match-outcome logging (hint present?
+  candidate count? matched vs failed-open?) to gather tuning data before adjusting the bar.
+- Schema mechanism: **Alembic is the single source of truth** (see ADR 0001). `create_all` is
+  dev-only (`AUTO_CREATE_TABLES=false` in prod) and the `supabase/migrations/*.sql` files are dead
+  (not in the deploy pipeline). The place migration is one additive Alembic revision. Root + Supabase
+  agent guides corrected to point at Alembic for table/column changes.
+
+### 2026-06-28 - Place Walking Skeleton: maps_url Denormalized As 5th Field
+
+- Built the place-enrichment walking skeleton (faked provider, injected `place_finder`) per the
+  2026-06-25 spec. Migration `20260628_0015` adds the `places` table and denormalized columns on
+  `source_items`.
+- Decision: the spec's §6 calls for the mobile place row to deep-link to the provider `maps_url`,
+  but the canonical link could not be reconstructed client-side — the API exposes our internal
+  `places.id` UUID, not Google's `provider_place_id`, and the minimal Pro-tier field mask omits
+  `googleMapsUri`. So `maps_url` is denormalized onto `source_items` and serialized as a **5th**
+  additive API field (beyond the four the slice's issue enumerated), mirroring how
+  `cover_image_url` rides the item for books. Mobile prefers `maps_url`, falling back to a
+  `maps/search/?api=1&query=<lat>,<lng>` link; a bare/coordless place stays non-tappable.
+  **Why:** honors the spec's revisit-value intent (a named Google place card beats a raw pin)
+  without widening the billed field mask. **How to apply:** when the real provider lands (issue
+  #46), keep building `maps_url` deterministically as
+  `https://www.google.com/maps/place/?q=place_id:<provider_place_id>`; do not add `googleMapsUri`
+  to the field mask (it would re-price the SKU). The read path still needs no join — display
+  fields live on `source_items`.
+
 ### 2026-06-21 - Behavior-Preserving Ingestion Module Seam
 
 - Status: Accepted as the first architecture step before production ingestion hardening.
@@ -95,6 +227,67 @@ The work splits along two independent axes:
   `src.push.worker`. This does not add Axis A hardening yet; claim safety, timeouts, idempotency,
   concurrency, retry budgets, and cost instrumentation remain in the future
   *production-ingestion-hardening* plan.
+
+### 2026-06-21 - Shared Source Cache And User-Owned Saved State
+
+- Status: Accepted as the implementation direction for reel/post caching.
+- Product constraint: Supports cost control and the save -> extract -> revisit loop while protecting
+  privacy, account deletion, and frozen `/v1` contract safety.
+- Notes: Do not make `public.jobs` or `public.mentions` the canonical shared cache. They are
+  user-owned saved-source and correction state in the current `/v1` contract. Add a separate
+  canonical source cache keyed by normalized platform/source identity plus cache version, storing
+  extractor output, source metadata, and thumbnail source data without an owner id. A user saving a
+  cached source should create or reuse only that user's saved-source row and user-owned mention rows
+  or link rows. Deleting a saved post should unlink/delete the user's saved-source relationship,
+  job events, and per-user rows only; it must not delete the canonical cache when other users may
+  depend on it. Account deletion should remove all user-owned rows and can garbage-collect
+  unreferenced cache rows according to the eventual retention policy. Individual book removal should
+  never mutate canonical extraction output; either remove that UI capability in the next app version
+  or represent it as a user-level hidden/incorrect override while keeping `/v1/mentions/{id}` DELETE
+  backward-compatible as a soft-hide operation until the old app contract is retired.
+
+### 2026-06-22 - Minimal Saved Source Cache Model
+
+- Status: Accepted and implemented for the pre-release saved-source cutover.
+- Product constraint: Protects the save -> extract -> revisit loop, keeps the book-first wedge
+  simple, preserves v1 contract safety during the cutover, controls extraction cost through
+  canonical source reuse, preserves user privacy and account deletion boundaries, and leaves room
+  for future generic saved items without adding a reading-list product in this change.
+- Decision: The accepted model is `sources + source_items + saved_sources`. `sources` is the
+  canonical social-source cache keyed by deterministic source identity. `source_items` stores stable
+  extracted item rows for books/products/places and future references. `saved_sources` is the
+  user-owned link that makes a canonical source visible in one user's archive.
+- Rejected in this change: do not add `source_extractions`, versioned extraction history, per-user
+  item override tables, or reading-list tables. Those add product and migration complexity before
+  the save -> extract -> revisit loop has proven that users need corrections, historical extractor
+  comparisons, or curated lists.
+- Notes: `/v1/saved-sources` replaces the old job/mention endpoint surface for the app cutover.
+  Legacy `src/jobs/*` and `src/mentions/*` modules remain only as internal compatibility surfaces
+  while worker, push, account deletion, and enrichment code still reference them.
+
+### 2026-06-24 - Source Processing Attempt Guard
+
+- Status: Accepted and implemented for saved-source ingestion robustness.
+- Product constraint: Protects the save -> extract -> revisit loop when several users save the same
+  source or when queue visibility/stale recovery causes duplicate delivery.
+- Notes: Source completion and failure now only finalize the row when the source is still in the same
+  `processing_started_at` attempt that the worker claimed. A stale worker cannot overwrite a newer
+  attempt or archive the source queue message when its result was rejected. Completion also replaces
+  existing source items for the accepted attempt so retries remain deterministic.
+
+### 2026-06-21 - Worker Scale Audit For 1,000-Job Backlogs
+
+- Status: Reviewed; current beta worker can hold and drain a 1,000-job backlog, but should be treated
+  as serial beta infrastructure rather than scale-hardened ingestion.
+- Product constraint: Protects the save -> extract -> revisit loop, frozen v1 contract safety, cost
+  control, and user trust in processing states.
+- Notes: A synthetic 1,000-job lifecycle pass with fake extraction completed locally, which suggests
+  the SQLModel job state machine is not the main bottleneck. Real throughput is dominated by
+  `yt-dlp`, optional `ffmpeg`, Gemini, Google Books enrichment, provider quotas, and the current
+  single-worker loop. Before relying on large backlogs, finish Axis A hardening: per-job timeout,
+  idempotent mention/job-event writes, bounded provider concurrency, retry/dead-letter budgets, and
+  cost/latency instrumentation. The pgmq queue path uses atomic `claim_job_by_id`, but the non-queue
+  polling fallback remains select-then-update and should not be used as the scale path.
 
 ### 2026-06-21 - AI-Navigable Architecture Review
 
@@ -110,6 +303,22 @@ The work splits along two independent axes:
   shape currently leaks through extraction schemas into books persistence and ingestion. The web
   landing surface has good validation and lower urgency; split its global stylesheet only when
   another substantial web section lands.
+
+### 2026-06-21 - Affordable Production-Safe Development Workflow
+
+- Status: Accepted as the default operating model once the store app has production users.
+- Product constraint: Protects the save -> extract -> revisit loop, frozen v1 contract safety, user
+  trust, privacy, and cost control while allowing post-publication iteration.
+- Notes: Do not create a full always-on cloud stack per feature branch. Default to local-first
+  development with local Supabase/Postgres, fake seeded users, fake or budget-capped extraction
+  providers, Expo dev builds, tests, and contract checks. Keep production on one protected backend
+  and one production Supabase project. Use one shared staging lane only for work that cannot be
+  validated locally: a separate Supabase project with fake data, a staging API, and a worker that is
+  run manually or cheaply during testing rather than kept fully scaled at all times. Production
+  safety comes from never breaking `/v1`, adding visible app changes behind feature flags or a new
+  `/v2` contract, using backward-compatible expand/contract migrations, testing TestFlight/internal
+  builds against staging, and rolling out flags gradually before making features generally
+  available.
 
 ### 2026-06-21 - Cloudflare Workers, D1, And R2 Cost Exploration
 
@@ -237,7 +446,7 @@ The work splits along two independent axes:
 
 ## Open Questions
 
-- Which non-book mention type should we surface first after books (`product` and `place` already exist in the schema)? The wedge question is settled in `docs/strategy/product.md`: v1 = books, v3 = generalize.
+- ~~Which non-book mention type should we surface first after books?~~ Settled 2026-06-25: **places first** for enrichment (see the dated note above); products are the next enrichment phase. The wedge question remains as in `docs/strategy/product.md`: v1 = books, v3 = generalize.
 - What book metadata is mandatory for a good first experience: title, author, cover, description, ISBN, published date, categories?
 - Should extracted mentions be considered evidence, while books become normalized saved entities?
 - What is the retention policy for original downloaded videos?

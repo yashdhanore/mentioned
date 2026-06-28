@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, Image, Pressable, ScrollView, Text, View } from 'react-native';
 
-import type { BookMention, Capture } from '@/captures';
+import type { Capture } from '@/captures';
 import { BackIcon, ExternalLinkIcon, MoreIcon } from '@/components/icons';
 import {
-  BooksMentioned,
   FailedState,
-  NoBooks,
-  ProcessingBooks,
-} from '@/components/books';
+  MentionsList,
+  NoMentions,
+  ProcessingMentions,
+} from '@/components/mentions';
 import { AppMark, IconButton, InlineMessage, SecondaryButton, SourceQuote } from '@/components/ui';
 import { styles } from '@/styles';
 
@@ -17,10 +17,8 @@ export function ReelDetailScreen({
   width,
   actionError,
   isRetrying,
-  removingBookId,
   onBack,
   onOpenMenu,
-  onOpenRemoveBook,
   onOpenSource,
   onRetry,
 }: {
@@ -28,10 +26,8 @@ export function ReelDetailScreen({
   width: number;
   actionError: string | null;
   isRetrying: boolean;
-  removingBookId: string | null;
   onBack: () => void;
   onOpenMenu: () => void;
-  onOpenRemoveBook: (book: BookMention) => void;
   onOpenSource: () => void;
   onRetry: () => void;
 }) {
@@ -63,24 +59,20 @@ export function ReelDetailScreen({
             onOpenSource={onOpenSource}
           />
           {inlineError}
-          <BooksMentioned
-            books={capture.books}
-            removingBookId={removingBookId}
-            onOpenRemoveBook={onOpenRemoveBook}
-          />
+          <MentionsList mentions={capture.mentions} />
         </>
       ) : null}
       {capture.status === 'processing' ? (
         <>
           {inlineError}
-          <ProcessingBooks />
+          <ProcessingMentions />
           <ProcessingBrandMark />
         </>
       ) : null}
-      {capture.status === 'no_books' ? (
+      {capture.status === 'no_mentions' ? (
         <>
           {inlineError}
-          <NoBooks onOpenSource={onOpenSource} />
+          <NoMentions onOpenSource={onOpenSource} wasSkipped={Boolean(capture.skipReason)} />
           <OriginalSourceSection
             capture={capture}
             previewWidth={sourcePreviewWidth}
