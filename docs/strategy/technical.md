@@ -182,6 +182,22 @@ The work splits along two independent axes:
   per-type confidence floor and add per-extraction provider cost instrumentation once real data
   exists.
 
+### 2026-06-28 - Place Enrichment Grilling Confirmations
+
+- Re-grilled the 2026-06-25 place spec before implementation; the spec stands. Confirmations:
+- Scope: the iOS published proof has shipped, so the `CONTEXT.md` "non-book categories" Release 1
+  exclusion is now being lifted deliberately, places first. Products are confirmed DEFERRED again
+  this round (no clean single-call provider analog to Google Books/Places; revisit after real
+  place data). Book is now framed as one mention category, not the product.
+- Terminology: "Mention" is the canonical glossary term for an extracted candidate item (carries a
+  `category`); "extracted item" demoted to `_Avoid_`.
+- Matching: keep the spec's fail-open high-confidence bar; add match-outcome logging (hint present?
+  candidate count? matched vs failed-open?) to gather tuning data before adjusting the bar.
+- Schema mechanism: **Alembic is the single source of truth** (see ADR 0001). `create_all` is
+  dev-only (`AUTO_CREATE_TABLES=false` in prod) and the `supabase/migrations/*.sql` files are dead
+  (not in the deploy pipeline). The place migration is one additive Alembic revision. Root + Supabase
+  agent guides corrected to point at Alembic for table/column changes.
+
 ### 2026-06-21 - Behavior-Preserving Ingestion Module Seam
 
 - Status: Accepted as the first architecture step before production ingestion hardening.

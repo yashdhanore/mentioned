@@ -25,27 +25,27 @@ The acceptable quality bar for the published proof: many public book recommendat
 _Avoid_: Demo-only extraction, near-production extraction
 
 **Basic correction**:
-The correction level for the published proof: users can remove incorrect extracted items, retry failed sources, make simple manual edits, or mark a result as wrong without entering a full metadata-management workflow.
+The correction level for the published proof: users can remove incorrect mentions, retry failed sources, make simple manual edits, or mark a result as wrong without entering a full metadata-management workflow.
 _Avoid_: Full catalog editing, silent failure
 
 **Useful collection**:
 A user-facing group of saved items that can be revisited, searched, or turned into an output such as a reading list or itinerary.
 _Avoid_: Folder, saved pile
 
-**Extracted item**:
-A candidate item Mentioned found inside a saved source, such as a book, place, recipe, product, post, or meme reference.
-_Avoid_: Final recommendation, user choice
+**Mention**:
+A candidate item Mentioned found inside a saved source, carrying a `category` such as book, place, or product. Book is one mention category, not the product.
+_Avoid_: Extracted item, final recommendation, user choice
 
 **User-curated collection**:
-A list the user intentionally creates by choosing extracted items from one or more saved sources.
+A list the user intentionally creates by choosing mentions from one or more saved sources.
 _Avoid_: Automatic category bucket, AI-generated output
 
 **Source history**:
-The record of a saved source and all extracted items found in it, including items the user has not added to a user-curated collection.
+The record of a saved source and all mentions found in it, including mentions the user has not added to a user-curated collection.
 _Avoid_: Discarded items, hidden trash
 
 **Saved source home**:
-The immediate app home model for the published proof: users browse saved sources first, then open a source to inspect extracted items.
+The immediate app home model for the published proof: users browse saved sources first, then open a source to inspect its mentions.
 _Avoid_: Books-first library, collection-first home, activity feed
 
 **Native capture**:
@@ -57,7 +57,7 @@ The selected platform sequence for the published proof: ship iOS with native sha
 _Avoid_: Android-first launch, simultaneous platform launch
 
 **Release 1 exclusions**:
-Capabilities intentionally left out of the iOS-first published proof: semantic search, user-curated collections, non-book categories, Android release, advanced editing, and major scale or cost optimization.
+Capabilities intentionally left out of the iOS-first published proof: semantic search, user-curated collections, non-book categories, Android release, advanced editing, and major scale or cost optimization. The iOS published proof has since shipped; the post-publication build-out is now lifting these exclusions one at a time, starting with non-book categories.
 _Avoid_: Scope creep, hidden launch requirements
 
 **Trustworthy small app**:
@@ -73,15 +73,15 @@ The first major post-publication product direction. It should start with source 
 _Avoid_: Collections-first promotion, search-only prototype
 
 **Source detail**:
-The app screen for one saved source. For the published proof, it should prioritize extracted books first, with source context and source-opening actions secondary.
-_Avoid_: Evidence-first detail, source-preview-first detail
+The app screen for one saved source. It surfaces the source's mentions (grouped by category — books, places, products) first, with source context and source-opening actions secondary.
+_Avoid_: Evidence-first detail, source-preview-first detail, books-only detail
 
 **Semantic memory layer**:
 The long-term product direction: a way to recall saved online content by meaning, description, or context rather than exact titles or platform search terms.
 _Avoid_: AI extractor, smarter folder
 
 **Semantic search**:
-A future retrieval capability that searches both extracted items and source history, so users can find either a saved item or the source where it appeared.
+A future retrieval capability that searches both mentions and source history, so users can find either a saved mention or the source where it appeared.
 _Avoid_: Collection-only search, source-only search
 
 ## Example Dialogue
@@ -96,7 +96,7 @@ Domain expert: "No. Books are the first category. The promise is saving social r
 
 Product: "Does every extracted book automatically become part of a reading list?"
 
-Domain expert: "No. Extracted items stay attached to their saved source, but a user-curated collection contains only the items the user intentionally chooses."
+Domain expert: "No. Mentions stay attached to their saved source, but a user-curated collection contains only the ones the user intentionally chooses."
 
 Product: "What happens to books the user does not add to a collection?"
 
@@ -104,7 +104,7 @@ Domain expert: "They remain in source history and can still be found later, but 
 
 Product: "When semantic search arrives, what should it search first?"
 
-Domain expert: "Both extracted items and source history, but semantic search is not part of the immediate publishing milestone."
+Domain expert: "Both mentions and source history, but semantic search is not part of the immediate publishing milestone."
 
 Product: "What should the published version prove?"
 
