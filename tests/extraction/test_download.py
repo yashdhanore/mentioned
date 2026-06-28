@@ -21,8 +21,8 @@ def download_limit_env(monkeypatch):
     get_settings.cache_clear()
 
 
-def _completed(stdout: str = "") -> SimpleNamespace:
-    return SimpleNamespace(stdout=stdout)
+def _completed(stdout: str = "", *, returncode: int = 0, stderr: str = "") -> SimpleNamespace:
+    return SimpleNamespace(stdout=stdout, returncode=returncode, stderr=stderr, args=[])
 
 
 def test_download_assets_uses_timeout(monkeypatch, tmp_path):
@@ -282,3 +282,51 @@ def test_download_assets_compresses_oversized_video(monkeypatch, tmp_path):
     assert paths == [tmp_path / "media_001.compressed.mp4"]
     assert paths[0].read_bytes() == b"12345"
     assert not media_file.exists()
+
+
+def test_download_surfaces_yt_dlp_stderr_on_failure(monkeypatch, tmp_path):
+    stderr = (
+        "[debug] Command-line config: ['--dump-single-json']\n"
+        "ERROR: [Instagram] DVvk5NzjJj6: Requested content is not available, "
+        "rate-limit reached or login required\n"
+    )
+
+    def fake_run(args, **kwargs):
+        return _completed(returncode=1, stderr=stderr)
+
+    monkeypatch.setattr("src.extraction.download.is_available", lambda: True)
+    monkeypatch.setattr("src.extraction.download.subprocess.run", fake_run)
+
+    with pytest.raises(RuntimeError, match="rate-limit reached or login required"):
+        download_assets_with_metadata("https://instagram.com/reel/DVvk5NzjJj6/", tmp_path)
+
+
+def test_download_error_redacts_signed_url_tokens(monkeypatch, tmp_path):
+    stderr = (
+        "ERROR: unable to download video data: HTTP Error 403: Forbidden "
+        "https://instagram.fbcdn.net/v/t2/clip.mp4?oh=secrettoken&oe=6A4383AB\n"
+    )
+
+    def fake_run(args, **kwargs):
+        return _completed(returncode=1, stderr=stderr)
+
+    monkeypatch.setattr("src.extraction.download.is_available", lambda: True)
+    monkeypatch.setattr("src.extraction.download.subprocess.run", fake_run)
+
+    with pytest.raises(RuntimeError) as excinfo:
+        download_assets_with_metadata("https://instagram.com/reel/DVvk5NzjJj6/", tmp_path)
+
+    message = str(excinfo.value)
+    assert "secrettoken" not in message
+    assert "<redacted>" in message
+
+
+def test_download_error_falls_back_to_exit_code_when_stderr_empty(monkeypatch, tmp_path):
+    def fake_run(args, **kwargs):
+        return _completed(returncode=137, stderr="")
+
+    monkeypatch.setattr("src.extraction.download.is_available", lambda: True)
+    monkeypatch.setattr("src.extraction.download.subprocess.run", fake_run)
+
+    with pytest.raises(RuntimeError, match="exited 137"):
+        download_assets_with_metadata("https://instagram.com/reel/DVvk5NzjJj6/", tmp_path)
