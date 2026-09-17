@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime
-
 from sqlmodel import Session, select
 
 from src.places.models import Place
 from src.places.schemas import GooglePlace
+from src.timeutils import utc_now
 
 
 def upsert_google_place(session: Session, google_place: GooglePlace) -> Place:
@@ -14,7 +13,7 @@ def upsert_google_place(session: Session, google_place: GooglePlace) -> Place:
         Place.provider_place_id == google_place.provider_place_id,
     )
     place = session.exec(stmt).first()
-    now = datetime.utcnow()
+    now = utc_now()
 
     fields = {
         "provider": "google_places",

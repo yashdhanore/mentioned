@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime
-
 from sqlmodel import Session, select
 
+from src.timeutils import utc_now
 from src.waitlist.models import WaitlistSignup
 
 
@@ -26,7 +25,7 @@ def create_or_update_signup(
     if signup:
         signup.source = source or signup.source
         signup.user_agent = user_agent or signup.user_agent
-        signup.updated_at = datetime.utcnow()
+        signup.updated_at = utc_now()
         session.add(signup)
         session.commit()
         session.refresh(signup)

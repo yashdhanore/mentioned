@@ -11,7 +11,6 @@ from src.places.schemas import GooglePlace
 from src.places.service import upsert_google_place
 from src.sources.models import SourceItem
 
-
 logger = logging.getLogger(__name__)
 
 PlaceFinder = Callable[[str, str | None], GooglePlace | None]

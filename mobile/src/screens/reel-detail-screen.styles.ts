@@ -1,0 +1,173 @@
+import { StyleSheet } from 'react-native';
+
+import { colors, radius, spacing, typography } from '@/theme';
+
+export const styles = StyleSheet.create({
+  detailContent: {
+    alignSelf: 'center',
+    gap: spacing.lg,
+    maxWidth: 430,
+    padding: spacing.screen,
+    paddingBottom: spacing.xxl,
+    width: '100%',
+  },
+  detailNav: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.md,
+    justifyContent: 'space-between',
+  },
+  detailNavIdentity: {
+    alignItems: 'center',
+    flex: 1,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    justifyContent: 'center',
+    minWidth: 0,
+  },
+  detailNavAvatar: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: 14,
+    height: 28,
+    width: 28,
+  },
+  detailNavTitle: {
+    ...typography.labelLg,
+    color: colors.secondary,
+    flex: 1,
+    textAlign: 'center',
+  },
+  detailNavHandle: {
+    ...typography.labelLg,
+    color: colors.secondary,
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  sourceHero: {
+    gap: spacing.md,
+    marginTop: spacing.sm,
+  },
+  sourceHeroStage: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 392,
+    overflow: 'visible',
+    paddingVertical: spacing.lg,
+  },
+  sourceHeroPaper: {
+    aspectRatio: 1.1,
+    backgroundColor: colors.paper,
+    borderColor: colors.paperEdge,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    opacity: 0.88,
+    position: 'absolute',
+    width: '88%',
+  },
+  sourceHeroCard: {
+    aspectRatio: 9 / 16,
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.hairline,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    overflow: 'hidden',
+    shadowColor: colors.ink,
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+  },
+  sourceHeroImage: {
+    height: '100%',
+    width: '100%',
+  },
+  sourceHeroAction: {
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+    backgroundColor: colors.surfaceElevated,
+    borderColor: colors.primary,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.xs,
+    minHeight: 40,
+    paddingHorizontal: spacing.md,
+  },
+  sourceHeroActionText: {
+    ...typography.labelLg,
+    color: colors.primary,
+  },
+  sourceHeroMeta: {
+    gap: spacing.md,
+  },
+  sourceHeroIdentity: {
+    alignItems: 'baseline',
+    flexDirection: 'row',
+    gap: spacing.sm,
+    justifyContent: 'space-between',
+  },
+  sourceHeroCreator: {
+    ...typography.titleLg,
+    color: colors.onSurface,
+    flex: 1,
+  },
+  sourceHeroSavedAt: {
+    ...typography.caption,
+    color: colors.onMuted,
+    flexShrink: 0,
+  },
+  originalSourceSection: {
+    gap: spacing.md,
+    marginTop: spacing.lg,
+  },
+  originalSourceTitle: {
+    ...typography.titleLg,
+    color: colors.onSurface,
+  },
+  processingBrandMarkWrap: {
+    alignItems: 'center',
+    marginTop: spacing.xl,
+    paddingVertical: spacing.lg,
+  },
+  processingBrandMark: {
+    alignSelf: 'center',
+    height: 72,
+    width: 72,
+  },
+  originalSourceModule: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.md,
+    padding: spacing.md,
+  },
+  originalSourcePreview: {
+    aspectRatio: 9 / 16,
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.hairline,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  reelPreviewImage: {
+    height: '100%',
+    width: '100%',
+  },
+  originalSourceCopy: {
+    flex: 1,
+    gap: spacing.md,
+    justifyContent: 'space-between',
+    minWidth: 0,
+  },
+  sourceCreator: {
+    ...typography.labelLg,
+    color: colors.onSurface,
+  },
+  detailSourceAction: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+});

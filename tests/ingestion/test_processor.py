@@ -11,7 +11,6 @@ from src.ingestion.processor import SavedSourceIngestion
 from src.jobs.models import Job, JobStatus
 from src.mentions.models import Mention
 
-
 OWNER = UUID("00000000-0000-4000-8000-000000000001")
 
 

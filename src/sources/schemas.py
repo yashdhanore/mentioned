@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -14,18 +13,18 @@ class CreateSavedSourceRequest(BaseModel):
 
 class SourceItemResponse(BaseModel):
     id: str
-    book_id: Optional[str] = None
+    book_id: str | None = None
     title: str
-    author: Optional[str] = None
+    author: str | None = None
     category: str
-    confidence: Optional[float] = None
-    google_books_url: Optional[str] = None
-    cover_image_url: Optional[str] = None
-    place_id: Optional[str] = None
-    formatted_address: Optional[str] = None
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-    maps_url: Optional[str] = None
+    confidence: float | None = None
+    google_books_url: str | None = None
+    cover_image_url: str | None = None
+    place_id: str | None = None
+    formatted_address: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    maps_url: str | None = None
     position: int
 
 
@@ -35,10 +34,10 @@ class SavedSourceResponse(BaseModel):
     source_key: str
     status: str
     source_url: str
-    thumbnail_url: Optional[str] = None
-    source_creator_handle: Optional[str] = None
-    error_message: Optional[str] = None
-    skip_reason: Optional[str] = None
+    thumbnail_url: str | None = None
+    source_creator_handle: str | None = None
+    error_message: str | None = None
+    skip_reason: str | None = None
     created_at: datetime
     items: list[SourceItemResponse] = Field(default_factory=list)
 

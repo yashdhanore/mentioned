@@ -11,6 +11,7 @@ from src.jobs.models import Job, JobEvent, JobEventType, JobStatus
 from src.jobs.queue import enqueue_extract_job
 from src.mentions.models import Mention
 from src.push.queue import enqueue_push_notification
+from src.timeutils import utc_now
 
 
 def _new_job(owner_id: str, source_url: str) -> Job:
@@ -19,7 +20,7 @@ def _new_job(owner_id: str, source_url: str) -> Job:
         owner_id=parse_uuid(owner_id),
         source_url=source_url,
         status=JobStatus.PENDING,
-        created_at=datetime.utcnow(),
+        created_at=utc_now(),
     )
 
 
@@ -63,10 +64,7 @@ def delete_job(session: Session, job: Job) -> None:
 def list_jobs(session: Session, owner_id: str, limit: int = 50) -> list[Job]:
     owner_uuid = parse_uuid(owner_id)
     stmt = (
-        select(Job)
-        .where(Job.owner_id == owner_uuid)
-        .order_by(Job.created_at.desc())
-        .limit(limit)
+        select(Job).where(Job.owner_id == owner_uuid).order_by(Job.created_at.desc()).limit(limit)
     )
     return list(session.exec(stmt).all())
 
@@ -74,7 +72,7 @@ def list_jobs(session: Session, owner_id: str, limit: int = 50) -> list[Job]:
 def claim_next_job(session: Session, worker_id: str) -> Job | None:
     stmt = (
         select(Job)
-        .where(Job.status == JobStatus.PENDING, Job.locked_by == None)
+        .where(Job.status == JobStatus.PENDING, Job.locked_by.is_(None))
         .order_by(Job.created_at)
         .limit(1)
     )
@@ -82,8 +80,8 @@ def claim_next_job(session: Session, worker_id: str) -> Job | None:
     if not job:
         return None
     job.locked_by = worker_id
-    job.locked_at = datetime.utcnow()
-    job.heartbeat_at = datetime.utcnow()
+    job.locked_at = utc_now()
+    job.heartbeat_at = utc_now()
     session.add(job)
     session.commit()
     session.refresh(job)
@@ -92,13 +90,13 @@ def claim_next_job(session: Session, worker_id: str) -> Job | None:
 
 def claim_job_by_id(session: Session, job_id: str | UUID, worker_id: str) -> Job | None:
     parsed_job_id = parse_uuid(job_id)
-    now = datetime.utcnow()
+    now = utc_now()
     stmt = (
         update(Job)
         .where(
             Job.id == parsed_job_id,
             Job.status == JobStatus.PENDING,
-            Job.locked_by == None,
+            Job.locked_by.is_(None),
         )
         .values(
             locked_by=worker_id,
@@ -121,14 +119,14 @@ def _add_job_event(session: Session, job: Job, event_type: JobEventType) -> None
             owner_id=job.owner_id,
             job_id=job.id,
             event_type=event_type,
-            created_at=datetime.utcnow(),
+            created_at=utc_now(),
         )
     )
 
 
 def complete_job(session: Session, job: Job, mentions: list[Mention]) -> None:
     job.status = JobStatus.DONE
-    job.finished_at = datetime.utcnow()
+    job.finished_at = utc_now()
     job.locked_by = None
     job.locked_at = None
     session.add(job)
@@ -142,7 +140,7 @@ def complete_job(session: Session, job: Job, mentions: list[Mention]) -> None:
 def fail_job(session: Session, job: Job, error: str) -> None:
     job.status = JobStatus.FAILED
     job.error_message = error
-    job.finished_at = datetime.utcnow()
+    job.finished_at = utc_now()
     job.locked_by = None
     job.locked_at = None
     session.add(job)
@@ -152,14 +150,11 @@ def fail_job(session: Session, job: Job, error: str) -> None:
 
 
 def recover_stale_jobs(session: Session, stale_timeout_seconds: int = 900) -> int:
-    cutoff = datetime.utcnow() - timedelta(seconds=stale_timeout_seconds)
-    stmt = (
-        select(Job)
-        .where(
-            Job.status == JobStatus.PENDING,
-            Job.locked_by != None,
-            Job.heartbeat_at < cutoff,
-        )
+    cutoff = utc_now() - timedelta(seconds=stale_timeout_seconds)
+    stmt = select(Job).where(
+        Job.status == JobStatus.PENDING,
+        Job.locked_by.is_not(None),
+        Job.heartbeat_at < cutoff,
     )
     stale_jobs = list(session.exec(stmt).all())
     for job in stale_jobs:
@@ -174,17 +169,25 @@ def recover_stale_jobs(session: Session, stale_timeout_seconds: int = 900) -> in
 
 def count_active_jobs(session: Session, owner_id: str) -> int:
     owner_uuid = parse_uuid(owner_id)
-    stmt = select(func.count()).select_from(Job).where(
-        Job.owner_id == owner_uuid,
-        Job.status == JobStatus.PENDING,
+    stmt = (
+        select(func.count())
+        .select_from(Job)
+        .where(
+            Job.owner_id == owner_uuid,
+            Job.status == JobStatus.PENDING,
+        )
     )
     return int(session.exec(stmt).one())
 
 
 def count_jobs_created_since(session: Session, owner_id: str, since: datetime) -> int:
     owner_uuid = parse_uuid(owner_id)
-    stmt = select(func.count()).select_from(Job).where(
-        Job.owner_id == owner_uuid,
-        Job.created_at >= since,
+    stmt = (
+        select(func.count())
+        .select_from(Job)
+        .where(
+            Job.owner_id == owner_uuid,
+            Job.created_at >= since,
+        )
     )
     return int(session.exec(stmt).one())

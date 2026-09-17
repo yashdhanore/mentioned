@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import logging
+from dataclasses import dataclass
 
 import httpx
 
 from src.jobs.models import Job, JobStatus
-
 
 EXPO_PUSH_SEND_URL = "https://exp.host/--/api/v2/push/send"
 JOB_STATUS_NOTIFICATION_CHANNEL_ID = "job-status"

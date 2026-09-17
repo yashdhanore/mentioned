@@ -5,9 +5,9 @@ from typing import Annotated
 from fastapi import Depends
 
 from src.auth.dependencies import AuthenticatedSessionDep, CallerDep
+from src.ids import parse_uuid
 from src.jobs.exceptions import JobNotFound
 from src.jobs.models import Job
-from src.ids import parse_uuid
 
 SessionDep = AuthenticatedSessionDep
 

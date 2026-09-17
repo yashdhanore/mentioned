@@ -6,7 +6,6 @@ from src.waitlist.dependencies import SessionDep
 from src.waitlist.schemas import WaitlistSignupRequest, WaitlistSignupResponse
 from src.waitlist.service import create_or_update_signup
 
-
 router = APIRouter(tags=["waitlist"])
 
 

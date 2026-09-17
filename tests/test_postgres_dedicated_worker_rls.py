@@ -9,7 +9,6 @@ from sqlalchemy.exc import DBAPIError
 
 from src.database import create_sql_engine
 
-
 ADMIN_DATABASE_URL = os.getenv("POSTGRES_TEST_DATABASE_URL")
 API_DATABASE_URL = os.getenv("POSTGRES_TEST_API_DATABASE_URL")
 WORKER_DATABASE_URL = os.getenv("POSTGRES_TEST_WORKER_DATABASE_URL")
@@ -111,10 +110,14 @@ def test_api_role_requires_and_honors_rls_context(admin_engine, api_engine) -> N
 
     try:
         with api_engine.begin() as connection:
-            rows = connection.execute(
-                text("select id from public.jobs where id in (:job_a, :job_b) order by id"),
-                {"job_a": job_a, "job_b": job_b},
-            ).scalars().all()
+            rows = (
+                connection.execute(
+                    text("select id from public.jobs where id in (:job_a, :job_b) order by id"),
+                    {"job_a": job_a, "job_b": job_b},
+                )
+                .scalars()
+                .all()
+            )
             assert rows == []
 
         with api_engine.begin() as connection:
@@ -122,10 +125,14 @@ def test_api_role_requires_and_honors_rls_context(admin_engine, api_engine) -> N
                 text("select set_config('app.current_user_id', :owner_id, true)"),
                 {"owner_id": user_a},
             )
-            rows = connection.execute(
-                text("select id from public.jobs where id in (:job_a, :job_b) order by id"),
-                {"job_a": job_a, "job_b": job_b},
-            ).scalars().all()
+            rows = (
+                connection.execute(
+                    text("select id from public.jobs where id in (:job_a, :job_b) order by id"),
+                    {"job_a": job_a, "job_b": job_b},
+                )
+                .scalars()
+                .all()
+            )
             assert _uuid_strings(rows) == [job_a]
     finally:
         with admin_engine.begin() as connection:

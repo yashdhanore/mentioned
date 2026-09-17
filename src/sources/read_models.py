@@ -49,7 +49,9 @@ def _source_items_response(session: Session, source_id: UUID) -> list[SourceItem
 def saved_source_response(session: Session, saved_source: SavedSource) -> SavedSourceResponse:
     source = session.get(Source, saved_source.source_id)
     if source is None:
-        raise RuntimeError(f"Saved source {saved_source.id} points to missing source {saved_source.source_id}")
+        raise RuntimeError(
+            f"Saved source {saved_source.id} points to missing source {saved_source.source_id}"
+        )
     return SavedSourceResponse(
         id=str(saved_source.id),
         source_id=str(source.id),
@@ -65,7 +67,9 @@ def saved_source_response(session: Session, saved_source: SavedSource) -> SavedS
     )
 
 
-def saved_source_list_response(session: Session, owner_id: str, limit: int = 50) -> list[SavedSourceResponse]:
+def saved_source_list_response(
+    session: Session, owner_id: str, limit: int = 50
+) -> list[SavedSourceResponse]:
     owner_uuid = parse_uuid(owner_id)
     saved_sources = list(
         session.exec(

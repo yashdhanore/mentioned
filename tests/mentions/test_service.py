@@ -5,7 +5,6 @@ from uuid import UUID
 import pytest
 from sqlmodel import Session, SQLModel, create_engine
 
-from src.jobs.models import Job, JobStatus
 from src.jobs.service import create_job
 from src.mentions.models import Mention
 from src.mentions.service import delete_mention, list_mentions, update_mention

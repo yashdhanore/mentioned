@@ -2,7 +2,10 @@ import type { ReactNode } from 'react';
 import { Pressable, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
-import { styles } from '@/styles';
+import { styles as sharedStyles } from '@/styles';
+import { styles as localStyles } from './ui.styles';
+
+const styles = { ...sharedStyles, ...localStyles };
 
 type ButtonProps = {
   label: string;

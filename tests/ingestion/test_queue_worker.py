@@ -1,18 +1,20 @@
 from __future__ import annotations
 
-from datetime import datetime
 import logging
 from uuid import UUID, uuid4
 
 from sqlmodel import Session, SQLModel, create_engine
 
 from src.config import Settings
-from src.ingestion.queue_worker import process_extract_job_message, process_source_extraction_message
+from src.ingestion.queue_worker import (
+    process_extract_job_message,
+    process_source_extraction_message,
+)
 from src.jobs.models import Job, JobStatus
 from src.jobs.queue import ExtractJobMessage
 from src.sources.models import Source, SourceStatus
 from src.sources.queue import SourceExtractionMessage
-
+from src.timeutils import utc_now
 
 OWNER = UUID("00000000-0000-4000-8000-000000000001")
 
@@ -24,7 +26,7 @@ class FakeIngestion:
     def process_job(self, session: Session, job: Job) -> None:
         self.processed.append(job.id)
         job.status = JobStatus.DONE
-        job.finished_at = datetime.utcnow()
+        job.finished_at = utc_now()
         job.locked_by = None
         job.locked_at = None
         session.add(job)
@@ -38,7 +40,7 @@ class FakeSourceIngestion:
     def process_source(self, session: Session, source: Source) -> bool:
         self.processed.append(source.id)
         source.status = SourceStatus.DONE
-        source.processed_at = datetime.utcnow()
+        source.processed_at = utc_now()
         session.add(source)
         session.commit()
         return True
@@ -57,8 +59,8 @@ def _job(engine, *, status: JobStatus = JobStatus.PENDING, locked_by: str | None
             source_url="https://www.instagram.com/reel/QUEUE/",
             status=status,
             locked_by=locked_by,
-            locked_at=datetime.utcnow() if locked_by else None,
-            heartbeat_at=datetime.utcnow() if locked_by else None,
+            locked_at=utc_now() if locked_by else None,
+            heartbeat_at=utc_now() if locked_by else None,
         )
         session.add(job)
         session.commit()
@@ -269,7 +271,9 @@ def test_queue_worker_archives_missing_source(monkeypatch):
     def fake_archive(_session: Session, msg_id: int) -> None:
         archived.append(msg_id)
 
-    monkeypatch.setattr("src.ingestion.queue_worker.archive_source_extraction_message", fake_archive)
+    monkeypatch.setattr(
+        "src.ingestion.queue_worker.archive_source_extraction_message", fake_archive
+    )
 
     try:
         process_source_extraction_message(
@@ -293,7 +297,9 @@ def test_queue_worker_archives_non_pending_source(monkeypatch):
     def fake_archive(_session: Session, msg_id: int) -> None:
         archived.append(msg_id)
 
-    monkeypatch.setattr("src.ingestion.queue_worker.archive_source_extraction_message", fake_archive)
+    monkeypatch.setattr(
+        "src.ingestion.queue_worker.archive_source_extraction_message", fake_archive
+    )
 
     try:
         source = _source(engine, status=SourceStatus.DONE)
@@ -320,7 +326,9 @@ def test_queue_worker_leaves_processing_source_unarchived(monkeypatch, caplog):
     def fake_archive(_session: Session, msg_id: int) -> None:
         archived.append(msg_id)
 
-    monkeypatch.setattr("src.ingestion.queue_worker.archive_source_extraction_message", fake_archive)
+    monkeypatch.setattr(
+        "src.ingestion.queue_worker.archive_source_extraction_message", fake_archive
+    )
 
     try:
         source = _source(engine, status=SourceStatus.PROCESSING)
@@ -349,8 +357,12 @@ def test_queue_worker_leaves_failed_source_claim_race_unarchived(monkeypatch):
     def fake_archive(_session: Session, msg_id: int) -> None:
         archived.append(msg_id)
 
-    monkeypatch.setattr("src.ingestion.queue_worker.archive_source_extraction_message", fake_archive)
-    monkeypatch.setattr("src.ingestion.queue_worker.claim_source_for_processing", lambda *args: None)
+    monkeypatch.setattr(
+        "src.ingestion.queue_worker.archive_source_extraction_message", fake_archive
+    )
+    monkeypatch.setattr(
+        "src.ingestion.queue_worker.claim_source_for_processing", lambda *args: None
+    )
 
     try:
         source = _source(engine)
@@ -383,7 +395,9 @@ def test_queue_worker_marks_source_failed_and_archives_when_processor_raises(mon
         order.append(("archive", refreshed.status if refreshed else None))
         archived.append(msg_id)
 
-    monkeypatch.setattr("src.ingestion.queue_worker.archive_source_extraction_message", fake_archive)
+    monkeypatch.setattr(
+        "src.ingestion.queue_worker.archive_source_extraction_message", fake_archive
+    )
 
     try:
         source = _source(engine)
@@ -419,7 +433,9 @@ def test_queue_worker_leaves_source_message_unarchived_when_attempt_not_finalize
     def fake_archive(_session: Session, msg_id: int) -> None:
         archived.append(msg_id)
 
-    monkeypatch.setattr("src.ingestion.queue_worker.archive_source_extraction_message", fake_archive)
+    monkeypatch.setattr(
+        "src.ingestion.queue_worker.archive_source_extraction_message", fake_archive
+    )
 
     try:
         source = _source(engine)
@@ -454,7 +470,9 @@ def test_queue_worker_archives_message_after_source_status_is_saved(monkeypatch,
         archived.append(msg_id)
 
     ingestion.process_source = fake_process  # type: ignore[method-assign]
-    monkeypatch.setattr("src.ingestion.queue_worker.archive_source_extraction_message", fake_archive)
+    monkeypatch.setattr(
+        "src.ingestion.queue_worker.archive_source_extraction_message", fake_archive
+    )
 
     try:
         source = _source(engine)

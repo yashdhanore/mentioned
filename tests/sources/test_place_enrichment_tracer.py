@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
 from uuid import UUID
 
 import pytest
@@ -11,7 +10,7 @@ from src.extraction.schemas import ExtractedMention, PipelineResult
 from src.ingestion.source_processor import SourceIngestion
 from src.places.schemas import GooglePlace
 from src.sources.models import SavedSource, Source, SourceStatus
-
+from src.timeutils import utc_now
 
 pytestmark = pytest.mark.asyncio
 TEST_USER_UUID = UUID("00000000-0000-4000-8000-000000000001")
@@ -54,7 +53,7 @@ def _saved_pending_source(session: Session, external_id: str) -> SavedSource:
     saved = SavedSource(
         owner_id=TEST_USER_UUID,
         source_id=source.id,
-        created_at=datetime.utcnow(),
+        created_at=utc_now(),
     )
     session.add(saved)
     session.commit()
@@ -101,8 +100,12 @@ async def test_mixed_source_tracer_book_place_product_over_http(client, session:
     SourceIngestion(
         extraction_runner=lambda _url: PipelineResult(
             mentions=[
-                ExtractedMention(title="Atomic Habits", author="James Clear", category="book", confidence=0.9),
-                ExtractedMention(title="Cafe Nero", category="place", confidence=0.8, location_hint="London"),
+                ExtractedMention(
+                    title="Atomic Habits", author="James Clear", category="book", confidence=0.9
+                ),
+                ExtractedMention(
+                    title="Cafe Nero", category="place", confidence=0.8, location_hint="London"
+                ),
                 ExtractedMention(title="Oura Ring", category="product", confidence=0.9),
             ],
         ),

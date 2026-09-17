@@ -3,10 +3,10 @@ from __future__ import annotations
 import json
 import logging
 import re
-from dataclasses import dataclass
-from pathlib import Path
 import shutil
 import subprocess
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
@@ -78,10 +78,7 @@ def _redact_signed_urls(message: str) -> str:
 def _default_format_selector(max_file_bytes: int) -> str:
     size_limit = _yt_dlp_size_limit(max_file_bytes)
     return (
-        f"best[filesize<={size_limit}]/"
-        f"best[filesize_approx<={size_limit}]/"
-        "best[height<=720]/"
-        "worst"
+        f"best[filesize<={size_limit}]/best[filesize_approx<={size_limit}]/best[height<=720]/worst"
     )
 
 
@@ -269,8 +266,7 @@ def _check_size_limits(paths: list[Path], *, max_file_bytes: int, max_total_byte
         total_bytes += file_bytes
     if total_bytes > max_total_bytes:
         raise RuntimeError(
-            f"Downloaded media total exceeds limit of {max_total_bytes} bytes "
-            f"({total_bytes} bytes)"
+            f"Downloaded media total exceeds limit of {max_total_bytes} bytes ({total_bytes} bytes)"
         )
 
 

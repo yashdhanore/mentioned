@@ -4,9 +4,8 @@ import pytest
 import respx
 from httpx import Response
 
-from src.extraction.google_books import GOOGLE_BOOKS_API, enrich_book
 from src.config import get_settings
-
+from src.extraction.google_books import GOOGLE_BOOKS_API, enrich_book
 
 pytestmark = pytest.mark.asyncio
 

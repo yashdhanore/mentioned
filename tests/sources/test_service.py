@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, timedelta
 from uuid import UUID
 
 import pytest
@@ -22,7 +22,7 @@ from src.sources.service import (
     retry_failed_saved_source,
     save_source_for_user,
 )
-
+from src.timeutils import utc_now
 
 OWNER = "00000000-0000-4000-8000-000000000001"
 OWNER_UUID = UUID(OWNER)
@@ -31,10 +31,10 @@ OTHER_OWNER = "00000000-0000-4000-8000-000000000002"
 
 def test_increment_retry_window_handles_timezone_aware_started_at() -> None:
     # Postgres returns timezone-aware datetimes for DateTime(timezone=True)
-    # columns, while datetime.utcnow() is naive. The window comparison must not
+    # columns, while utc_now() is naive. The window comparison must not
     # raise "can't compare offset-naive and offset-aware datetimes".
-    now = datetime.utcnow()
-    aware_started_at = (now - timedelta(seconds=10)).replace(tzinfo=timezone.utc)
+    now = utc_now()
+    aware_started_at = (now - timedelta(seconds=10)).replace(tzinfo=UTC)
 
     started_at, count = _increment_retry_window(
         aware_started_at,
@@ -50,8 +50,8 @@ def test_increment_retry_window_handles_timezone_aware_started_at() -> None:
 
 
 def test_increment_retry_window_resets_when_aware_started_at_is_stale() -> None:
-    now = datetime.utcnow()
-    aware_started_at = (now - timedelta(minutes=5)).replace(tzinfo=timezone.utc)
+    now = utc_now()
+    aware_started_at = (now - timedelta(minutes=5)).replace(tzinfo=UTC)
 
     started_at, count = _increment_retry_window(
         aware_started_at,
@@ -102,9 +102,7 @@ def test_save_source_for_user_reuses_existing_source_and_saved_source(
     assert len(enqueued) == 1
 
 
-def test_save_source_for_user_rolls_back_when_enqueue_fails(
-    session: Session, monkeypatch
-) -> None:
+def test_save_source_for_user_rolls_back_when_enqueue_fails(session: Session, monkeypatch) -> None:
     def fail_enqueue(_session: Session, _source_id: UUID) -> None:
         raise RuntimeError("queue unavailable")
 
@@ -180,9 +178,7 @@ def test_complete_source_processing_marks_done_and_persists_items(session: Sessi
     assert updated_source.status == SourceStatus.DONE
     assert updated_source.error_message is None
     assert updated_source.processed_at is not None
-    persisted_item = session.exec(
-        select(SourceItem).where(SourceItem.source_id == source.id)
-    ).one()
+    persisted_item = session.exec(select(SourceItem).where(SourceItem.source_id == source.id)).one()
     assert persisted_item.title == "Atomic Habits"
 
 
@@ -200,7 +196,9 @@ def test_complete_source_processing_persists_skip_reason(session: Session) -> No
     assert updated_source.skip_reason == "dance clip"
 
 
-def test_complete_source_processing_clears_skip_reason_on_normal_completion(session: Session) -> None:
+def test_complete_source_processing_clears_skip_reason_on_normal_completion(
+    session: Session,
+) -> None:
     saved = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/CLEARSKIP/")
     source = claim_source_for_processing(session, saved.source_id)
     assert source is not None
@@ -226,7 +224,7 @@ def test_complete_source_processing_rejects_stale_attempt(session: Session) -> N
         current_source = current_session.get(Source, source_id)
         assert current_source is not None
         current_source.status = SourceStatus.PROCESSING
-        current_source.processing_started_at = datetime.utcnow() + timedelta(seconds=1)
+        current_source.processing_started_at = utc_now() + timedelta(seconds=1)
         current_source.thumbnail_url = "https://cdn.example/current.jpg"
         current_session.add(current_source)
         current_session.commit()
@@ -245,7 +243,9 @@ def test_complete_source_processing_rejects_stale_attempt(session: Session) -> N
 
     with Session(bind) as check_session:
         refreshed = check_session.get(Source, source_id)
-        items = list(check_session.exec(select(SourceItem).where(SourceItem.source_id == source_id)).all())
+        items = list(
+            check_session.exec(select(SourceItem).where(SourceItem.source_id == source_id)).all()
+        )
     assert completed is False
     assert refreshed is not None
     assert refreshed.status == SourceStatus.PROCESSING
@@ -280,7 +280,7 @@ def test_fail_source_processing_rejects_stale_attempt(session: Session) -> None:
         current_source = current_session.get(Source, source_id)
         assert current_source is not None
         current_source.status = SourceStatus.DONE
-        current_source.processed_at = datetime.utcnow()
+        current_source.processed_at = utc_now()
         current_source.error_message = None
         current_session.add(current_source)
         current_session.commit()
@@ -303,7 +303,7 @@ def test_recover_stale_sources_resets_old_processing_sources(session: Session) -
         external_id="OLD",
         canonical_url="https://www.instagram.com/reel/OLD/",
         status=SourceStatus.PROCESSING,
-        processing_started_at=datetime.utcnow() - timedelta(minutes=30),
+        processing_started_at=utc_now() - timedelta(minutes=30),
     )
     fresh_source = Source(
         source_key="instagram:reel:FRESH",
@@ -312,7 +312,7 @@ def test_recover_stale_sources_resets_old_processing_sources(session: Session) -
         external_id="FRESH",
         canonical_url="https://www.instagram.com/reel/FRESH/",
         status=SourceStatus.PROCESSING,
-        processing_started_at=datetime.utcnow(),
+        processing_started_at=utc_now(),
     )
     session.add(old_source)
     session.add(fresh_source)
@@ -365,8 +365,8 @@ def test_retry_failed_saved_source_requeues_and_clears_failure(
     assert source is not None
     source.status = SourceStatus.FAILED
     source.error_message = "network timeout"
-    source.processing_started_at = datetime.utcnow() - timedelta(minutes=5)
-    source.processed_at = datetime.utcnow()
+    source.processing_started_at = utc_now() - timedelta(minutes=5)
+    source.processed_at = utc_now()
     session.add(source)
     session.commit()
     enqueued.clear()
@@ -494,7 +494,7 @@ def test_count_active_saved_sources(session: Session) -> None:
 
 
 def test_count_saved_sources_created_since(session: Session) -> None:
-    now = datetime.utcnow()
+    now = utc_now()
     recent = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/RECENT/")
     old = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/OLD/")
     other = save_source_for_user(session, OTHER_OWNER, "https://www.instagram.com/reel/OTHER/")
@@ -510,11 +510,13 @@ def test_count_saved_sources_created_since(session: Session) -> None:
 
 
 def test_count_saved_source_retry_attempts_since_counts_attempt_windows(session: Session) -> None:
-    now = datetime.utcnow()
+    now = utc_now()
     first = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/RETRYCOUNT1/")
     second = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/RETRYCOUNT2/")
     old = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/OLDRETRYCOUNT/")
-    other = save_source_for_user(session, OTHER_OWNER, "https://www.instagram.com/reel/OTHERRETRYCOUNT/")
+    other = save_source_for_user(
+        session, OTHER_OWNER, "https://www.instagram.com/reel/OTHERRETRYCOUNT/"
+    )
 
     first.retry_burst_started_at = now - timedelta(seconds=20)
     first.retry_burst_count = 2

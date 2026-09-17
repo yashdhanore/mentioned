@@ -2,7 +2,10 @@ import { Image, Pressable, Text, View } from 'react-native';
 
 import type { Capture } from '@/captures';
 import { AppMark } from '@/components/ui';
-import { styles } from '@/styles';
+import { styles as sharedStyles } from '@/styles';
+import { styles as localStyles } from './reel-tile.styles';
+
+const styles = { ...sharedStyles, ...localStyles };
 
 export function ReelTile({
   capture,

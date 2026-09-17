@@ -40,5 +40,7 @@ def test_identify_source_rejects_unsupported_url() -> None:
 
 
 def test_identify_source_rejects_instagram_profile_path() -> None:
-    with pytest.raises(SourceUrlError, match="Only public Instagram Reel and post URLs are supported"):
+    with pytest.raises(
+        SourceUrlError, match="Only public Instagram Reel and post URLs are supported"
+    ):
         identify_source("https://www.instagram.com/someone/", require_https=True)

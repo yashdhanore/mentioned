@@ -7,10 +7,9 @@ Create Date: 2026-05-14
 
 from __future__ import annotations
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
-
 
 revision = "20260514_0009"
 down_revision = "20260513_0008"
@@ -131,18 +130,26 @@ def upgrade() -> None:
 
     op.execute("GRANT USAGE ON SCHEMA pgmq TO mentioned_worker")
     op.execute("GRANT EXECUTE ON FUNCTION pgmq.send(text, jsonb, integer) TO mentioned_worker")
-    op.execute("GRANT EXECUTE ON FUNCTION pgmq.read(text, integer, integer, jsonb) TO mentioned_worker")
+    op.execute(
+        "GRANT EXECUTE ON FUNCTION pgmq.read(text, integer, integer, jsonb) TO mentioned_worker"
+    )
     op.execute("GRANT EXECUTE ON FUNCTION pgmq.archive(text, bigint) TO mentioned_worker")
     op.execute("GRANT USAGE ON TYPE pgmq.message_record TO mentioned_worker")
-    op.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE pgmq.q_push_notifications TO mentioned_worker")
+    op.execute(
+        "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE pgmq.q_push_notifications TO mentioned_worker"
+    )
     op.execute("GRANT SELECT, INSERT ON TABLE pgmq.a_push_notifications TO mentioned_worker")
     op.execute("GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA pgmq TO mentioned_worker")
 
 
 def downgrade() -> None:
     op.execute("REVOKE SELECT, INSERT ON TABLE pgmq.a_push_notifications FROM mentioned_worker")
-    op.execute("REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLE pgmq.q_push_notifications FROM mentioned_worker")
-    op.execute("REVOKE EXECUTE ON FUNCTION pgmq.read(text, integer, integer, jsonb) FROM mentioned_worker")
+    op.execute(
+        "REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLE pgmq.q_push_notifications FROM mentioned_worker"
+    )
+    op.execute(
+        "REVOKE EXECUTE ON FUNCTION pgmq.read(text, integer, integer, jsonb) FROM mentioned_worker"
+    )
     op.execute("REVOKE EXECUTE ON FUNCTION pgmq.send(text, jsonb, integer) FROM mentioned_worker")
     op.execute("select pgmq.drop_queue('push_notifications')")
 

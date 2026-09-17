@@ -147,7 +147,9 @@ def test_download_assets_with_metadata_caption_none_when_absent(monkeypatch, tmp
     assert assets.caption is None
 
 
-def test_download_assets_with_metadata_prefers_channel_over_numeric_uploader_id(monkeypatch, tmp_path):
+def test_download_assets_with_metadata_prefers_channel_over_numeric_uploader_id(
+    monkeypatch, tmp_path
+):
     media_file = tmp_path / "media_001.mp4"
 
     def fake_run(args, **kwargs):
@@ -173,7 +175,9 @@ def test_download_assets_with_metadata_prefers_channel_over_numeric_uploader_id(
     assert assets.source_creator_handle == "lit.by.adam"
 
 
-def test_download_assets_with_metadata_does_not_infer_handle_from_display_name(monkeypatch, tmp_path):
+def test_download_assets_with_metadata_does_not_infer_handle_from_display_name(
+    monkeypatch, tmp_path
+):
     media_file = tmp_path / "media_001.mp4"
 
     def fake_run(args, **kwargs):

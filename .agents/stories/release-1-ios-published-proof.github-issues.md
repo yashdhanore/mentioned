@@ -1,6 +1,6 @@
 # GitHub Issue Manifest: Release 1 iOS-First Published Proof
 
-Source PRD: `docs/prds/2026-05-28-release-1-ios-published-proof.md`
+Source PRD: `docs/prds/2026-05-28-release-1-ios-published-proof.md` (removed in a later repo cleanup; `docs/prds/` no longer exists).
 Created: 2026-05-28
 Status: GitHub issues created for approved substantive work. Manifest issue 11 skipped as completed by creation run.
 
@@ -352,7 +352,7 @@ Review and tighten backend readiness for a small public iOS proof. The goal is n
 
 ## Technical Notes
 
-- Likely files: `src/config.py`, `src/jobs/router.py`, `src/worker.py`, `README.md`, `docs/render-supabase-deploy.md`, `scripts/check_release_env.py`, `scripts/smoke_job_flow.py`.
+- Likely files: `src/config.py`, `src/jobs/router.py`, `src/worker.py`, `README.md` (deploy guidance later consolidated here from `docs/render-supabase-deploy.md`), `scripts/check_release_env.py`, `scripts/smoke_job_flow.py`.
 - Patterns to follow: existing Render/Supabase deployment guidance and current job quota checks.
 - Dependencies: none, but should be completed before App Store submission.
 

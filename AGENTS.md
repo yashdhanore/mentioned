@@ -29,7 +29,8 @@ Mentioned is a FastAPI, Supabase, Expo, and Astro product for extracting books, 
 - Run the API: `fastapi dev`
 - Run the worker: `mentioned-worker` or `python -m src.worker`
 - Run backend tests: `pytest`
-- Run mobile checks from `mobile/`: `npm run typecheck`
+- Lint/format the backend: `ruff check .` and `ruff format --check .`
+- Run mobile checks from `mobile/`: `npm test` (focused scripts plus `typecheck`)
 - Run web checks from `web/`: `npm test`
 
 ## Shipping Expectations

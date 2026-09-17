@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
 from uuid import UUID, uuid4
 
 import pytest
@@ -11,7 +10,7 @@ from src.push.expo import PushDeliveryResult, PushDeliveryRetryableError
 from src.push.models import PushToken
 from src.push.queue import PushNotificationMessage
 from src.push.worker import process_push_notification_message
-
+from src.timeutils import utc_now
 
 OWNER = UUID("00000000-0000-4000-8000-000000000001")
 OTHER_OWNER = UUID("00000000-0000-4000-8000-000000000002")
@@ -101,7 +100,7 @@ def test_push_worker_sends_active_owner_tokens_and_disables_invalid(monkeypatch,
                 owner_id=OWNER,
                 source_url="https://www.instagram.com/reel/DONE/",
                 status=status,
-                finished_at=datetime.utcnow(),
+                finished_at=utc_now(),
             )
             session.add(job)
             session.add(
@@ -123,7 +122,7 @@ def test_push_worker_sends_active_owner_tokens_and_disables_invalid(monkeypatch,
                     owner_id=OWNER,
                     expo_push_token="ExpoPushToken[disabled]",
                     platform="ios",
-                    disabled_at=datetime.utcnow(),
+                    disabled_at=utc_now(),
                 )
             )
             session.add(
@@ -177,7 +176,7 @@ def test_push_worker_retries_request_level_delivery_failure(monkeypatch):
                 owner_id=OWNER,
                 source_url="https://www.instagram.com/reel/DONE/",
                 status=JobStatus.DONE,
-                finished_at=datetime.utcnow(),
+                finished_at=utc_now(),
             )
             session.add(job)
             session.add(

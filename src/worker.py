@@ -9,7 +9,10 @@ from sqlmodel import Session
 from src.config import Settings, get_settings
 from src.database import check_worker_database_role, create_sql_engine, engine
 from src.ingestion.processor import default_ingestion
-from src.ingestion.queue_worker import process_extract_job_message, process_source_extraction_message
+from src.ingestion.queue_worker import (
+    process_extract_job_message,
+    process_source_extraction_message,
+)
 from src.jobs.models import Job
 from src.jobs.queue import read_extract_job_messages
 from src.jobs.service import claim_next_job, recover_stale_jobs
@@ -17,7 +20,6 @@ from src.push.queue import read_push_notification_messages
 from src.push.worker import process_push_notification_message
 from src.sources.queue import read_source_extraction_messages
 from src.sources.service import recover_stale_sources
-
 
 logger = logging.getLogger(__name__)
 

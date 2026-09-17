@@ -15,7 +15,6 @@ from src.auth.schemas import Caller
 from src.database import get_session
 from src.main import app
 
-
 TEST_ENGINE = create_engine(
     "sqlite://",
     connect_args={"check_same_thread": False},

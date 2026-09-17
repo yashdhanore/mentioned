@@ -8,7 +8,6 @@ from sqlmodel import Session, select
 
 from src.sources.models import SavedSource, Source, SourceItem, SourceStatus
 
-
 OWNER = UUID("00000000-0000-4000-8000-000000000001")
 
 

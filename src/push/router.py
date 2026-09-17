@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
+from src.auth.dependencies import AuthenticatedSessionDep as SessionDep
 from src.auth.dependencies import CallerDep
-from src.jobs.dependencies import SessionDep
 from src.push.schemas import (
     DisablePushTokenRequest,
     DisablePushTokenResponse,

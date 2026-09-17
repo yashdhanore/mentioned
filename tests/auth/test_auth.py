@@ -3,10 +3,7 @@ from __future__ import annotations
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from src.auth.dependencies import get_current_caller
-from src.auth.schemas import Caller
 from src.main import app
-
 
 pytestmark = pytest.mark.asyncio
 

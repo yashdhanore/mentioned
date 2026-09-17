@@ -7,6 +7,8 @@ from uuid import UUID, uuid4
 from sqlalchemy import JSON, Column, Index
 from sqlmodel import Field, SQLModel
 
+from src.timeutils import utc_now
+
 
 class Place(SQLModel, table=True):
     __tablename__ = "places"
@@ -32,5 +34,5 @@ class Place(SQLModel, table=True):
 
     raw_provider_payload: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
 
-    created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
-    updated_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
+    created_at: datetime = Field(default_factory=utc_now, nullable=False)
+    updated_at: datetime = Field(default_factory=utc_now, nullable=False)

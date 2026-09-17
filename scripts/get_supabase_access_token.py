@@ -1,16 +1,15 @@
 from __future__ import annotations
 
 import argparse
-from getpass import getpass
 import json
 import os
-from pathlib import Path
 import sys
+from getpass import getpass
+from pathlib import Path
 from typing import Any
 
-from dotenv import load_dotenv
 import httpx
-
+from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 
@@ -56,7 +55,10 @@ def fetch_access_token(args: argparse.Namespace) -> dict[str, Any]:
     )
     password = _password_from_args(args)
     if not password:
-        raise TokenError("Missing Supabase password. Pass --password, set SUPABASE_PASSWORD, or enter it at the prompt.")
+        raise TokenError(
+            "Missing Supabase password. Pass --password, set SUPABASE_PASSWORD, or enter it at "
+            "the prompt."
+        )
 
     response = httpx.post(
         f"{supabase_url}/auth/v1/token",
@@ -68,21 +70,33 @@ def fetch_access_token(args: argparse.Namespace) -> dict[str, Any]:
     try:
         payload = response.json()
     except json.JSONDecodeError as exc:
-        raise TokenError(f"Supabase returned non-JSON {response.status_code}: {response.text[:500]}") from exc
+        raise TokenError(
+            f"Supabase returned non-JSON {response.status_code}: {response.text[:500]}"
+        ) from exc
     if response.status_code >= 400:
-        raise TokenError(f"Supabase returned {response.status_code}: {json.dumps(payload, default=str)}")
+        raise TokenError(
+            f"Supabase returned {response.status_code}: {json.dumps(payload, default=str)}"
+        )
     if not isinstance(payload, dict) or not isinstance(payload.get("access_token"), str):
         raise TokenError("Supabase response did not include access_token")
     return payload
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Sign in to Supabase Auth and print a user access token.")
+    parser = argparse.ArgumentParser(
+        description="Sign in to Supabase Auth and print a user access token."
+    )
     parser.add_argument("--supabase-url", default=None, help="Defaults to SUPABASE_PROJECT_URL.")
     parser.add_argument("--anon-key", default=None, help="Defaults to SUPABASE_ANON_KEY.")
     parser.add_argument("--email", default=None, help="Defaults to SUPABASE_EMAIL.")
-    parser.add_argument("--password", default=None, help="Defaults to SUPABASE_PASSWORD, otherwise prompts securely.")
-    parser.add_argument("--json", action="store_true", help="Print the full Supabase Auth response as JSON.")
+    parser.add_argument(
+        "--password",
+        default=None,
+        help="Defaults to SUPABASE_PASSWORD, otherwise prompts securely.",
+    )
+    parser.add_argument(
+        "--json", action="store_true", help="Print the full Supabase Auth response as JSON."
+    )
     parser.add_argument("--timeout-seconds", type=float, default=30.0)
     return parser.parse_args()
 

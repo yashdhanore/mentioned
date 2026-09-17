@@ -4,7 +4,6 @@ import pytest
 
 from scripts import check_release_env
 
-
 VALID_ENV = {
     "APP_ENV": "production",
     "AUTH_MODE": "supabase",

@@ -8,7 +8,6 @@ import respx
 from src.config import AuthConfig, Settings
 from src.storage.thumbnails import store_job_thumbnail
 
-
 OWNER_ID = UUID("00000000-0000-4000-8000-000000000001")
 JOB_ID = UUID("11111111-1111-4111-8111-111111111111")
 RAW_URL = "https://scontent.cdninstagram.com/v/t51.2885-15/thumbnail.jpg"

@@ -2,6 +2,10 @@
 
 **GitHub Issue**: #22
 
+Note: `docs/release-1-backend-readiness.md`, `docs/render-supabase-deploy.md`, and
+`docs/beta-rls-option-b.md`, referenced below as they existed at the time of this report, were
+later consolidated into `README.md` in a repo cleanup (`chore/remove-bloat`) and no longer exist.
+
 ## Summary
 
 Added Release 1 backend readiness guardrails across validation scripts, smoke testing, worker logs,
