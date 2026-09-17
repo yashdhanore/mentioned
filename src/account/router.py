@@ -4,8 +4,8 @@ from fastapi import APIRouter, HTTPException, status
 
 from src.account.schemas import DeleteAccountResponse
 from src.account.service import delete_account_data, delete_supabase_auth_user
+from src.auth.dependencies import AuthenticatedSessionDep as SessionDep
 from src.auth.dependencies import CallerDep
-from src.jobs.dependencies import SessionDep
 
 router = APIRouter(tags=["account"])
 

@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import argparse
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import os
-from pathlib import Path
 import re
 import sys
 import tempfile
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 from typing import Any
 
 from google.genai.types import GenerateContentConfig
@@ -18,12 +18,11 @@ from src.extraction.download import download_assets_with_metadata
 from src.extraction.gemini import (
     EXTRACTION_PROMPT,
     MENTION_SCHEMA,
-    RETRYABLE_STATUS_CODES,
     RETRY_DELAYS,
+    RETRYABLE_STATUS_CODES,
     _get_client,
     upload_to_gemini,
 )
-
 
 DEFAULT_MODELS = ("gemini-2.5-flash", "gemini-2.5-flash-lite")
 PRICING_SOURCE = "Gemini Developer API paid tier, standard mode, checked 2026-06-21"
@@ -115,7 +114,9 @@ def _normalize_source_urls(args: argparse.Namespace) -> list[str]:
         normalized.append(source_url)
         seen.add(source_url)
     if not normalized:
-        raise CompareError("Missing source URL. Pass one or more URLs, set SOURCE_URLS, or set SOURCE_URL.")
+        raise CompareError(
+            "Missing source URL. Pass one or more URLs, set SOURCE_URLS, or set SOURCE_URL."
+        )
     return normalized
 
 
@@ -159,9 +160,8 @@ def _usage_token_summary(usage: dict[str, Any] | None) -> dict[str, Any] | None:
     if not usage:
         return None
     prompt_by_modality = _details_by_modality(usage.get("prompt_tokens_details"))
-    output_tokens = (
-        _int_value(usage.get("candidates_token_count"))
-        + _int_value(usage.get("thoughts_token_count"))
+    output_tokens = _int_value(usage.get("candidates_token_count")) + _int_value(
+        usage.get("thoughts_token_count")
     )
     return {
         "prompt_tokens": _int_value(usage.get("prompt_token_count")),
@@ -185,7 +185,9 @@ def _estimate_cost(model: str, usage: dict[str, Any] | None) -> dict[str, Any] |
     non_audio_input_tokens = max(prompt_tokens - audio_input_tokens, 0)
     output_tokens = token_summary["output_billable_tokens"]
 
-    input_text_image_video_usd = non_audio_input_tokens * rates["input_text_image_video"] / 1_000_000
+    input_text_image_video_usd = (
+        non_audio_input_tokens * rates["input_text_image_video"] / 1_000_000
+    )
     input_audio_usd = audio_input_tokens * rates["input_audio"] / 1_000_000
     output_usd = output_tokens * rates["output"] / 1_000_000
     total_usd = input_text_image_video_usd + input_audio_usd + output_usd
@@ -281,7 +283,9 @@ def _run_model(paths: list[Path], model: str) -> dict[str, Any]:
     }
 
 
-def _compare_in_dir(source_url: str, models: list[str], media_dir: Path, *, keep_media: bool) -> dict[str, Any]:
+def _compare_in_dir(
+    source_url: str, models: list[str], media_dir: Path, *, keep_media: bool
+) -> dict[str, Any]:
     download_started = time.monotonic()
     assets = download_assets_with_metadata(source_url, media_dir)
     download_seconds = _round_seconds(time.monotonic() - download_started)
@@ -307,14 +311,8 @@ def _compare_in_dir(source_url: str, models: list[str], media_dir: Path, *, keep
         return payload
 
     with ThreadPoolExecutor(max_workers=len(models)) as executor:
-        futures = {
-            executor.submit(_run_model, paths, model): model
-            for model in models
-        }
-        results_by_model = {
-            futures[future]: future.result()
-            for future in as_completed(futures)
-        }
+        futures = {executor.submit(_run_model, paths, model): model for model in models}
+        results_by_model = {futures[future]: future.result() for future in as_completed(futures)}
 
     payload["results"] = [results_by_model[model] for model in models]
     return payload
@@ -381,11 +379,15 @@ def _summarize_batch(sources: list[dict[str, Any]], models: list[str]) -> dict[s
             token_summary = result.get("token_summary")
             if isinstance(token_summary, dict):
                 item["prompt_tokens"] += int(token_summary.get("prompt_tokens") or 0)
-                item["output_billable_tokens"] += int(token_summary.get("output_billable_tokens") or 0)
+                item["output_billable_tokens"] += int(
+                    token_summary.get("output_billable_tokens") or 0
+                )
                 item["total_tokens"] += int(token_summary.get("total_tokens") or 0)
 
             estimated_cost = result.get("estimated_cost")
-            if isinstance(estimated_cost, dict) and isinstance(estimated_cost.get("total_usd"), (int, float)):
+            if isinstance(estimated_cost, dict) and isinstance(
+                estimated_cost.get("total_usd"), (int, float)
+            ):
                 item["estimated_cost_usd"] += float(estimated_cost["total_usd"])
             elif result.get("ok") is True:
                 item["cost_estimate_missing"] = True
@@ -431,14 +433,28 @@ def compare_sources(
                     _compare_in_dir(source_url, model_names, source_media_dir, keep_media=True)
                 )
             except Exception as exc:
-                sources.append({"source_url": source_url, "download_error": f"{type(exc).__name__}: {exc}", "results": []})
+                sources.append(
+                    {
+                        "source_url": source_url,
+                        "download_error": f"{type(exc).__name__}: {exc}",
+                        "results": [],
+                    }
+                )
     else:
         for source_url in source_urls:
             with tempfile.TemporaryDirectory() as tmp:
                 try:
-                    sources.append(_compare_in_dir(source_url, model_names, Path(tmp), keep_media=False))
+                    sources.append(
+                        _compare_in_dir(source_url, model_names, Path(tmp), keep_media=False)
+                    )
                 except Exception as exc:
-                    sources.append({"source_url": source_url, "download_error": f"{type(exc).__name__}: {exc}", "results": []})
+                    sources.append(
+                        {
+                            "source_url": source_url,
+                            "download_error": f"{type(exc).__name__}: {exc}",
+                            "results": [],
+                        }
+                    )
 
     return {
         "models": model_names,
@@ -477,7 +493,10 @@ def parse_args() -> argparse.Namespace:
         "--media-dir",
         type=Path,
         default=None,
-        help="Directory for downloaded media. Multiple sources use source_001, source_002, ... subdirectories.",
+        help=(
+            "Directory for downloaded media. Multiple sources use source_001, source_002, "
+            "... subdirectories."
+        ),
     )
     parser.add_argument(
         "--output",

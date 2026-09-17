@@ -11,10 +11,7 @@ from src.mentions.models import Mention
 def job_list_response(session: Session, owner_id: str, limit: int = 50) -> list[JobListItem]:
     owner_uuid = parse_uuid(owner_id)
     stmt = (
-        select(Job)
-        .where(Job.owner_id == owner_uuid)
-        .order_by(Job.created_at.desc())
-        .limit(limit)
+        select(Job).where(Job.owner_id == owner_uuid).order_by(Job.created_at.desc()).limit(limit)
     )
     jobs = list(session.exec(stmt).all())
     return [
@@ -33,7 +30,7 @@ def job_list_response(session: Session, owner_id: str, limit: int = 50) -> list[
 def job_detail_response(session: Session, job: Job) -> JobResponse:
     mentions = list(
         session.exec(
-            select(Mention).where(Mention.job_id == job.id, Mention.is_deleted == False)
+            select(Mention).where(Mention.job_id == job.id, Mention.is_deleted.is_(False))
         ).all()
     )
     return JobResponse(

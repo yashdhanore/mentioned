@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from uuid import UUID
 
 import pytest
@@ -13,12 +13,12 @@ from src.jobs.service import (
     complete_job,
     count_active_jobs,
     count_jobs_created_since,
-    create_queued_job,
     create_job,
+    create_queued_job,
     fail_job,
-    recover_stale_jobs,
 )
 from src.mentions.models import Mention
+from src.timeutils import utc_now
 
 
 @pytest.fixture
@@ -185,7 +185,7 @@ def test_count_active_jobs(session):
 
 
 def test_count_jobs_created_since(session):
-    now = datetime.utcnow()
+    now = utc_now()
     create_job(session, OWNER, "https://instagram.com/reel/A/")
     old = create_job(session, OWNER, "https://instagram.com/reel/B/")
     old.created_at = now - timedelta(days=2)

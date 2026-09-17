@@ -7,7 +7,10 @@ import { PlaceIcon, ProductIcon } from '@/components/icons';
 import { FadeInView } from '@/components/motion';
 import { SourceToBooksPreview } from '@/components/product-preview';
 import { BookSpine, BookSpineSkeleton, PrimaryButton, SecondaryButton } from '@/components/ui';
-import { styles } from '@/styles';
+import { styles as sharedStyles } from '@/styles';
+import { styles as localStyles } from './mentions.styles';
+
+const styles = { ...sharedStyles, ...localStyles };
 
 type MentionsListProps = {
   mentions: Mention[];

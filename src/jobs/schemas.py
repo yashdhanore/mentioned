@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class CreateJobRequest(BaseModel):
@@ -24,24 +23,24 @@ class DeleteJobResponse(BaseModel):
 
 class MentionInJob(BaseModel):
     id: str
-    book_id: Optional[str] = None
+    book_id: str | None = None
     title: str
-    author: Optional[str] = None
+    author: str | None = None
     category: str
-    confidence: Optional[float] = None
-    google_books_url: Optional[str] = None
-    cover_image_url: Optional[str] = None
+    confidence: float | None = None
+    google_books_url: str | None = None
+    cover_image_url: str | None = None
 
 
 class JobResponse(BaseModel):
     job_id: str
     status: str
     source_url: str
-    thumbnail_url: Optional[str] = None
-    source_creator_handle: Optional[str] = None
-    error_message: Optional[str] = None
+    thumbnail_url: str | None = None
+    source_creator_handle: str | None = None
+    error_message: str | None = None
     created_at: datetime
-    finished_at: Optional[datetime] = None
+    finished_at: datetime | None = None
     mentions: list[MentionInJob] = []
 
 
@@ -49,6 +48,6 @@ class JobListItem(BaseModel):
     job_id: str
     status: str
     source_url: str
-    thumbnail_url: Optional[str] = None
-    source_creator_handle: Optional[str] = None
+    thumbnail_url: str | None = None
+    source_creator_handle: str | None = None
     created_at: datetime

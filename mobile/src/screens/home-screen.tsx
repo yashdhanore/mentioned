@@ -6,7 +6,7 @@ import { PlusIcon, UserIcon } from '@/components/icons';
 import { FadeInView } from '@/components/motion';
 import { ReelTile } from '@/components/reel-tile';
 import { IconButton, InlineMessage, PrimaryButton, SecondaryButton } from '@/components/ui';
-import { styles } from '@/styles';
+import { styles } from './home-screen.styles';
 
 export function HomeScreen({
   captures,

@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from alembic import op
 
-
 revision = "20260505_0004"
 down_revision = "20260504_0003"
 branch_labels = None
@@ -93,7 +92,9 @@ def downgrade() -> None:
     op.execute("DROP POLICY IF EXISTS jobs_api_owner_insert ON public.jobs")
     op.execute("DROP POLICY IF EXISTS jobs_api_owner_select ON public.jobs")
 
-    op.execute("REVOKE ALL ON TABLE public.jobs, public.mentions FROM mentioned_api, mentioned_worker")
+    op.execute(
+        "REVOKE ALL ON TABLE public.jobs, public.mentions FROM mentioned_api, mentioned_worker"
+    )
 
     op.execute(
         """

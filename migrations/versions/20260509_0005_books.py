@@ -7,10 +7,9 @@ Create Date: 2026-05-09
 
 from __future__ import annotations
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
-
 
 revision = "20260509_0005"
 down_revision = "20260505_0004"
@@ -57,8 +56,18 @@ def upgrade() -> None:
         sa.Column("sale_info", JSONB, nullable=True),
         sa.Column("access_info", JSONB, nullable=True),
         sa.Column("raw_provider_payload", JSONB, nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
     )
     op.create_index(
         "books_provider_volume_unique_idx",

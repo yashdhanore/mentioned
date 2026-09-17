@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
 from sqlmodel import Session, select
 
 from src.books.models import Book
 from src.books.schemas import GoogleBook
+from src.timeutils import utc_now
 
 
 def _identifier_value(
@@ -25,7 +25,7 @@ def upsert_google_book(session: Session, google_book: GoogleBook) -> Book:
         Book.provider_volume_id == google_book.provider_volume_id,
     )
     book = session.exec(stmt).first()
-    now = datetime.utcnow()
+    now = utc_now()
 
     fields = {
         "provider": "google_books",

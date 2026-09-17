@@ -36,7 +36,7 @@ save -> extract -> revisit loop.
 
 ## Architecture Status: v1 (shipped) vs v2 (in progress)
 
-> **Read this first if you are an agent working on the backend.** As of 2026-06-13 the app is submitted to the App Store. The shipped mobile binary is frozen against the **v1 HTTP contract**, so v1 **user-visible behavior and HTTP contract must not change** — but internal worker/ingestion behavior *can* (see "Frozen = contract, not internals" below). v2 is being built *alongside* v1 in the same repo and same Supabase project — not as a replacement edit.
+> **Read this first if you are an agent working on the backend.** As of 2026-06-13 the app is submitted to the App Store. The shipped mobile binary is frozen against the **v1 HTTP contract**, so v1 **user-visible behavior and HTTP contract must not change** - but internal worker/ingestion behavior *can* (see "Frozen = contract, not internals" below). v2 is being built *alongside* v1 in the same repo and same Supabase project - not as a replacement edit.
 
 > **2026-06-22 update:** The saved-source cutover supersedes the old `/v1/jobs` and
 > `/v1/mentions` surface before public release. Treat the job/mention contract and `/v2`
@@ -44,34 +44,35 @@ save -> extract -> revisit loop.
 > calls them. Active app/backend work should target `/v1/saved-sources`, `sources`,
 > `source_items`, and `saved_sources`.
 
-**v1 — live. Frozen CONTRACT, not frozen internals:**
+**v1 - live. Frozen CONTRACT, not frozen internals:**
 - What is frozen: the **entire `/v1` HTTP contract and user-visible semantics** the submitted app calls (verified against `mobile/src/api.ts`). These are a promise to the published app and must not change:
-  - `/v1/jobs` (POST create, GET list) + `/v1/jobs/{id}` (GET, DELETE) — `src/jobs/router.py`
-  - `/v1/mentions/{id}` (DELETE) — mentions router
-  - `/v1/account` (DELETE) — `src/account/router.py`
-  - `/v1/push-tokens` (POST) and `/v1/push-tokens/disable` (POST) — push router
+  - `/v1/jobs` (POST create, GET list) + `/v1/jobs/{id}` (GET, DELETE) - `src/jobs/router.py`
+  - `/v1/mentions/{id}` (DELETE) - mentions router
+  - `/v1/account` (DELETE) - `src/account/router.py`
+  - `/v1/push-tokens` (POST) and `/v1/push-tokens/disable` (POST) - push router
   - Plus the Supabase **realtime subscription to `public.job_events`** the app relies on for completion refresh (`mobile/src/features/captures/use-captures.ts`). Changing the event shape or table is also a contract break.
 - What is NOT frozen: **internal worker/ingestion behavior is allowed and desired to change in place.** Hardening `public.jobs` claiming, timeouts, idempotency, and concurrency does not alter the contract, so it ships safely to v1 users now (see Axis A).
 - Data: `public.jobs`, `public.mentions` (`src/jobs/models.py`, `src/mentions/models.py`).
 - Ingestion: `extract_jobs` pgmq queue → single `mentioned-worker` Render service (`src/worker.py`).
 - Known brittleness (the thing Axis A fixes): single-worker SPOF, serial processing, no per-job timeout, unbounded per-job Gemini calls, non-idempotent mention writes.
 
-**v2 — in progress. Two decoupled axes, SHARED `public` data (no separate schema):**
+**v2 - in progress. Two decoupled axes, SHARED `public` data (no separate schema):**
 
-> A separate `v2` Postgres schema was considered and **rejected** after code review (2026-06-13). It caused split-brain data, a worker that couldn't write across schemas (FK to `public.jobs`), a dropped realtime `job_events` path, account-deletion leakage, quota bypass, and RLS/grant duplication — all for isolation the real goal never needed. The rejected plan is kept as a record at `docs/superpowers/plans/2026-06-13-v2-coexistence-foundation.md` (marked SUPERSEDED). **Do not resurrect the schema-split approach.**
+> A separate `v2` Postgres schema was considered and **rejected** after code review (2026-06-13). It caused split-brain data, a worker that couldn't write across schemas (FK to `public.jobs`), a dropped realtime `job_events` path, account-deletion leakage, quota bypass, and RLS/grant duplication - all for isolation the real goal never needed. The rejected plan's detailed writeup was removed in a later repo cleanup; this paragraph is the
+record. **Do not resurrect the schema-split approach.**
 
 The work splits along two independent axes:
 
-- **Axis A — Production ingestion hardening (invisible to the app, do FIRST — and note this is v1-compatible, NOT gated on `/v2`):** fix the brittle claim path **in place on `public.jobs`** — `FOR UPDATE SKIP LOCKED` claiming, per-job timeout, idempotent mention writes (unique constraint or upsert), bounded Gemini concurrency. Because the "10–15 users / high expense" concern is half reliability and half *cost*, this pass also includes the cost-control track: provider budget caps, per-user cost/retry ceilings, and per-extraction cost/latency instrumentation (see "Ingestion And Cost Control" below). All of it lives *behind* the HTTP contract, so it ships safely to v1 users now, no app release required.
-- **Axis B — `/v2` contract (visible to the app, do AFTER A is stable):** mount polished `/v2/*` endpoints in the same FastAPI app that **read/write the existing `public` tables**. Same auth, same data, same `job_events` realtime path, same RLS, same quotas — so none of the coexistence-tax bugs apply. The `/v2` prefix gates rollout: published app stays on `/v1`, new app build calls `/v2`. No data copy, no split-brain, because both contracts sit on one set of tables.
+- **Axis A - Production ingestion hardening (invisible to the app, do FIRST - and note this is v1-compatible, NOT gated on `/v2`):** fix the brittle claim path **in place on `public.jobs`** - `FOR UPDATE SKIP LOCKED` claiming, per-job timeout, idempotent mention writes (unique constraint or upsert), bounded Gemini concurrency. Because the "10–15 users / high expense" concern is half reliability and half *cost*, this pass also includes the cost-control track: provider budget caps, per-user cost/retry ceilings, and per-extraction cost/latency instrumentation (see "Ingestion And Cost Control" below). All of it lives *behind* the HTTP contract, so it ships safely to v1 users now, no app release required.
+- **Axis B - `/v2` contract (visible to the app, do AFTER A is stable):** mount polished `/v2/*` endpoints in the same FastAPI app that **read/write the existing `public` tables**. Same auth, same data, same `job_events` realtime path, same RLS, same quotas - so none of the coexistence-tax bugs apply. The `/v2` prefix gates rollout: published app stays on `/v1`, new app build calls `/v2`. No data copy, no split-brain, because both contracts sit on one set of tables.
 
-- **Guardrail:** Axis B builds `/v2` handlers in parallel modules; do NOT refactor the shared v1 code in `src/jobs/*` that the published app depends on. Axis A *does* modify shared worker/service code in place — that's intended, and it must keep v1 endpoints behaviorally identical (regression-test the v1 contract).
+- **Guardrail:** Axis B builds `/v2` handlers in parallel modules; do NOT refactor the shared v1 code in `src/jobs/*` that the published app depends on. Axis A *does* modify shared worker/service code in place - that's intended, and it must keep v1 endpoints behaviorally identical (regression-test the v1 contract).
 
 **Plans (sequenced):**
-1. *production-ingestion-hardening* (to be written) — Axis A, in place on `public.jobs`. v1-compatible, NOT gated on `/v2`. Covers claim safety + timeouts + idempotency + concurrency AND the cost-control track (budget caps, per-user ceilings, retry budgets, cost/latency instrumentation). **Start here; serves the actual goal.**
-2. *v2-contract* (to be written, needs an API design pass) — Axis B on shared `public` tables: improved request/response shapes, pagination, idempotency keys, error envelope.
-3. *mobile-v2-cutover* (to be written) — point new app build at `/v2`, submit, retire `/v1` routes once old-app traffic hits zero.
-- ⛔ `docs/superpowers/plans/2026-06-13-v2-coexistence-foundation.md` — SUPERSEDED/rejected (schema-split). Record only; do NOT execute or treat as active.
+1. *production-ingestion-hardening* (to be written) - Axis A, in place on `public.jobs`. v1-compatible, NOT gated on `/v2`. Covers claim safety + timeouts + idempotency + concurrency AND the cost-control track (budget caps, per-user ceilings, retry budgets, cost/latency instrumentation). **Start here; serves the actual goal.**
+2. *v2-contract* (to be written, needs an API design pass) - Axis B on shared `public` tables: improved request/response shapes, pagination, idempotency keys, error envelope.
+3. *mobile-v2-cutover* (to be written) - point new app build at `/v2`, submit, retire `/v1` routes once old-app traffic hits zero.
+- ⛔ v2-coexistence-foundation plan - SUPERSEDED/rejected (schema-split); writeup removed in cleanup, see the rejection note above. Do NOT execute or treat as active.
 
 ## Ideas To Preserve
 
@@ -91,7 +92,7 @@ The work splits along two independent axes:
 
 ### Job And Worker Architecture
 
-> Now being actioned — see "Architecture Status" above. Hardening specifics live in the planned *production-ingestion-hardening* plan (Axis A, in place on `public.jobs`). NOTE: the old `2026-06-13-v2-coexistence-foundation.md` is a REJECTED record — do not follow it.
+> Now being actioned - see "Architecture Status" above. Hardening specifics live in the planned *production-ingestion-hardening* plan (Axis A, in place on `public.jobs`). NOTE: the old `2026-06-13-v2-coexistence-foundation.md` is a REJECTED record - do not follow it.
 
 - Revisit the current always-running worker model.
 - Explore event-driven processing so extraction work starts when a job/event arrives.
@@ -109,7 +110,7 @@ The work splits along two independent axes:
 
 - Status: Accepted and implemented (first concrete step of the Ingestion And Cost Control
   direction above). 2026-06-24 update: launched directly in `active` mode (skips confident
-  `irrelevant`) rather than shadow — the user accepted the false-skip risk for immediate cost
+  `irrelevant`) rather than shadow - the user accepted the false-skip risk for immediate cost
   savings, relying on the conservative fail-open criteria. `shadow` remains available via
   `RELEVANCE_GATE_MODE` as the rollback/measurement lane if false-skips show up.
 - Skip visibility: a gated skip persists `sources.skip_reason` (Alembic
@@ -122,7 +123,7 @@ The work splits along two independent axes:
   plausibly contain no book/product/place, while protecting recall so users are never wrongly told
   "nothing found" on a real book reel.
 - Decision: Before the expensive multimodal extraction, run one cheap multimodal call on signals we
-  already fetch for free in the yt-dlp preflight — the caption (`description`/`title`) plus the post
+  already fetch for free in the yt-dlp preflight - the caption (`description`/`title`) plus the post
   thumbnail. The gate returns a three-way enum verdict (`relevant`/`irrelevant`/`uncertain`) via
   Gemini structured output, on a cheaper model (`GEMINI_GATE_MODEL`, default `gemini-2.5-flash-lite`).
   Lives in `src/extraction/relevance.py`, called from `src/extraction/pipeline.py` after download.
@@ -149,9 +150,8 @@ The work splits along two independent axes:
 
 ### 2026-06-25 - Place Enrichment Via Google Places (First Non-Book Enrichment)
 
-- Status: Accepted, pre-implementation. Spec:
-  `docs/superpowers/specs/2026-06-25-enrich-places-design.md`. Follows the 2026-06-25 surfacing
-  phase that made the mobile client type-neutral.
+- Status: Accepted, pre-implementation. Spec doc removed in a later repo cleanup; this note is the
+  record. Follows the 2026-06-25 surfacing phase that made the mobile client type-neutral.
 - Product constraint: Improves the save -> extract -> revisit loop by making a saved place worth
   revisiting (address + map), while preserving the book-first wedge, frozen v1 contract safety,
   the canonical shared-source cache model, and cost control.
@@ -163,7 +163,7 @@ The work splits along two independent axes:
   Provider lives in `src/extraction/google_places.py` (Text Search New, `places:searchText`).
 - Matching: Gemini emits an optional transient `location_hint` (city/neighborhood, "do not guess")
   that biases the Places query. Save only high-confidence matches (hint present, or single
-  candidate); otherwise FAIL OPEN to a bare title — same philosophy as the relevance gate. Dropping
+  candidate); otherwise FAIL OPEN to a bare title - same philosophy as the relevance gate. Dropping
   unmatched places was rejected (hides real mentions).
 - Storage rationale: dedicated typed table + FK chosen over loose `source_items` columns or a JSON
   blob, to keep one enrichment pattern across types (consistency with `books`, AI-navigable). Sits
@@ -171,7 +171,7 @@ The work splits along two independent axes:
   The frozen v1 `Mention` table is left untouched; place enrichment writes only `SourceItem`.
 - Cost: address + map pin requires `formattedAddress`/`displayName`/`location`, all *Text Search
   Pro* SKU (only `places.id` is the cheaper Essentials/IDs-Only SKU), and Places bills at the
-  highest requested SKU — so this is unavoidably Pro tier (accepted). Field mask is deliberately
+  highest requested SKU - so this is unavoidably Pro tier (accepted). Field mask is deliberately
   minimal; widening it to rating/hours/photos jumps to Atmosphere/Enterprise SKUs. Do not widen
   without re-pricing. New `GOOGLE_PLACES_API_KEY` setting; unset key degrades to no enrichment.
 - Rejected alternatives: async enrichment queue and enrich-on-read (premature for one cheap call at
@@ -204,7 +204,7 @@ The work splits along two independent axes:
   2026-06-25 spec. Migration `20260628_0015` adds the `places` table and denormalized columns on
   `source_items`.
 - Decision: the spec's §6 calls for the mobile place row to deep-link to the provider `maps_url`,
-  but the canonical link could not be reconstructed client-side — the API exposes our internal
+  but the canonical link could not be reconstructed client-side - the API exposes our internal
   `places.id` UUID, not Google's `provider_place_id`, and the minimal Pro-tier field mask omits
   `googleMapsUri`. So `maps_url` is denormalized onto `source_items` and serialized as a **5th**
   additive API field (beyond the four the slice's issue enumerated), mirroring how
@@ -214,7 +214,7 @@ The work splits along two independent axes:
   without widening the billed field mask. **How to apply:** when the real provider lands (issue
   #46), keep building `maps_url` deterministically as
   `https://www.google.com/maps/place/?q=place_id:<provider_place_id>`; do not add `googleMapsUri`
-  to the field mask (it would re-price the SKU). The read path still needs no join — display
+  to the field mask (it would re-price the SKU). The read path still needs no join - display
   fields live on `source_items`.
 
 ### 2026-06-21 - Behavior-Preserving Ingestion Module Seam
@@ -455,8 +455,8 @@ The work splits along two independent axes:
 
 ## Candidate Next Specs
 
-1. production-ingestion-hardening (Axis A — claim safety, timeouts, idempotency, concurrency, cost control). **First.**
-2. v2-contract (Axis B — polished `/v2` endpoints on shared `public` tables).
+1. production-ingestion-hardening (Axis A - claim safety, timeouts, idempotency, concurrency, cost control). **First.**
+2. v2-contract (Axis B - polished `/v2` endpoints on shared `public` tables).
 3. Book catalog UX and reading list (backend `Book`/enrichment already shipped; this is the user-facing surface).
 4. Frontend component split and catalog/reading-list UX.
 5. Media artifact retention policy.

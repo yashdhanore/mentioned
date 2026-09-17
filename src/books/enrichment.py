@@ -12,7 +12,6 @@ from src.extraction.google_books import find_google_book
 from src.extraction.schemas import ExtractedMention
 from src.mentions.models import Mention
 
-
 logger = logging.getLogger(__name__)
 
 BookFinder = Callable[[str, str | None], GoogleBook | None]

@@ -1,13 +1,12 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from functools import lru_cache
-import os
 from pathlib import Path
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
-
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 SUPPORTED_AUTH_MODES = {"dev", "supabase"}
@@ -146,7 +145,12 @@ def _is_postgres_url(database_url: str) -> bool:
 
 
 def _is_local_hostname(hostname: str | None) -> bool:
-    return hostname is not None and hostname.casefold() in {"localhost", "127.0.0.1", "0.0.0.0", "::1"}
+    return hostname is not None and hostname.casefold() in {
+        "localhost",
+        "127.0.0.1",
+        "0.0.0.0",
+        "::1",
+    }
 
 
 def _is_invalid_production_origin(origin: str) -> bool:
@@ -179,13 +183,21 @@ def validate_settings(settings: Settings) -> None:
             f"MAX_MEDIA_DURATION_SECONDS must be between 1 and {HARD_MAX_MEDIA_DURATION_SECONDS}"
         )
     if not 1 <= settings.max_media_file_bytes <= HARD_MAX_MEDIA_FILE_BYTES:
-        raise RuntimeError(f"MAX_MEDIA_FILE_BYTES must be between 1 and {HARD_MAX_MEDIA_FILE_BYTES}")
+        raise RuntimeError(
+            f"MAX_MEDIA_FILE_BYTES must be between 1 and {HARD_MAX_MEDIA_FILE_BYTES}"
+        )
     if not 1 <= settings.max_media_total_bytes <= HARD_MAX_MEDIA_TOTAL_BYTES:
-        raise RuntimeError(f"MAX_MEDIA_TOTAL_BYTES must be between 1 and {HARD_MAX_MEDIA_TOTAL_BYTES}")
+        raise RuntimeError(
+            f"MAX_MEDIA_TOTAL_BYTES must be between 1 and {HARD_MAX_MEDIA_TOTAL_BYTES}"
+        )
     if settings.max_media_file_bytes > settings.max_media_total_bytes:
-        raise RuntimeError("MAX_MEDIA_FILE_BYTES must be less than or equal to MAX_MEDIA_TOTAL_BYTES")
+        raise RuntimeError(
+            "MAX_MEDIA_FILE_BYTES must be less than or equal to MAX_MEDIA_TOTAL_BYTES"
+        )
     if not 1 <= settings.max_media_video_count <= HARD_MAX_MEDIA_VIDEO_COUNT:
-        raise RuntimeError(f"MAX_MEDIA_VIDEO_COUNT must be between 1 and {HARD_MAX_MEDIA_VIDEO_COUNT}")
+        raise RuntimeError(
+            f"MAX_MEDIA_VIDEO_COUNT must be between 1 and {HARD_MAX_MEDIA_VIDEO_COUNT}"
+        )
     if not 1 <= settings.gemini.gemini_total_attempts <= HARD_MAX_GEMINI_TOTAL_ATTEMPTS:
         raise RuntimeError(
             f"GEMINI_TOTAL_ATTEMPTS must be between 1 and {HARD_MAX_GEMINI_TOTAL_ATTEMPTS}"
@@ -206,7 +218,8 @@ def validate_settings(settings: Settings) -> None:
         raise RuntimeError("Production requires at least one CORS_ALLOWED_ORIGINS value")
     if any(_is_invalid_production_origin(origin) for origin in settings.cors_allowed_origins):
         raise RuntimeError(
-            "Production CORS_ALLOWED_ORIGINS must be HTTPS origins, except explicit localhost HTTP origins for development"
+            "Production CORS_ALLOWED_ORIGINS must be HTTPS origins, except explicit localhost "
+            "HTTP origins for development"
         )
     if not settings.trusted_hosts:
         raise RuntimeError("Production requires at least one TRUSTED_HOSTS value")
@@ -274,7 +287,8 @@ def get_settings() -> Settings:
                 "GEMINI_USE_VERTEXAI",
                 _env_bool("GOOGLE_GENAI_USE_VERTEXAI", False),
             ),
-            vertex_project=_env_optional("GEMINI_VERTEX_PROJECT") or _env_optional("GOOGLE_CLOUD_PROJECT"),
+            vertex_project=_env_optional("GEMINI_VERTEX_PROJECT")
+            or _env_optional("GOOGLE_CLOUD_PROJECT"),
             vertex_location=(
                 os.getenv("GEMINI_VERTEX_LOCATION")
                 or os.getenv("GOOGLE_CLOUD_LOCATION")

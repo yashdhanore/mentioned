@@ -8,12 +8,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 
+from src.account.router import router as account_router
 from src.config import get_settings
 from src.database import check_api_database_role, create_db_and_tables
 from src.jobs.exceptions import JobError
 from src.mentions.exceptions import MentionError
+from src.push.router import router as push_router
 from src.sources.exceptions import SourceError
-
+from src.sources.router import router as sources_router
+from src.waitlist.router import router as waitlist_router
 
 settings = get_settings()
 
@@ -79,12 +82,6 @@ if settings.trusted_hosts:
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(settings.trusted_hosts))
 
 
-# Import and include routers
-from src.account.router import router as account_router
-from src.push.router import router as push_router
-from src.sources.router import router as sources_router
-from src.waitlist.router import router as waitlist_router
-
 app.include_router(account_router)
 app.include_router(push_router)
 app.include_router(sources_router)
@@ -106,7 +103,12 @@ async def privacy_policy() -> str:
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Mentioned Privacy Policy</title>
     <style>
-      body { color: #1c2520; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.6; margin: 0; }
+      body {
+        color: #1c2520;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        line-height: 1.6;
+        margin: 0;
+      }
       main { margin: 0 auto; max-width: 760px; padding: 40px 20px; }
       h1, h2 { line-height: 1.2; }
       h1 { font-size: 2rem; }
@@ -135,8 +137,8 @@ async def privacy_policy() -> str:
       <h2>How We Use Information</h2>
       <p>
         We use this information to authenticate your account, process submitted links, save your
-        results, show your saved Reels and books, send saved-source notifications, prevent abuse, and
-        diagnose service issues.
+        results, show your saved Reels and books, send saved-source notifications, prevent
+        abuse, and diagnose service issues.
       </p>
 
       <h2>Service Providers</h2>
@@ -163,8 +165,9 @@ async def privacy_policy() -> str:
 
       <h2>Security</h2>
       <p>
-        We use authenticated API access, row-level database access controls, and separate internal
-        worker credentials to protect user data. No internet service can guarantee absolute security.
+        We use authenticated API access, row-level database access controls, and separate
+        internal worker credentials to protect user data. No internet service can guarantee
+        absolute security.
       </p>
 
       <h2>Children</h2>
@@ -193,7 +196,12 @@ async def support_page() -> str:
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Mentioned Support</title>
     <style>
-      body { color: #1c2520; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.6; margin: 0; }
+      body {
+        color: #1c2520;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        line-height: 1.6;
+        margin: 0;
+      }
       main { margin: 0 auto; max-width: 680px; padding: 40px 20px; }
       a { color: #345d8c; }
     </style>

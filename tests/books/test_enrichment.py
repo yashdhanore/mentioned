@@ -10,7 +10,6 @@ from src.books.schemas import GoogleBook
 from src.extraction.schemas import ExtractedMention
 from src.mentions.models import Mention
 
-
 OWNER = UUID("00000000-0000-4000-8000-000000000001")
 JOB_ID = UUID("00000000-0000-4000-8000-000000000099")
 

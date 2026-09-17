@@ -16,13 +16,13 @@ from src.sources.models import Source, SourceItem
 from src.sources.service import complete_source_processing, fail_source_processing
 from src.storage.thumbnails import store_job_thumbnail
 
-
 logger = logging.getLogger(__name__)
 
 
 class ThumbnailStore(Protocol):
-    def __call__(self, thumbnail_url: str | None, *, owner_id: UUID, job_id: UUID) -> str | None:
-        ...
+    def __call__(
+        self, thumbnail_url: str | None, *, owner_id: UUID, job_id: UUID
+    ) -> str | None: ...
 
 
 ExtractionRunner = Callable[[str], PipelineResult]

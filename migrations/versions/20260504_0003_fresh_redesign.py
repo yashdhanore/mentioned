@@ -7,10 +7,9 @@ Create Date: 2026-05-04
 
 from __future__ import annotations
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
-
 
 revision = "20260504_0003"
 down_revision = None
@@ -30,7 +29,12 @@ def upgrade() -> None:
         sa.Column("source_url", sa.Text(), nullable=False),
         sa.Column("status", sa.Text(), nullable=False, server_default="pending"),
         sa.Column("error_message", sa.Text(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
         sa.Column("finished_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("locked_by", sa.Text(), nullable=True),
         sa.Column("locked_at", sa.DateTime(timezone=True), nullable=True),
@@ -63,9 +67,21 @@ def upgrade() -> None:
         sa.Column("cover_image_url", sa.Text(), nullable=True),
         sa.Column("source_url", sa.Text(), nullable=False),
         sa.Column("is_deleted", sa.Boolean(), nullable=False, server_default=sa.text("false")),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
-        sa.CheckConstraint("category in ('book', 'product', 'place')", name="mentions_category_check"),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
+        sa.CheckConstraint(
+            "category in ('book', 'product', 'place')", name="mentions_category_check"
+        ),
         sa.CheckConstraint(
             "confidence is null or (confidence >= 0 and confidence <= 1)",
             name="mentions_confidence_check",

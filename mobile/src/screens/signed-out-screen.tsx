@@ -6,7 +6,10 @@ import { AuthButtons } from '@/components/auth-buttons';
 import { SignedOutProductPreview } from '@/components/signed-out-product-preview';
 import { GlassSurface } from '@/components/glass-surface';
 import { AppMark, InlineMessage } from '@/components/ui';
-import { styles } from '@/styles';
+import { styles as sharedStyles } from '@/styles';
+import { styles as localStyles } from './signed-out-screen.styles';
+
+const styles = { ...sharedStyles, ...localStyles };
 
 export function SignedOutScreen({
   error,

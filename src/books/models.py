@@ -7,6 +7,8 @@ from uuid import UUID, uuid4
 from sqlalchemy import JSON, Column, Index
 from sqlmodel import Field, SQLModel
 
+from src.timeutils import utc_now
+
 
 class Book(SQLModel, table=True):
     __tablename__ = "books"
@@ -47,7 +49,9 @@ class Book(SQLModel, table=True):
     main_category: str | None = Field(default=None)
     categories: list[str] = Field(default_factory=list, sa_column=Column(JSON, nullable=False))
 
-    image_links: dict[str, str] = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
+    image_links: dict[str, str] = Field(
+        default_factory=dict, sa_column=Column(JSON, nullable=False)
+    )
     cover_image_url: str | None = Field(default=None)
     preview_link: str | None = Field(default=None)
     info_link: str | None = Field(default=None)
@@ -57,5 +61,5 @@ class Book(SQLModel, table=True):
     access_info: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
     raw_provider_payload: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
 
-    created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
-    updated_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
+    created_at: datetime = Field(default_factory=utc_now, nullable=False)
+    updated_at: datetime = Field(default_factory=utc_now, nullable=False)

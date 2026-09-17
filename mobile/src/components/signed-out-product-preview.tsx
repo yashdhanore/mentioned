@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 
-import { styles } from '@/styles';
+import { styles } from './signed-out-product-preview.styles';
 
 const authOrbitReelPreview = require('../../assets/auth-orbit-reel-preview.png');
 

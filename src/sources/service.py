@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import delete, func, update
@@ -11,6 +11,7 @@ from src.ids import parse_uuid
 from src.sources.identity import identify_source
 from src.sources.models import SavedSource, Source, SourceItem, SourceStatus
 from src.sources.queue import enqueue_source_extraction
+from src.timeutils import utc_now
 
 
 def _increment_retry_window(
@@ -20,10 +21,10 @@ def _increment_retry_window(
     window: timedelta,
 ) -> tuple[datetime, int]:
     # Postgres returns timezone-aware values for DateTime(timezone=True) columns,
-    # but `now` is naive (datetime.utcnow()). Normalize to naive UTC so the
+    # but `now` is naive (utc_now()). Normalize to naive UTC so the
     # comparison never mixes offset-aware and offset-naive datetimes.
     if window_started_at is not None and window_started_at.tzinfo is not None:
-        window_started_at = window_started_at.astimezone(timezone.utc).replace(tzinfo=None)
+        window_started_at = window_started_at.astimezone(UTC).replace(tzinfo=None)
     if window_started_at is None or window_started_at < now - window:
         return now, 1
     return window_started_at, count + 1
@@ -91,7 +92,7 @@ def get_saved_source_by_key(session: Session, owner_id: str, source_key: str) ->
 
 
 def retry_failed_saved_source(session: Session, saved_source: SavedSource) -> bool:
-    now = datetime.utcnow()
+    now = utc_now()
     stmt = (
         update(Source)
         .where(Source.id == saved_source.source_id, Source.status == SourceStatus.FAILED)
@@ -146,7 +147,7 @@ def retry_failed_saved_source(session: Session, saved_source: SavedSource) -> bo
 
 def claim_source_for_processing(session: Session, source_id: str | UUID) -> Source | None:
     parsed_source_id = parse_uuid(source_id)
-    now = datetime.utcnow()
+    now = utc_now()
     stmt = (
         update(Source)
         .where(Source.id == parsed_source_id, Source.status == SourceStatus.PENDING)
@@ -168,7 +169,7 @@ def complete_source_processing(
     *,
     skip_reason: str | None = None,
 ) -> bool:
-    now = datetime.utcnow()
+    now = utc_now()
     source_id = source.id
     processing_started_at = source.processing_started_at
     creator_handle = source.creator_handle
@@ -207,7 +208,7 @@ def complete_source_processing(
 
 
 def fail_source_processing(session: Session, source: Source, error: str) -> bool:
-    now = datetime.utcnow()
+    now = utc_now()
     source_id = source.id
     processing_started_at = source.processing_started_at
     creator_handle = source.creator_handle
@@ -241,7 +242,7 @@ def fail_source_processing(session: Session, source: Source, error: str) -> bool
 
 
 def recover_stale_sources(session: Session, stale_timeout_seconds: int = 900) -> int:
-    cutoff = datetime.utcnow() - timedelta(seconds=stale_timeout_seconds)
+    cutoff = utc_now() - timedelta(seconds=stale_timeout_seconds)
     stmt = select(Source).where(
         Source.status == SourceStatus.PROCESSING,
         Source.processing_started_at < cutoff,
@@ -250,7 +251,7 @@ def recover_stale_sources(session: Session, stale_timeout_seconds: int = 900) ->
     for source in stale_sources:
         source.status = SourceStatus.PENDING
         source.processing_started_at = None
-        source.updated_at = datetime.utcnow()
+        source.updated_at = utc_now()
         session.add(source)
     if stale_sources:
         session.commit()
@@ -278,9 +279,13 @@ def count_active_saved_sources(session: Session, owner_id: str) -> int:
 
 def count_saved_sources_created_since(session: Session, owner_id: str, since: datetime) -> int:
     owner_uuid = parse_uuid(owner_id)
-    stmt = select(func.count()).select_from(SavedSource).where(
-        SavedSource.owner_id == owner_uuid,
-        SavedSource.created_at >= since,
+    stmt = (
+        select(func.count())
+        .select_from(SavedSource)
+        .where(
+            SavedSource.owner_id == owner_uuid,
+            SavedSource.created_at >= since,
+        )
     )
     return int(session.exec(stmt).one())
 

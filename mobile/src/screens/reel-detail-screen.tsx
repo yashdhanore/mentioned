@@ -10,7 +10,10 @@ import {
   ProcessingMentions,
 } from '@/components/mentions';
 import { AppMark, IconButton, InlineMessage, SecondaryButton, SourceQuote } from '@/components/ui';
-import { styles } from '@/styles';
+import { styles as sharedStyles } from '@/styles';
+import { styles as localStyles } from './reel-detail-screen.styles';
+
+const styles = { ...sharedStyles, ...localStyles };
 
 export function ReelDetailScreen({
   capture,

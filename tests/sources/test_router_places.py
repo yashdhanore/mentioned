@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime
 from uuid import UUID
 
 import pytest
 from sqlmodel import Session
 
 from src.sources.models import SavedSource, Source, SourceItem, SourceStatus
-
+from src.timeutils import utc_now
 
 pytestmark = pytest.mark.asyncio
 TEST_USER_UUID = UUID("00000000-0000-4000-8000-000000000001")
@@ -29,7 +28,7 @@ def _save_source(session: Session, external_id: str) -> SavedSource:
     saved = SavedSource(
         owner_id=TEST_USER_UUID,
         source_id=source.id,
-        created_at=datetime.utcnow(),
+        created_at=utc_now(),
     )
     session.add(saved)
     session.commit()

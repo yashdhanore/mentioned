@@ -16,18 +16,15 @@ from src.sources.models import Source, SourceStatus
 from src.sources.queue import SourceExtractionMessage, archive_source_extraction_message
 from src.sources.service import claim_source_for_processing, fail_source_processing
 
-
 logger = logging.getLogger(__name__)
 
 
 class IngestionProcessor(Protocol):
-    def process_job(self, session: Session, job: Job) -> None:
-        ...
+    def process_job(self, session: Session, job: Job) -> None: ...
 
 
 class SourceIngestionProcessor(Protocol):
-    def process_source(self, session: Session, source: Source) -> bool:
-        ...
+    def process_source(self, session: Session, source: Source) -> bool: ...
 
 
 def process_extract_job_message(
@@ -78,7 +75,8 @@ def process_extract_job_message(
         job = claim_job_by_id(session, message.job_id, settings.worker_id)
         if not job:
             logger.info(
-                "Leaving queue message %s unarchived because job %s was claimed by another worker (read_count=%s)",
+                "Leaving queue message %s unarchived because job %s was claimed by another "
+                "worker (read_count=%s)",
                 message.msg_id,
                 message.job_id,
                 message.read_count,
@@ -152,8 +150,9 @@ def process_source_extraction_message(
             return
         if source.status == SourceStatus.PROCESSING:
             logger.info(
-                "Leaving source queue message %s unarchived for processing source %s (read_count=%s); "
-                "retry waits for queue visibility timeout and stale source recovery",
+                "Leaving source queue message %s unarchived for processing source %s "
+                "(read_count=%s); retry waits for queue visibility timeout and stale source "
+                "recovery",
                 message.msg_id,
                 source.id,
                 message.read_count,
@@ -163,8 +162,8 @@ def process_source_extraction_message(
         source = claim_source_for_processing(session, message.source_id)
         if not source:
             logger.info(
-                "Leaving source queue message %s unarchived because source %s was claimed by another worker "
-                "(read_count=%s)",
+                "Leaving source queue message %s unarchived because source %s was claimed by "
+                "another worker (read_count=%s)",
                 message.msg_id,
                 message.source_id,
                 message.read_count,
@@ -194,14 +193,17 @@ def process_source_extraction_message(
         try:
             should_archive = ingestion.process_source(session, source)
         except Exception as exc:
-            logger.exception("Source %s failed while processing queue message %s", source.id, message.msg_id)
+            logger.exception(
+                "Source %s failed while processing queue message %s", source.id, message.msg_id
+            )
             session.rollback()
             failed_source = session.get(Source, source.id)
             if failed_source:
                 should_archive = fail_source_processing(session, failed_source, str(exc))
             else:
                 logger.warning(
-                    "Archiving source queue message %s for missing failed source %s (read_count=%s)",
+                    "Archiving source queue message %s for missing failed source %s "
+                    "(read_count=%s)",
                     message.msg_id,
                     message.source_id,
                     message.read_count,
@@ -209,8 +211,8 @@ def process_source_extraction_message(
                 should_archive = True
         if not should_archive:
             logger.info(
-                "Leaving source queue message %s unarchived because source %s attempt was not finalized "
-                "(read_count=%s)",
+                "Leaving source queue message %s unarchived because source %s attempt was not "
+                "finalized (read_count=%s)",
                 message.msg_id,
                 message.source_id,
                 message.read_count,

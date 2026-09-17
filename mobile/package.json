@@ -13,7 +13,8 @@
     "test:share-url": "tsx scripts/test-share-url-extraction.ts",
     "test:pending-shared-source": "tsx scripts/test-pending-shared-source.ts",
     "test:supabase-config": "tsx scripts/test-supabase-config.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "npm run test:auth-session && npm run test:captures && npm run test:shared-source-intake && npm run test:share-url && npm run test:pending-shared-source && npm run test:supabase-config && npm run typecheck"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",

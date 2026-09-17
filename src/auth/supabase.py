@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from fastapi import HTTPException, status
 import jwt
+from fastapi import HTTPException, status
 from jwt import PyJWKClient
 
 from src.auth.schemas import Caller

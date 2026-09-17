@@ -4,14 +4,13 @@ from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
-
-from src.config import get_settings
-from src.database import normalize_database_url
-from src.books.models import Book  # noqa: F401 — register models
-from src.jobs.models import Job  # noqa: F401 — register models
-from src.mentions.models import Mention  # noqa: F401 — register models
 from sqlmodel import SQLModel
 
+from src.books.models import Book  # noqa: F401 - register models
+from src.config import get_settings
+from src.database import normalize_database_url
+from src.jobs.models import Job  # noqa: F401 - register models
+from src.mentions.models import Mention  # noqa: F401 - register models
 
 config = context.config
 if config.config_file_name is not None:

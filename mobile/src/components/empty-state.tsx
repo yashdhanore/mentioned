@@ -3,7 +3,7 @@ import { Text, View } from 'react-native';
 import { FadeInView } from '@/components/motion';
 import { Tumbleweed } from '@/components/tumbleweed';
 import { PrimaryButton } from '@/components/ui';
-import { styles } from '@/styles';
+import { styles } from './empty-state.styles';
 
 export function EmptyCaptures({ onOpenPaste }: { onOpenPaste: () => void }) {
   return (

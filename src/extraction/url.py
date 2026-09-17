@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-
 TRACKING_PARAMS = {"igsh", "utm_campaign", "utm_content", "utm_medium", "utm_source", "utm_term"}
 INSTAGRAM_HOSTS = {"instagram.com", "www.instagram.com"}
 
@@ -22,7 +21,9 @@ def normalize_input_url(raw_url: str, *, require_https: bool = False) -> str:
         raise SourceUrlError("Only HTTPS URLs are supported in this environment")
     hostname = parts.hostname.lower() if parts.hostname else ""
     if hostname not in INSTAGRAM_HOSTS:
-        raise SourceUrlError("Only Instagram URLs are supported", error_code="unsupported_source_kind")
+        raise SourceUrlError(
+            "Only Instagram URLs are supported", error_code="unsupported_source_kind"
+        )
     cleaned_path = parts.path or "/"
     query_pairs = [
         (key, value)

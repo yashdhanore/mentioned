@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from alembic import op
 
-
 revision = "20260512_0006"
 down_revision = "20260509_0005"
 branch_labels = None
@@ -48,11 +47,15 @@ def upgrade() -> None:
     op.execute("GRANT SELECT, INSERT ON TABLE pgmq.q_extract_jobs TO mentioned_api")
     op.execute("GRANT SELECT, UPDATE, DELETE ON TABLE pgmq.q_extract_jobs TO mentioned_worker")
     op.execute("GRANT INSERT ON TABLE pgmq.a_extract_jobs TO mentioned_worker")
-    op.execute("GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA pgmq TO mentioned_api, mentioned_worker")
+    op.execute(
+        "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA pgmq TO mentioned_api, mentioned_worker"
+    )
 
 
 def downgrade() -> None:
-    op.execute("REVOKE USAGE, SELECT ON ALL SEQUENCES IN SCHEMA pgmq FROM mentioned_api, mentioned_worker")
+    op.execute(
+        "REVOKE USAGE, SELECT ON ALL SEQUENCES IN SCHEMA pgmq FROM mentioned_api, mentioned_worker"
+    )
     op.execute("REVOKE INSERT ON TABLE pgmq.a_extract_jobs FROM mentioned_worker")
     op.execute("REVOKE SELECT, UPDATE, DELETE ON TABLE pgmq.q_extract_jobs FROM mentioned_worker")
     op.execute("REVOKE SELECT, INSERT ON TABLE pgmq.q_extract_jobs FROM mentioned_api")

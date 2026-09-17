@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
+from dataclasses import dataclass
 from uuid import UUID
 
 from sqlalchemy import text
 from sqlmodel import Session
 
 from src.ids import parse_uuid
-
 
 SOURCE_EXTRACTIONS_QUEUE = "extract_sources"
 

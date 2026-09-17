@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Optional
 from uuid import UUID, uuid4
 
 from sqlalchemy import UniqueConstraint
@@ -10,6 +9,7 @@ from sqlmodel import Field, SQLModel
 
 from src.books.models import Book  # noqa: F401 - register foreign key target
 from src.places.models import Place  # noqa: F401 - register foreign key target
+from src.timeutils import utc_now
 
 
 class SourceStatus(StrEnum):
@@ -29,14 +29,14 @@ class Source(SQLModel, table=True):
     external_id: str = Field(nullable=False)
     canonical_url: str = Field(nullable=False)
     status: str = Field(default=SourceStatus.PENDING, nullable=False, index=True)
-    creator_handle: Optional[str] = Field(default=None)
-    thumbnail_url: Optional[str] = Field(default=None)
-    error_message: Optional[str] = Field(default=None)
-    skip_reason: Optional[str] = Field(default=None)
-    processing_started_at: Optional[datetime] = Field(default=None)
-    processed_at: Optional[datetime] = Field(default=None)
-    created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
-    updated_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
+    creator_handle: str | None = Field(default=None)
+    thumbnail_url: str | None = Field(default=None)
+    error_message: str | None = Field(default=None)
+    skip_reason: str | None = Field(default=None)
+    processing_started_at: datetime | None = Field(default=None)
+    processed_at: datetime | None = Field(default=None)
+    created_at: datetime = Field(default_factory=utc_now, nullable=False)
+    updated_at: datetime = Field(default_factory=utc_now, nullable=False)
 
 
 class SourceItem(SQLModel, table=True):
@@ -44,21 +44,21 @@ class SourceItem(SQLModel, table=True):
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     source_id: UUID = Field(nullable=False, foreign_key="sources.id", index=True)
-    book_id: Optional[UUID] = Field(default=None, foreign_key="books.id", index=True)
+    book_id: UUID | None = Field(default=None, foreign_key="books.id", index=True)
     category: str = Field(default="book", nullable=False, index=True)
     title: str = Field(nullable=False)
-    author: Optional[str] = Field(default=None)
-    confidence: Optional[float] = Field(default=None)
-    google_books_url: Optional[str] = Field(default=None)
-    cover_image_url: Optional[str] = Field(default=None)
-    place_id: Optional[UUID] = Field(default=None, foreign_key="places.id", index=True)
-    formatted_address: Optional[str] = Field(default=None)
-    latitude: Optional[float] = Field(default=None)
-    longitude: Optional[float] = Field(default=None)
-    maps_url: Optional[str] = Field(default=None)
+    author: str | None = Field(default=None)
+    confidence: float | None = Field(default=None)
+    google_books_url: str | None = Field(default=None)
+    cover_image_url: str | None = Field(default=None)
+    place_id: UUID | None = Field(default=None, foreign_key="places.id", index=True)
+    formatted_address: str | None = Field(default=None)
+    latitude: float | None = Field(default=None)
+    longitude: float | None = Field(default=None)
+    maps_url: str | None = Field(default=None)
     position: int = Field(default=0, nullable=False)
-    created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
-    updated_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
+    created_at: datetime = Field(default_factory=utc_now, nullable=False)
+    updated_at: datetime = Field(default_factory=utc_now, nullable=False)
 
 
 class SavedSource(SQLModel, table=True):
@@ -70,9 +70,9 @@ class SavedSource(SQLModel, table=True):
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     owner_id: UUID = Field(nullable=False, index=True)
     source_id: UUID = Field(nullable=False, foreign_key="sources.id", index=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
-    last_retry_at: Optional[datetime] = Field(default=None)
-    retry_burst_started_at: Optional[datetime] = Field(default=None)
+    created_at: datetime = Field(default_factory=utc_now, nullable=False)
+    last_retry_at: datetime | None = Field(default=None)
+    retry_burst_started_at: datetime | None = Field(default=None)
     retry_burst_count: int = Field(default=0, nullable=False)
-    retry_daily_started_at: Optional[datetime] = Field(default=None)
+    retry_daily_started_at: datetime | None = Field(default=None)
     retry_daily_count: int = Field(default=0, nullable=False)

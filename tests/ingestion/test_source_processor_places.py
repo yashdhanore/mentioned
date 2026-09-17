@@ -80,8 +80,12 @@ def test_mixed_source_enriches_book_and_place_leaves_product(session: Session) -
     processor = SourceIngestion(
         extraction_runner=lambda _url: PipelineResult(
             mentions=[
-                ExtractedMention(title="Atomic Habits", author="James Clear", category="book", confidence=0.9),
-                ExtractedMention(title="Cafe Nero", category="place", confidence=0.8, location_hint="London"),
+                ExtractedMention(
+                    title="Atomic Habits", author="James Clear", category="book", confidence=0.9
+                ),
+                ExtractedMention(
+                    title="Cafe Nero", category="place", confidence=0.8, location_hint="London"
+                ),
                 ExtractedMention(title="Oura Ring", category="product", confidence=0.9),
             ],
         ),

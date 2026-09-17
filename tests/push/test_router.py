@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime
 from uuid import UUID
 
 import pytest
 from sqlmodel import select
 
 from src.push.models import PushToken
-
+from src.timeutils import utc_now
 
 pytestmark = pytest.mark.asyncio
 TEST_USER_ID = "00000000-0000-4000-8000-000000000001"
@@ -35,7 +34,7 @@ async def test_register_push_token_updates_and_reenables_existing_token(client, 
         owner_id=TEST_USER_UUID,
         expo_push_token="ExpoPushToken[token-1]",
         platform="ios",
-        disabled_at=datetime.utcnow(),
+        disabled_at=utc_now(),
     )
     session.add(token)
     session.commit()

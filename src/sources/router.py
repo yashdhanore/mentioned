@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Query, status
 from sqlmodel import Session
 
+from src.auth.dependencies import AuthenticatedSessionDep as SessionDep
 from src.auth.dependencies import CallerDep
 from src.config import get_settings
 from src.extraction.url import SourceUrlError
 from src.ids import parse_uuid
-from src.jobs.dependencies import SessionDep
 from src.jobs.exceptions import QuotaExceeded, RateLimited
 from src.sources import service as source_service
 from src.sources.exceptions import InvalidSourceUrl, SavedSourceNotFound
@@ -21,7 +21,7 @@ from src.sources.schemas import (
     DeleteSavedSourceResponse,
     SavedSourceResponse,
 )
-
+from src.timeutils import utc_now
 
 router = APIRouter(tags=["saved-sources"])
 
@@ -32,7 +32,7 @@ def _enforce_failed_retry_quota(session: Session, owner_id: str) -> None:
     if active >= settings.max_active_jobs_per_user:
         raise QuotaExceeded()
 
-    now = datetime.utcnow()
+    now = utc_now()
     create_burst_count = source_service.count_saved_sources_created_since(
         session, owner_id, now - timedelta(minutes=1)
     )
@@ -84,7 +84,7 @@ def create_saved_source(
     if active >= settings.max_active_jobs_per_user:
         raise QuotaExceeded()
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     burst_count = source_service.count_saved_sources_created_since(
         session, caller.subject_id, now - timedelta(minutes=1)
     )

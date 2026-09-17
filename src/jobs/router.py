@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, status
 
 from src.auth.dependencies import CallerDep
 from src.config import get_settings
 from src.extraction.url import SourceUrlError, validate_instagram_url
+from src.jobs import service as job_service
 from src.jobs.dependencies import SessionDep, ValidJobDep
 from src.jobs.exceptions import JobNotFound, QuotaExceeded, RateLimited
 from src.jobs.read_models import job_detail_response, job_list_response
@@ -17,7 +18,6 @@ from src.jobs.schemas import (
     JobListItem,
     JobResponse,
 )
-from src.jobs import service as job_service
 
 router = APIRouter(tags=["jobs"])
 
@@ -30,9 +30,7 @@ def create_job(
 ) -> JobCreatedResponse:
     settings = get_settings()
     try:
-        source_url = validate_instagram_url(
-            body.url, require_https=settings.source_require_https
-        )
+        source_url = validate_instagram_url(body.url, require_https=settings.source_require_https)
     except SourceUrlError as exc:
         raise JobNotFound() from exc  # reuse 400-level error
 
@@ -40,7 +38,7 @@ def create_job(
     if active >= settings.max_active_jobs_per_user:
         raise QuotaExceeded()
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     burst_count = job_service.count_jobs_created_since(
         session, caller.subject_id, now - timedelta(minutes=1)
     )

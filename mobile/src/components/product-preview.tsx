@@ -1,7 +1,7 @@
 import { Text, View } from 'react-native';
 
 import { BookSpine, Surface } from '@/components/ui';
-import { styles } from '@/styles';
+import { styles } from './product-preview.styles';
 
 const previewBooks = [
   { title: 'The Shallows', author: 'Nicholas Carr', initials: 'TS', color: '#405B55' },

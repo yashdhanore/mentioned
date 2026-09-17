@@ -8,7 +8,6 @@ import respx
 
 from scripts import smoke_job_flow
 
-
 API_BASE_URL = "https://api.example"
 
 
@@ -65,9 +64,7 @@ def test_smoke_job_flow_fails_when_saved_source_list_omits_submission() -> None:
     respx.get(f"{API_BASE_URL}/v1/saved-sources/saved-source-1").mock(
         return_value=httpx.Response(200, json=saved_source)
     )
-    respx.get(f"{API_BASE_URL}/v1/saved-sources").mock(
-        return_value=httpx.Response(200, json=[])
-    )
+    respx.get(f"{API_BASE_URL}/v1/saved-sources").mock(return_value=httpx.Response(200, json=[]))
 
     with pytest.raises(
         smoke_job_flow.SmokeError,

@@ -5,7 +5,6 @@ from pathlib import Path
 from scripts import compare_gemini_video_models
 from src.extraction.download import DownloadedAssets
 
-
 USAGE = {
     "prompt_token_count": 1000,
     "prompt_tokens_details": [

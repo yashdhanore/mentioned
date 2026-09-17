@@ -25,6 +25,7 @@ dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
     "respx>=0.21.0",
+    "ruff>=0.6.0",
 ]
 
 [project.scripts]
@@ -41,6 +42,26 @@ entrypoint = "src.main:app"
 [tool.pytest.ini_options]
 pythonpath = ["."]
 asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+# This is a Python backend repo with Markdown docs/plans elsewhere that embed illustrative
+# Python snippets; ruff's Markdown code-block formatting is not meant for those, so restrict
+# ruff to actual Python source.
+extend-exclude = ["*.md"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+"migrations/versions/*.py" = ["E501"]
+"tests/test_rls_worker_setup.py" = ["E501"]
+# EXTRACTION_PROMPT is literal text sent to Gemini; wrapping it would add a newline to the
+# actual prompt.
+"src/extraction/gemini.py" = ["E501"]
+
+[tool.ruff.format]
 
 [build-system]
 requires = ["setuptools>=68.0"]

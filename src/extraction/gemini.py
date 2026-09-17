@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
 import json
 import logging
 import time
+from collections.abc import Sequence
 from pathlib import Path
 
 from google import genai
@@ -115,13 +115,20 @@ def upload_to_gemini(client: genai.Client, media_path: Path, *, use_vertexai: bo
         )
 
     uploaded = client.files.upload(file=media_path, config={"mime_type": mime_type})
-    logger.info("Uploaded %s to Gemini File API (name=%s), waiting for ACTIVE state...", media_path.name, uploaded.name)
+    logger.info(
+        "Uploaded %s to Gemini File API (name=%s), waiting for ACTIVE state...",
+        media_path.name,
+        uploaded.name,
+    )
 
     # Poll until the file transitions to ACTIVE
     elapsed = 0
     while uploaded.state.name != "ACTIVE":
         if elapsed >= FILE_POLL_TIMEOUT:
-            raise RuntimeError(f"Gemini file {uploaded.name} did not become ACTIVE within {FILE_POLL_TIMEOUT}s (state: {uploaded.state.name})")
+            raise RuntimeError(
+                f"Gemini file {uploaded.name} did not become ACTIVE within "
+                f"{FILE_POLL_TIMEOUT}s (state: {uploaded.state.name})"
+            )
         time.sleep(FILE_POLL_INTERVAL)
         elapsed += FILE_POLL_INTERVAL
         uploaded = client.files.get(name=uploaded.name)
@@ -153,8 +160,7 @@ def _check_size_limits(paths: Sequence[Path], *, max_file_bytes: int, max_total_
         total_bytes += file_bytes
     if total_bytes > max_total_bytes:
         raise RuntimeError(
-            f"Media total exceeds limit of {max_total_bytes} bytes "
-            f"({total_bytes} bytes)"
+            f"Media total exceeds limit of {max_total_bytes} bytes ({total_bytes} bytes)"
         )
 
 
@@ -201,7 +207,10 @@ def extract_mentions_from_media(media_paths: Path | Sequence[Path]) -> dict:
             delay = RETRY_DELAYS[attempt]
             logger.warning(
                 "Gemini request failed (attempt %d/%d), retrying in %ds: %s",
-                attempt + 1, settings.gemini.gemini_total_attempts, delay, exc,
+                attempt + 1,
+                settings.gemini.gemini_total_attempts,
+                delay,
+                exc,
             )
             time.sleep(delay)
 

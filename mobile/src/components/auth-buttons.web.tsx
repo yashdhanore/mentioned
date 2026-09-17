@@ -1,9 +1,11 @@
 import { Pressable, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
-import { styles } from '@/styles';
-
+import { styles as sharedStyles } from '@/styles';
+import { styles as localStyles } from './auth-buttons.styles';
 import type { AuthButtonsProps } from './auth-buttons';
+
+const styles = { ...sharedStyles, ...localStyles };
 
 export function AuthButtons({
   isAppleLoading,

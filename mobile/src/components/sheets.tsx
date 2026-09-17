@@ -13,7 +13,10 @@ import {
 } from 'react-native';
 import * as Linking from 'expo-linking';
 
-import { styles } from '@/styles';
+import { styles as sharedStyles } from '@/styles';
+import { styles as localStyles } from './sheets.styles';
+
+const styles = { ...sharedStyles, ...localStyles };
 import { colors } from '@/theme';
 import { InlineMessage, PrimaryButton } from '@/components/ui';
 

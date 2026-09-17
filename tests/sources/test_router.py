@@ -8,7 +8,7 @@ from sqlmodel import Session
 
 from src.config import Settings
 from src.sources.models import SavedSource, Source, SourceItem, SourceStatus
-
+from src.timeutils import utc_now
 
 pytestmark = pytest.mark.asyncio
 TEST_USER_ID = "00000000-0000-4000-8000-000000000001"
@@ -47,7 +47,7 @@ def _save_source(
     saved = SavedSource(
         owner_id=owner_id,
         source_id=source.id,
-        created_at=created_at or datetime.utcnow(),
+        created_at=created_at or utc_now(),
     )
     session.add(saved)
     session.commit()
@@ -73,7 +73,9 @@ def _set_saved_source_retry_attempts(
 
 
 async def test_create_saved_source(client) -> None:
-    resp = await client.post("/v1/saved-sources", json={"url": "https://www.instagram.com/reel/ABC123/"})
+    resp = await client.post(
+        "/v1/saved-sources", json={"url": "https://www.instagram.com/reel/ABC123/"}
+    )
 
     assert resp.status_code == 202
     data = resp.json()
@@ -199,7 +201,7 @@ async def test_create_saved_source_invalid_url_uses_source_error(client) -> None
 
 async def test_create_saved_source_burst_limit(client, session: Session, monkeypatch) -> None:
     monkeypatch.setattr("src.sources.router.get_settings", _quota_settings)
-    now = datetime.utcnow()
+    now = utc_now()
     for index in range(3):
         _save_source(
             session,
@@ -208,7 +210,9 @@ async def test_create_saved_source_burst_limit(client, session: Session, monkeyp
             created_at=now - timedelta(seconds=index),
         )
 
-    resp = await client.post("/v1/saved-sources", json={"url": "https://www.instagram.com/reel/ABC123/"})
+    resp = await client.post(
+        "/v1/saved-sources", json={"url": "https://www.instagram.com/reel/ABC123/"}
+    )
 
     assert resp.status_code == 429
     assert resp.json()["error_code"] == "rate_limited"
@@ -216,7 +220,7 @@ async def test_create_saved_source_burst_limit(client, session: Session, monkeyp
 
 async def test_create_saved_source_daily_quota(client, session: Session, monkeypatch) -> None:
     monkeypatch.setattr("src.sources.router.get_settings", _quota_settings)
-    now = datetime.utcnow()
+    now = utc_now()
     for index in range(25):
         _save_source(
             session,
@@ -225,7 +229,9 @@ async def test_create_saved_source_daily_quota(client, session: Session, monkeyp
             created_at=now - timedelta(hours=2, minutes=index),
         )
 
-    resp = await client.post("/v1/saved-sources", json={"url": "https://www.instagram.com/reel/ABC123/"})
+    resp = await client.post(
+        "/v1/saved-sources", json={"url": "https://www.instagram.com/reel/ABC123/"}
+    )
 
     assert resp.status_code == 429
     assert resp.json()["error_code"] == "quota_exceeded"
@@ -236,7 +242,9 @@ async def test_create_saved_source_active_quota(client, session: Session, monkey
     for index in range(5):
         _save_source(session, f"ACTIVE{index}", status=SourceStatus.PENDING)
 
-    resp = await client.post("/v1/saved-sources", json={"url": "https://www.instagram.com/reel/ABC123/"})
+    resp = await client.post(
+        "/v1/saved-sources", json={"url": "https://www.instagram.com/reel/ABC123/"}
+    )
 
     assert resp.status_code == 429
     assert resp.json()["error_code"] == "quota_exceeded"
@@ -269,7 +277,7 @@ async def test_create_saved_source_reuses_existing_at_burst_limit(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr("src.sources.router.get_settings", _quota_settings)
-    now = datetime.utcnow()
+    now = utc_now()
     existing = _save_source(
         session,
         "EXISTINGBURST",
@@ -307,8 +315,8 @@ async def test_create_saved_source_requeues_existing_failed_source(
     source = session.get(Source, saved.source_id)
     assert source is not None
     source.error_message = "network timeout"
-    source.processing_started_at = datetime.utcnow() - timedelta(minutes=5)
-    source.processed_at = datetime.utcnow()
+    source.processing_started_at = utc_now() - timedelta(minutes=5)
+    source.processed_at = utc_now()
     session.add(source)
     session.commit()
 
@@ -372,7 +380,7 @@ async def test_create_saved_source_failed_retry_uses_burst_throttle(
         "src.sources.service.enqueue_source_extraction",
         lambda _session, source_id: enqueued.append(str(source_id)),
     )
-    now = datetime.utcnow()
+    now = utc_now()
     target = _save_source(
         session,
         "FAILEDBURSTRETRY",
@@ -418,7 +426,7 @@ async def test_create_saved_source_failed_retry_combines_create_and_retry_burst_
         "src.sources.service.enqueue_source_extraction",
         lambda _session, source_id: enqueued.append(str(source_id)),
     )
-    now = datetime.utcnow()
+    now = utc_now()
     target = _save_source(
         session,
         "FAILEDMIXEDBURST",
@@ -466,7 +474,7 @@ async def test_create_saved_source_failed_retry_uses_daily_throttle(
         "src.sources.service.enqueue_source_extraction",
         lambda _session, source_id: enqueued.append(str(source_id)),
     )
-    now = datetime.utcnow()
+    now = utc_now()
     target = _save_source(
         session,
         "FAILEDAILYRETRY",
@@ -512,7 +520,7 @@ async def test_create_saved_source_failed_retry_combines_create_and_retry_daily_
         "src.sources.service.enqueue_source_extraction",
         lambda _session, source_id: enqueued.append(str(source_id)),
     )
-    now = datetime.utcnow()
+    now = utc_now()
     target = _save_source(
         session,
         "FAILEDMIXEDDAILY",
@@ -583,7 +591,9 @@ async def test_create_saved_source_does_not_requeue_existing_non_failed_source(
 
 
 async def test_delete_saved_source_unlinks_only_user_save(client) -> None:
-    create_resp = await client.post("/v1/saved-sources", json={"url": "https://www.instagram.com/reel/ABC123/"})
+    create_resp = await client.post(
+        "/v1/saved-sources", json={"url": "https://www.instagram.com/reel/ABC123/"}
+    )
     saved_source_id = create_resp.json()["id"]
 
     resp = await client.delete(f"/v1/saved-sources/{saved_source_id}")

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import argparse
 import os
-from pathlib import Path
 import sys
+from pathlib import Path
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
@@ -15,7 +15,6 @@ from src.config import (
     HARD_MAX_MEDIA_TOTAL_BYTES,
     HARD_MAX_MEDIA_VIDEO_COUNT,
 )
-
 
 REQUIRED_VALUES = {
     "APP_ENV": "production",
@@ -49,7 +48,12 @@ def _is_true(value: str | None) -> bool:
 
 
 def _is_local_hostname(hostname: str | None) -> bool:
-    return hostname is not None and hostname.casefold() in {"localhost", "127.0.0.1", "0.0.0.0", "::1"}
+    return hostname is not None and hostname.casefold() in {
+        "localhost",
+        "127.0.0.1",
+        "0.0.0.0",
+        "::1",
+    }
 
 
 def _is_postgres_url(value: str | None) -> bool:
@@ -114,7 +118,10 @@ def _check_release_env(worker_replicas: str | None) -> list[str]:
     if not origins:
         errors.append("CORS_ALLOWED_ORIGINS must include at least one HTTPS origin")
     elif any(_invalid_origin(origin) for origin in origins):
-        errors.append("CORS_ALLOWED_ORIGINS must contain only HTTPS origins, except explicit localhost HTTP origins for development")
+        errors.append(
+            "CORS_ALLOWED_ORIGINS must contain only HTTPS origins, except explicit localhost "
+            "HTTP origins for development"
+        )
 
     hosts = _csv("TRUSTED_HOSTS")
     if not hosts:
@@ -153,7 +160,9 @@ def _check_release_env(worker_replicas: str | None) -> list[str]:
     )
     if not max_file_error and not max_total_error and max_file_bytes and max_total_bytes:
         if max_file_bytes > max_total_bytes:
-            errors.append("MAX_MEDIA_FILE_BYTES must be less than or equal to MAX_MEDIA_TOTAL_BYTES")
+            errors.append(
+                "MAX_MEDIA_FILE_BYTES must be less than or equal to MAX_MEDIA_TOTAL_BYTES"
+            )
 
     if worker_replicas != "1":
         errors.append("worker replicas must be exactly 1 for beta")
@@ -162,8 +171,12 @@ def _check_release_env(worker_replicas: str | None) -> list[str]:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Validate beta production release environment without printing secrets.")
-    parser.add_argument("--env-file", default=".env", help="Environment file to load before validation.")
+    parser = argparse.ArgumentParser(
+        description="Validate beta production release environment without printing secrets."
+    )
+    parser.add_argument(
+        "--env-file", default=".env", help="Environment file to load before validation."
+    )
     parser.add_argument(
         "--worker-replicas",
         default=None,

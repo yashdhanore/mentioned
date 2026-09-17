@@ -5,13 +5,11 @@ Revises: 20260622_0014
 Create Date: 2026-06-24 23:29:36.876557
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
-
-
-revision = '781a3572bbaf'
-down_revision = '20260622_0014'
+revision = "781a3572bbaf"
+down_revision = "20260622_0014"
 branch_labels = None
 depends_on = None
 

@@ -3,7 +3,7 @@ import { AccessibilityInfo, Animated, View } from 'react-native';
 import Svg, { Ellipse, G, Path } from 'react-native-svg';
 
 import { colors } from '@/theme';
-import { styles } from '@/styles';
+import { styles } from './tumbleweed.styles';
 
 const VIEWBOX = 100;
 

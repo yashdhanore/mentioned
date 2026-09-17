@@ -16,7 +16,6 @@ from src.push.expo import (
 from src.push.queue import PushNotificationMessage, archive_push_notification_message
 from src.push.service import disable_push_token_value, list_active_push_tokens
 
-
 logger = logging.getLogger(__name__)
 
 PushSender = Callable[[Job, list[str]], PushDeliveryResult]

@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Optional
 from uuid import UUID, uuid4
 
 from sqlmodel import Field, SQLModel
+
+from src.timeutils import utc_now
 
 
 class JobStatus(StrEnum):
@@ -25,15 +26,15 @@ class Job(SQLModel, table=True):
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     owner_id: UUID = Field(nullable=False, index=True)
     source_url: str = Field(nullable=False)
-    thumbnail_url: Optional[str] = Field(default=None)
-    source_creator_handle: Optional[str] = Field(default=None)
+    thumbnail_url: str | None = Field(default=None)
+    source_creator_handle: str | None = Field(default=None)
     status: str = Field(default=JobStatus.PENDING, nullable=False)
-    error_message: Optional[str] = Field(default=None)
-    created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
-    finished_at: Optional[datetime] = Field(default=None)
-    locked_by: Optional[str] = Field(default=None)
-    locked_at: Optional[datetime] = Field(default=None)
-    heartbeat_at: Optional[datetime] = Field(default=None)
+    error_message: str | None = Field(default=None)
+    created_at: datetime = Field(default_factory=utc_now, nullable=False)
+    finished_at: datetime | None = Field(default=None)
+    locked_by: str | None = Field(default=None)
+    locked_at: datetime | None = Field(default=None)
+    heartbeat_at: datetime | None = Field(default=None)
 
 
 class JobEvent(SQLModel, table=True):
@@ -49,4 +50,4 @@ class JobEvent(SQLModel, table=True):
         index=True,
     )
     event_type: str = Field(nullable=False)
-    created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
+    created_at: datetime = Field(default_factory=utc_now, nullable=False)

@@ -41,7 +41,9 @@ def evaluate(manifest_path: Path, artifacts_dir: Path) -> list[dict]:
                 "job_id": job_id,
                 "expected_line_count": len(expected_lines),
                 "found_line_count": len(found_lines),
-                "visible_line_recall": (len(found_lines) / len(expected_lines)) if expected_lines else None,
+                "visible_line_recall": (len(found_lines) / len(expected_lines))
+                if expected_lines
+                else None,
                 "missing_lines": [line for line in expected_lines if line not in found_lines],
                 "known_noise_hits": found_noise,
             }

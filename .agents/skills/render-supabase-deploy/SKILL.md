@@ -22,8 +22,7 @@ and local migration/config files.
 
 ## First Reads
 
-- Deployment guide: `docs/render-supabase-deploy.md`
-- RLS role setup: `docs/beta-rls-option-b.md`
+- Deployment guide and RLS role setup: `README.md` ("Deploy to Render + Supabase" section)
 - Render blueprint: `render.yaml`
 - Release env check: `scripts/check_release_env.py`
 - Render scripts: `scripts/render-predeploy.sh`, `scripts/render-start-api.sh`,

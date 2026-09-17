@@ -15,13 +15,13 @@ from src.jobs.service import complete_job, fail_job
 from src.mentions.models import Mention
 from src.storage.thumbnails import store_job_thumbnail
 
-
 logger = logging.getLogger(__name__)
 
 
 class ThumbnailStore(Protocol):
-    def __call__(self, thumbnail_url: str | None, *, owner_id: UUID, job_id: UUID) -> str | None:
-        ...
+    def __call__(
+        self, thumbnail_url: str | None, *, owner_id: UUID, job_id: UUID
+    ) -> str | None: ...
 
 
 ExtractionRunner = Callable[[str], PipelineResult]
