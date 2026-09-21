@@ -10,11 +10,11 @@ const waitlistEndpoint = `${apiBaseUrl}/v1/waitlist`;
     <div class="waitlist-section__copy" data-reveal>
       <span class="eyebrow">Early access</span>
       <h2>Join the BookTok-to-TBR waitlist.</h2>
-      <p>Get the iOS share-sheet build first. Mentioned starts with books from Reels and TikToks, then grows into a memory layer for saved recommendations.</p>
+      <p>Get the iOS share-sheet build first. Mentioned starts with books from Instagram Reels and posts, then grows into a memory layer for saved recommendations.</p>
 
       <ul class="waitlist-section__proof" aria-label="Early access includes">
         <li>Share a Reel from the iOS share sheet</li>
-        <li>Find books from the video, caption, and comments</li>
+        <li>Find books from the video and caption</li>
         <li>Keep the original post attached to every rec</li>
       </ul>
     </div>
@@ -96,9 +96,8 @@ const waitlistEndpoint = `${apiBaseUrl}/v1/waitlist`;
         status.textContent = "You're on the waitlist. We'll email when invites open.";
         form.dataset.state = 'submitted';
       } catch {
-        window.localStorage.setItem('mentioned.waitlist.email', email);
-        status.textContent = `${email} is saved in this browser. The waitlist endpoint is not reachable right now.`;
-        form.dataset.state = 'submitted';
+        status.textContent = 'Something went wrong. Please try again.';
+        form.dataset.state = 'error';
       } finally {
         if (submitButton) {
           submitButton.disabled = false;

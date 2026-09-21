@@ -185,19 +185,9 @@ export function savedSourceIdFromNotificationResponse(
   return notificationDataId(data, 'saved_source_id');
 }
 
-export function jobIdFromNotificationResponse(
-  response: Notifications.NotificationResponse | null,
-): string | null {
-  return savedSourceIdFromNotificationResponse(response);
-}
-
 export async function getLastNotificationSavedSourceId(): Promise<string | null> {
   const response = await Notifications.getLastNotificationResponseAsync();
   return savedSourceIdFromNotificationResponse(response);
-}
-
-export async function getLastNotificationJobId(): Promise<string | null> {
-  return getLastNotificationSavedSourceId();
 }
 
 export async function clearLastNotificationResponse(): Promise<void> {

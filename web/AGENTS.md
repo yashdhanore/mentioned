@@ -6,8 +6,10 @@
 
 - Install dependencies from `web/` with `npm install`.
 - Start development with `npm run dev`.
-- Run the full web check with `npm test`.
-- Useful focused checks: `npm run verify:content`, `npm run typecheck`, `npm run build`, and `npm run test:e2e`.
+- Run the full web check with `npm test` (typecheck, build, then Playwright e2e).
+- Useful focused checks: `npm run typecheck`, `npm run build`, and `npm run test:e2e`.
+- Node version is pinned in `web/.nvmrc`; use the same version locally and in CI.
+- No ESLint config here yet: `eslint-plugin-astro` currently requires ESLint 10, one major ahead of what `mobile/` is pinned to, so it was skipped as a yak shave. Rely on `npm run typecheck` (`astro check`) for now.
 
 ## Implementation Notes
 

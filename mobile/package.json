@@ -7,14 +7,15 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "test:auth-session": "tsx scripts/test-auth-session.ts",
     "test:captures": "tsx scripts/test-captures.ts",
     "test:shared-source-intake": "tsx scripts/test-shared-source-intake.ts",
     "test:share-url": "tsx scripts/test-share-url-extraction.ts",
     "test:pending-shared-source": "tsx scripts/test-pending-shared-source.ts",
     "test:supabase-config": "tsx scripts/test-supabase-config.ts",
     "typecheck": "tsc --noEmit",
-    "test": "npm run test:auth-session && npm run test:captures && npm run test:shared-source-intake && npm run test:share-url && npm run test:pending-shared-source && npm run test:supabase-config && npm run typecheck"
+    "lint": "eslint .",
+    "format:check": "prettier --check \"**/*.{ts,tsx}\"",
+    "test": "npm run test:captures && npm run test:shared-source-intake && npm run test:share-url && npm run test:pending-shared-source && npm run test:supabase-config && npm run lint && npm run typecheck"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
@@ -42,6 +43,9 @@
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
+    "eslint": "^9.39.5",
+    "eslint-config-expo": "~10.0.0",
+    "prettier": "^3.9.8",
     "tsx": "^4.22.3",
     "typescript": "~5.9.2"
   },

@@ -6,6 +6,8 @@ export default defineConfig({
   expect: {
     timeout: 5000
   },
+  retries: process.env.CI ? 1 : 0,
+  reporter: [['html', { open: 'never' }]],
   use: {
     baseURL: 'http://127.0.0.1:4321',
     trace: 'on-first-retry'

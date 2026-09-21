@@ -5,8 +5,12 @@ import {
   extractSharedSourceUrl,
   isSupportedSharedSourceUrl,
   parseMentionedShareDeepLink,
-  sharedUrlFromMentionedDeepLink,
 } from '../src/utils/shared-source-url';
+
+function sourceUrlFrom(rawUrl: string): string | null {
+  const result = parseMentionedShareDeepLink(rawUrl);
+  return result.type === 'valid' ? result.sourceUrl : null;
+}
 
 const reelUrl = 'https://www.instagram.com/reel/ABC123/';
 const postUrl = 'https://instagram.com/p/POST123/?utm_source=ig_web_copy_link';
@@ -51,14 +55,14 @@ assert.equal(
 );
 
 assert.equal(
-  sharedUrlFromMentionedDeepLink(
+  sourceUrlFrom(
     `mentioned://share?url=${encodeURIComponent('https://www.instagram.com/reel/DEEPLINK/')}`,
   ),
   'https://www.instagram.com/reel/DEEPLINK/',
 );
 
 assert.equal(
-  sharedUrlFromMentionedDeepLink(
+  sourceUrlFrom(
     `mentioned://share?url=${encodeURIComponent(
       'https://www.instagram.com/p/PARAMS/?ref=feed&tracking=kept&fbclid=abc&token=secret',
     )}`,
@@ -67,14 +71,14 @@ assert.equal(
 );
 
 assert.equal(
-  sharedUrlFromMentionedDeepLink(
+  sourceUrlFrom(
     `mentioned:///share?url=${encodeURIComponent('https://www.instagram.com/reel/BRIDGE/')}`,
   ),
   'https://www.instagram.com/reel/BRIDGE/',
 );
 
 assert.equal(
-  sharedUrlFromMentionedDeepLink(
+  sourceUrlFrom(
     `mentioned://expo-development-client/?url=${encodeURIComponent(
       `mentioned://share?url=${encodeURIComponent('https://www.instagram.com/reel/WRAPPED/')}`,
     )}`,
@@ -83,7 +87,7 @@ assert.equal(
 );
 
 assert.equal(
-  sharedUrlFromMentionedDeepLink(
+  sourceUrlFrom(
     `com.yashd18.mentioned://expo-development-client/?url=${encodeURIComponent(
       `mentioned://share?url=${encodeURIComponent('https://www.instagram.com/reel/DEVCLIENT/')}`,
     )}`,
@@ -91,47 +95,53 @@ assert.equal(
   'https://www.instagram.com/reel/DEVCLIENT/',
 );
 
-assert.equal(sharedUrlFromMentionedDeepLink('mentioned://auth/callback?code=abc'), null);
+assert.equal(sourceUrlFrom('mentioned://auth/callback?code=abc'), null);
 assert.deepEqual(parseMentionedShareDeepLink('mentioned://auth/callback?code=abc'), {
   type: 'non-share-link',
 });
 assert.equal(
-  sharedUrlFromMentionedDeepLink(
+  sourceUrlFrom(
     `mentioned://share/extra?url=${encodeURIComponent('https://www.instagram.com/reel/DEEPLINK/')}`,
   ),
   null,
 );
 assert.equal(
-  sharedUrlFromMentionedDeepLink(
+  sourceUrlFrom(
     `mentioned:///share/extra?url=${encodeURIComponent('https://www.instagram.com/reel/DEEPLINK/')}`,
   ),
   null,
 );
-assert.equal(sharedUrlFromMentionedDeepLink('mentioned://share?url=https%3A%2F%2Fexample.com'), null);
+assert.equal(sourceUrlFrom('mentioned://share?url=https%3A%2F%2Fexample.com'), null);
 assert.deepEqual(parseMentionedShareDeepLink('mentioned://share?url=https%3A%2F%2Fexample.com'), {
   type: 'invalid-share-link',
 });
 
 assert.equal(
-  sharedUrlFromMentionedDeepLink('mentioned://share?url=https%3A%2F%2Fwww.instagram.com%2Fp%2FHOSTAPP%2F'),
+  sourceUrlFrom('mentioned://share?url=https%3A%2F%2Fwww.instagram.com%2Fp%2FHOSTAPP%2F'),
   'https://www.instagram.com/p/HOSTAPP/',
 );
 
 assert.equal(
-  sharedUrlFromMentionedDeepLink('mentioned:///share?url=https%253A%252F%252Fwww.instagram.com%252Freel%252FSAFARI%252F'),
+  sourceUrlFrom(
+    'mentioned:///share?url=https%253A%252F%252Fwww.instagram.com%252Freel%252FSAFARI%252F',
+  ),
   'https://www.instagram.com/reel/SAFARI/',
 );
 
 assert.equal(
-  sharedUrlFromMentionedDeepLink('mentioned:///share?url=https://www.instagram.com/reel/RAW/'),
+  sourceUrlFrom('mentioned:///share?url=https://www.instagram.com/reel/RAW/'),
   'https://www.instagram.com/reel/RAW/',
 );
 
-assert.equal(sharedUrlFromMentionedDeepLink('mentioned://share'), null);
-assert.equal(sharedUrlFromMentionedDeepLink('mentioned://share?url='), null);
+assert.equal(sourceUrlFrom('mentioned://share'), null);
+assert.equal(sourceUrlFrom('mentioned://share?url='), null);
 assert.deepEqual(parseMentionedShareDeepLink('mentioned://share'), { type: 'invalid-share-link' });
-assert.deepEqual(parseMentionedShareDeepLink('mentioned://share?url='), { type: 'invalid-share-link' });
-assert.deepEqual(parseMentionedShareDeepLink('mentioned://share?url=%'), { type: 'invalid-share-link' });
+assert.deepEqual(parseMentionedShareDeepLink('mentioned://share?url='), {
+  type: 'invalid-share-link',
+});
+assert.deepEqual(parseMentionedShareDeepLink('mentioned://share?url=%'), {
+  type: 'invalid-share-link',
+});
 
 assert.deepEqual(
   parseMentionedShareDeepLink(

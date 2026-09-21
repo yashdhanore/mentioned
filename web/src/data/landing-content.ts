@@ -23,7 +23,7 @@ export const navItems: NavItem[] = [
 
 export const hero = {
   title: 'Turn BookTok into your reading list.',
-  body: 'Send Mentioned a Reel or TikTok. We find the books and save them with the post that made you want to read them.',
+  body: 'Send Mentioned an Instagram Reel or post. We find the books and save them with the post that made you want to read them.',
   primaryCta: { label: 'See how it works', href: '#story' },
   secondaryCta: { label: 'See saved posts', href: '#shelf' }
 };
@@ -48,7 +48,7 @@ export const workflowChapters: WorkflowChapter[] = [
   {
     eyebrow: 'Find',
     title: 'Mentioned looks for books.',
-    body: 'The video, caption, and comments are checked for titles and authors.'
+    body: 'The video and caption are checked for titles and authors.'
   },
   {
     eyebrow: 'Save',

@@ -123,14 +123,6 @@ function statusFor(savedSourceStatus: SavedSourceStatus, mentions: Mention[]): C
   return 'failed';
 }
 
-export function buildCapturesFromSavedSources(savedSources: SavedSourceResponse[]): Capture[] {
-  return savedSources.map(captureFromSavedSource);
-}
-
-export function captureFromSavedSourceCreated(savedSource: SavedSourceResponse): Capture {
-  return captureFromSavedSource(savedSource);
-}
-
 export function captureFromSavedSource(savedSource: SavedSourceResponse): Capture {
   const mentions = visibleMentions(savedSource.items);
   return {

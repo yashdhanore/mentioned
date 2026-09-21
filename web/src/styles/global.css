@@ -14,6 +14,7 @@
   --color-book: #2f4a44;
   --color-source-soft: #e9ede7;
   --color-hairline: rgba(16, 26, 23, 0.1);
+  --color-error: #b42318;
   --shadow-paper: 0 24px 80px rgba(16, 26, 23, 0.12);
   --shadow-float: 0 18px 60px rgba(16, 26, 23, 0.16);
   --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
@@ -887,6 +888,7 @@ a {
   font: inherit;
   font-size: 14px;
   font-weight: 800;
+  cursor: pointer;
   transition:
     opacity 220ms ease,
     transform 220ms var(--ease-spring);
@@ -921,6 +923,11 @@ a {
 
 .waitlist-card[data-state="loading"] .waitlist-status {
   color: var(--color-ink);
+}
+
+.waitlist-card[data-state="error"] .waitlist-status {
+  color: var(--color-error);
+  font-weight: 760;
 }
 
 .final-cta-section {
