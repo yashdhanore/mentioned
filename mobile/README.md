@@ -34,6 +34,29 @@ npm run web
 `EXPO_PUBLIC_DEV_USER_ID` should match the backend `DEV_USER_ID` when you want to load seeded local
 data. Production builds reject `EXPO_PUBLIC_AUTH_MODE=dev` and `EXPO_PUBLIC_DEV_USER_ID`.
 
+If `mobile/.env` already sets `EXPO_PUBLIC_APP_ENV=production` (e.g. for native builds against the
+deployed backend), shell-prefixing the command as shown above does **not** reliably override it:
+Expo bakes `EXPO_PUBLIC_*` values into a build-time `expo/virtual/env` snapshot straight from the
+`.env` files, which can win over already-set shell/process env depending on what else is cached.
+The reliable way to override for local dev is a `mobile/.env.local` file (gitignored, takes
+precedence over `.env`):
+
+```
+EXPO_PUBLIC_APP_ENV=development
+EXPO_PUBLIC_AUTH_MODE=dev
+EXPO_PUBLIC_DEV_USER_ID=00000000-0000-4000-8000-000000000001
+EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
+```
+
+If env changes still don't seem to take effect after editing `.env`/`.env.local`, Metro's disk
+transform cache (outside the project, under `$TMPDIR/metro-cache`) can serve stale inlined values
+even across restarts; `npx expo start --clear` does not clear it. Wipe it manually and restart:
+
+```bash
+rm -rf "$TMPDIR/metro-cache" "$TMPDIR"/metro-file-map-*
+npx expo start --web --clear
+```
+
 Configure Supabase Auth before using the signed-in app flow:
 
 ```bash
