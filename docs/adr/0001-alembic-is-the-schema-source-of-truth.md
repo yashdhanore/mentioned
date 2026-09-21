@@ -6,7 +6,7 @@ and hand-written `supabase/migrations/*.sql`. Only **Alembic** is authoritative 
 `public`: tables, columns, grants, and row-level security policies alike (RLS lives
 in 8 Alembic revisions, not in Supabase SQL). Production applies it via
 `alembic upgrade head` in the worker pre-deploy step (`scripts/render-predeploy.sh`).
-`create_all` is dev-only — `AUTO_CREATE_TABLES=false` in prod (`render.yaml`) makes it
+`create_all` is dev-only - `AUTO_CREATE_TABLES=false` in prod (`render.yaml`) makes it
 a no-op there.
 
 **2026-09-22 update:** the `supabase/migrations/*.sql` files are not vestigial the way
@@ -27,7 +27,7 @@ no-ops so they can never diverge from what Alembic does.
 
 - Table/column/grant/RLS changes go in a new Alembic revision under `migrations/versions/`,
   not Supabase SQL. The Supabase CLI owns storage buckets, auth, and local stack config
-  (`supabase/config.toml`) — nothing in `public`.
+  (`supabase/config.toml`) - nothing in `public`.
 - A future agent who edits `supabase/migrations/*.sql` to change `public` schema, grants,
   or RLS will see no effect in prod; those files (other than the storage bucket one) are
   guarded no-ops by design. Add or change schema via a new Alembic revision instead.
