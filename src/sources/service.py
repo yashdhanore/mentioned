@@ -31,10 +31,14 @@ def _increment_retry_window(
     return window_started_at, count + 1
 
 
-def save_source_for_user(session: Session, owner_id: str, raw_url: str) -> SavedSource:
+def save_source_for_user(
+    session: Session, owner_id: str, raw_url: str, *, require_https: bool = False
+) -> SavedSource:
     for attempt in range(2):
         try:
-            return _save_source_for_user_once(session, owner_id, raw_url)
+            return _save_source_for_user_once(
+                session, owner_id, raw_url, require_https=require_https
+            )
         except IntegrityError:
             session.rollback()
             if attempt == 1:
@@ -45,9 +49,11 @@ def save_source_for_user(session: Session, owner_id: str, raw_url: str) -> Saved
     raise RuntimeError("Could not save source after retry")
 
 
-def _save_source_for_user_once(session: Session, owner_id: str, raw_url: str) -> SavedSource:
+def _save_source_for_user_once(
+    session: Session, owner_id: str, raw_url: str, *, require_https: bool
+) -> SavedSource:
     owner_uuid = parse_uuid(owner_id)
-    identity = identify_source(raw_url, require_https=False)
+    identity = identify_source(raw_url, require_https=require_https)
     should_enqueue = False
 
     source = session.exec(select(Source).where(Source.source_key == identity.source_key)).first()

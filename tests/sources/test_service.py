@@ -7,6 +7,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
+from src.extraction.url import SourceUrlError
 from src.sources.models import SavedSource, Source, SourceItem, SourceStatus
 from src.sources.service import (
     _increment_retry_window,
@@ -82,6 +83,41 @@ def test_save_source_for_user_creates_source_and_saved_source(
     assert source.status == SourceStatus.PENDING
     assert saved.owner_id == OWNER_UUID
     assert enqueued == [str(source.id)]
+
+
+def test_save_source_for_user_rejects_http_when_https_required(
+    session: Session, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        "src.sources.service.enqueue_source_extraction",
+        lambda _session, source_id: None,
+    )
+
+    with pytest.raises(SourceUrlError):
+        save_source_for_user(
+            session,
+            OWNER,
+            "http://www.instagram.com/reel/ABC123/",
+            require_https=True,
+        )
+
+
+def test_save_source_for_user_allows_http_when_https_not_required(
+    session: Session, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        "src.sources.service.enqueue_source_extraction",
+        lambda _session, source_id: None,
+    )
+
+    saved = save_source_for_user(
+        session,
+        OWNER,
+        "http://www.instagram.com/reel/ABC123/",
+        require_https=False,
+    )
+
+    assert saved.owner_id == OWNER_UUID
 
 
 def test_save_source_for_user_reuses_existing_source_and_saved_source(

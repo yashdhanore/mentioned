@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 
 from fastapi import APIRouter, Query, status
 from sqlmodel import Session
 
 from src.auth.dependencies import AuthenticatedSessionDep as SessionDep
 from src.auth.dependencies import CallerDep
-from src.config import get_settings
+from src.config import Settings, get_settings
 from src.extraction.url import SourceUrlError
 from src.ids import parse_uuid
 from src.sources import service as source_service
@@ -25,35 +25,35 @@ from src.timeutils import utc_now
 router = APIRouter(tags=["saved-sources"])
 
 
-def _enforce_failed_retry_quota(session: Session, owner_id: str) -> None:
-    settings = get_settings()
+def _enforce_source_quota(
+    session: Session,
+    settings: Settings,
+    owner_id: str,
+    *,
+    include_retries: bool,
+) -> None:
     active = source_service.count_active_saved_sources(session, owner_id)
     if active >= settings.max_active_jobs_per_user:
         raise QuotaExceeded()
 
     now = utc_now()
-    create_burst_count = source_service.count_saved_sources_created_since(
+    burst_count = source_service.count_saved_sources_created_since(
         session, owner_id, now - timedelta(minutes=1)
     )
-    retry_burst_count = source_service.count_saved_source_retry_attempts_since(
-        session,
-        owner_id,
-        now - timedelta(minutes=1),
-        window="burst",
-    )
-    if create_burst_count + retry_burst_count >= settings.max_job_create_burst_per_minute:
-        raise RateLimited()
-
-    create_daily_count = source_service.count_saved_sources_created_since(
+    daily_count = source_service.count_saved_sources_created_since(
         session, owner_id, now - timedelta(days=1)
     )
-    retry_daily_count = source_service.count_saved_source_retry_attempts_since(
-        session,
-        owner_id,
-        now - timedelta(days=1),
-        window="daily",
-    )
-    if create_daily_count + retry_daily_count >= settings.max_jobs_created_per_day:
+    if include_retries:
+        burst_count += source_service.count_saved_source_retry_attempts_since(
+            session, owner_id, now - timedelta(minutes=1), window="burst"
+        )
+        daily_count += source_service.count_saved_source_retry_attempts_since(
+            session, owner_id, now - timedelta(days=1), window="daily"
+        )
+
+    if burst_count >= settings.max_job_create_burst_per_minute:
+        raise RateLimited()
+    if daily_count >= settings.max_jobs_created_per_day:
         raise QuotaExceeded()
 
 
@@ -63,8 +63,9 @@ def create_saved_source(
     caller: CallerDep,
     session: SessionDep,
 ) -> SavedSourceResponse:
+    settings = get_settings()
     try:
-        identity = identify_source(body.url, require_https=False)
+        identity = identify_source(body.url, require_https=settings.source_require_https)
     except SourceUrlError as exc:
         raise InvalidSourceUrl() from exc
 
@@ -74,30 +75,16 @@ def create_saved_source(
     if existing is not None:
         source = session.get(Source, existing.source_id)
         if source is not None and source.status == SourceStatus.FAILED:
-            _enforce_failed_retry_quota(session, caller.subject_id)
+            _enforce_source_quota(session, settings, caller.subject_id, include_retries=True)
             source_service.retry_failed_saved_source(session, existing)
         return saved_source_response(session, existing)
 
-    settings = get_settings()
-    active = source_service.count_active_saved_sources(session, caller.subject_id)
-    if active >= settings.max_active_jobs_per_user:
-        raise QuotaExceeded()
-
-    now = datetime.now(UTC)
-    burst_count = source_service.count_saved_sources_created_since(
-        session, caller.subject_id, now - timedelta(minutes=1)
-    )
-    if burst_count >= settings.max_job_create_burst_per_minute:
-        raise RateLimited()
-
-    daily_count = source_service.count_saved_sources_created_since(
-        session, caller.subject_id, now - timedelta(days=1)
-    )
-    if daily_count >= settings.max_jobs_created_per_day:
-        raise QuotaExceeded()
+    _enforce_source_quota(session, settings, caller.subject_id, include_retries=False)
 
     try:
-        saved = source_service.save_source_for_user(session, caller.subject_id, body.url)
+        saved = source_service.save_source_for_user(
+            session, caller.subject_id, body.url, require_https=settings.source_require_https
+        )
     except SourceUrlError as exc:
         raise InvalidSourceUrl() from exc
     return saved_source_response(session, saved)
