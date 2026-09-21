@@ -86,6 +86,7 @@ def test_pipeline_download_failure(mock_download):
 
     assert result.error is not None
     assert "Download failed" in result.error
+    assert "Network error" not in result.error
     assert result.mentions == []
 
 
@@ -105,6 +106,7 @@ def test_pipeline_extraction_failure(mock_extract, mock_download, tmp_path):
 
     assert result.error is not None
     assert "Extraction failed" in result.error
+    assert "Gemini API error" not in result.error
     assert result.thumbnail_url == "https://example.com/reel.jpg"
     assert result.source_creator_handle == "jamesclear"
 

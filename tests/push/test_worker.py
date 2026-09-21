@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 import pytest
 from sqlmodel import Session, SQLModel, create_engine, select
 
+from src.config import Settings
 from src.push.expo import PushDeliveryResult, PushDeliveryRetryableError
 from src.push.models import PushToken
 from src.push.queue import PushNotificationMessage
@@ -52,6 +53,7 @@ def test_push_worker_archives_missing_source(monkeypatch):
         process_push_notification_message(
             PushNotificationMessage(msg_id=20, source_id=uuid4(), read_count=1),
             engine,
+            Settings(),
         )
     finally:
         SQLModel.metadata.drop_all(engine)
@@ -80,6 +82,7 @@ def test_push_worker_leaves_pending_source_unarchived(monkeypatch):
         process_push_notification_message(
             PushNotificationMessage(msg_id=21, source_id=source.id, read_count=1),
             engine,
+            Settings(),
             send_notifications=fake_send,
         )
     finally:
@@ -144,6 +147,7 @@ def test_push_worker_sends_to_every_owner_with_active_tokens_and_disables_invali
         process_push_notification_message(
             PushNotificationMessage(msg_id=22, source_id=source_id, read_count=1),
             engine,
+            Settings(),
             send_notifications=fake_send,
         )
 
@@ -193,9 +197,41 @@ def test_push_worker_retries_request_level_delivery_failure(monkeypatch):
         process_push_notification_message(
             PushNotificationMessage(msg_id=23, source_id=source_id, read_count=1),
             engine,
+            Settings(),
             send_notifications=fake_send,
         )
     finally:
         SQLModel.metadata.drop_all(engine)
 
     assert archived == []
+
+
+def test_push_worker_archives_poison_message_past_max_deliveries(monkeypatch):
+    engine = _engine()
+    archived = []
+    sent = []
+
+    def fake_archive(_session: Session, msg_id: int) -> None:
+        archived.append(msg_id)
+
+    def fake_send(_source: Source, targets: list[SourcePushTarget]) -> PushDeliveryResult:
+        sent.append(targets)
+        return PushDeliveryResult(disabled_tokens=set())
+
+    monkeypatch.setattr("src.push.worker.archive_push_notification_message", fake_archive)
+
+    try:
+        with Session(engine) as session:
+            source = _source(session, status=SourceStatus.DONE)
+
+        process_push_notification_message(
+            PushNotificationMessage(msg_id=24, source_id=source.id, read_count=11),
+            engine,
+            Settings(worker_queue_max_deliveries=5),
+            send_notifications=fake_send,
+        )
+    finally:
+        SQLModel.metadata.drop_all(engine)
+
+    assert archived == [24]
+    assert sent == []

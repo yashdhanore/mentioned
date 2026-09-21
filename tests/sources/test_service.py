@@ -18,6 +18,7 @@ from src.sources.service import (
     count_saved_sources_created_since,
     delete_saved_source,
     fail_source_processing,
+    fail_source_processing_forcibly,
     get_saved_source_by_key,
     recover_stale_sources,
     retry_failed_saved_source,
@@ -367,6 +368,49 @@ def test_fail_source_processing_rejects_stale_attempt(session: Session) -> None:
     assert refreshed is not None
     assert refreshed.status == SourceStatus.DONE
     assert refreshed.error_message is None
+
+
+def test_fail_source_processing_forcibly_fails_pending_source(session: Session) -> None:
+    saved = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/FORCEPEND/")
+
+    failed = fail_source_processing_forcibly(session, saved.source_id, "poison message")
+
+    updated_source = session.get(Source, saved.source_id)
+    assert failed is True
+    assert updated_source is not None
+    assert updated_source.status == SourceStatus.FAILED
+    assert updated_source.error_message == "poison message"
+
+
+def test_fail_source_processing_forcibly_fails_processing_source_without_matching_attempt(
+    session: Session,
+) -> None:
+    saved = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/FORCEPROC/")
+    source = claim_source_for_processing(session, saved.source_id)
+    assert source is not None
+
+    failed = fail_source_processing_forcibly(session, saved.source_id, "poison message")
+
+    updated_source = session.get(Source, saved.source_id)
+    assert failed is True
+    assert updated_source is not None
+    assert updated_source.status == SourceStatus.FAILED
+    assert updated_source.error_message == "poison message"
+
+
+def test_fail_source_processing_forcibly_never_clobbers_a_done_source(session: Session) -> None:
+    saved = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/FORCEDONE/")
+    source = claim_source_for_processing(session, saved.source_id)
+    assert source is not None
+    complete_source_processing(session, source, [])
+
+    failed = fail_source_processing_forcibly(session, saved.source_id, "poison message")
+
+    updated_source = session.get(Source, saved.source_id)
+    assert failed is False
+    assert updated_source is not None
+    assert updated_source.status == SourceStatus.DONE
+    assert updated_source.error_message is None
 
 
 def test_recover_stale_sources_resets_old_processing_sources(session: Session) -> None:

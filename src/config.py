@@ -17,6 +17,7 @@ HARD_MAX_MEDIA_FILE_BYTES = 100 * 1024 * 1024
 HARD_MAX_MEDIA_TOTAL_BYTES = 150 * 1024 * 1024
 HARD_MAX_MEDIA_VIDEO_COUNT = 3
 HARD_MAX_GEMINI_TOTAL_ATTEMPTS = 3
+HARD_MAX_GEMINI_TIMEOUT_SECONDS = 300
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,7 @@ class GeminiConfig:
     gemini_model: str = "gemini-2.5-flash"
     gemini_gate_model: str = "gemini-2.5-flash-lite"
     gemini_total_attempts: int = 3
+    gemini_timeout_seconds: int = 120
     use_vertexai: bool = False
     vertex_project: str | None = None
     vertex_location: str = "global"
@@ -69,6 +71,7 @@ class Settings:
     worker_queue_visibility_timeout_seconds: int = 30 * 60
     worker_queue_max_poll_seconds: int = 5
     worker_queue_poll_interval_ms: int = 100
+    worker_queue_max_deliveries: int = 5
     worker_id: str = "worker-local"
 
     # Media download limits
@@ -178,6 +181,8 @@ def validate_settings(settings: Settings) -> None:
         raise RuntimeError(f"Unsupported EXTRACTION_BACKEND: {settings.extraction_backend}")
     if settings.relevance_gate_mode not in SUPPORTED_RELEVANCE_GATE_MODES:
         raise RuntimeError(f"Unsupported RELEVANCE_GATE_MODE: {settings.relevance_gate_mode}")
+    if settings.worker_queue_max_deliveries < 1:
+        raise RuntimeError("WORKER_QUEUE_MAX_DELIVERIES must be at least 1")
     if not 1 <= settings.max_media_duration_seconds <= HARD_MAX_MEDIA_DURATION_SECONDS:
         raise RuntimeError(
             f"MAX_MEDIA_DURATION_SECONDS must be between 1 and {HARD_MAX_MEDIA_DURATION_SECONDS}"
@@ -201,6 +206,10 @@ def validate_settings(settings: Settings) -> None:
     if not 1 <= settings.gemini.gemini_total_attempts <= HARD_MAX_GEMINI_TOTAL_ATTEMPTS:
         raise RuntimeError(
             f"GEMINI_TOTAL_ATTEMPTS must be between 1 and {HARD_MAX_GEMINI_TOTAL_ATTEMPTS}"
+        )
+    if not 1 <= settings.gemini.gemini_timeout_seconds <= HARD_MAX_GEMINI_TIMEOUT_SECONDS:
+        raise RuntimeError(
+            f"GEMINI_TIMEOUT_SECONDS must be between 1 and {HARD_MAX_GEMINI_TIMEOUT_SECONDS}"
         )
     if not settings.is_production:
         return
@@ -253,6 +262,7 @@ def get_settings() -> Settings:
         ),
         worker_queue_max_poll_seconds=_env_int("WORKER_QUEUE_MAX_POLL_SECONDS", 5),
         worker_queue_poll_interval_ms=_env_int("WORKER_QUEUE_POLL_INTERVAL_MS", 100),
+        worker_queue_max_deliveries=_env_int("WORKER_QUEUE_MAX_DELIVERIES", 5),
         worker_id=os.getenv("WORKER_ID", "worker-local").strip(),
         media_download_timeout_seconds=_env_int("MEDIA_DOWNLOAD_TIMEOUT_SECONDS", 120),
         media_download_format=_env_optional("MEDIA_DOWNLOAD_FORMAT"),
@@ -283,6 +293,7 @@ def get_settings() -> Settings:
             gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip(),
             gemini_gate_model=os.getenv("GEMINI_GATE_MODEL", "gemini-2.5-flash-lite").strip(),
             gemini_total_attempts=_env_int("GEMINI_TOTAL_ATTEMPTS", 3),
+            gemini_timeout_seconds=_env_int("GEMINI_TIMEOUT_SECONDS", 120),
             use_vertexai=_env_bool(
                 "GEMINI_USE_VERTEXAI",
                 _env_bool("GOOGLE_GENAI_USE_VERTEXAI", False),

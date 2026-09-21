@@ -8,15 +8,41 @@ from sqlmodel import Session
 
 from src.config import Settings
 from src.ingestion.source_processor import default_source_ingestion
+from src.sources.failure import SourceFailureReason, safe_source_error_message
 from src.sources.models import Source, SourceStatus
 from src.sources.queue import SourceExtractionMessage, archive_source_extraction_message
-from src.sources.service import claim_source_for_processing, fail_source_processing
+from src.sources.service import (
+    claim_source_for_processing,
+    fail_source_processing,
+    fail_source_processing_forcibly,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class SourceIngestionProcessor(Protocol):
     def process_source(self, session: Session, source: Source) -> bool: ...
+
+
+def _archive_poison_message(
+    message: SourceExtractionMessage, worker_engine: Engine, settings: Settings
+) -> None:
+    logger.error(
+        "Source queue message %s exceeded max deliveries (read_count=%s > %s) for source %s; "
+        "failing source and archiving message",
+        message.msg_id,
+        message.read_count,
+        settings.worker_queue_max_deliveries,
+        message.source_id,
+    )
+    with Session(worker_engine) as session:
+        fail_source_processing_forcibly(
+            session,
+            message.source_id,
+            safe_source_error_message(SourceFailureReason.TOO_MANY_ATTEMPTS),
+        )
+        archive_source_extraction_message(session, message.msg_id)
+        session.commit()
 
 
 def process_source_extraction_message(
@@ -31,6 +57,9 @@ def process_source_extraction_message(
         message.source_id,
         message.read_count,
     )
+    if message.read_count > settings.worker_queue_max_deliveries:
+        _archive_poison_message(message, worker_engine, settings)
+        return
     with Session(worker_engine) as session:
         source = session.get(Source, message.source_id)
         if not source:
@@ -98,14 +127,18 @@ def process_source_extraction_message(
         should_archive = False
         try:
             should_archive = ingestion.process_source(session, source)
-        except Exception as exc:
+        except Exception:
             logger.exception(
                 "Source %s failed while processing queue message %s", source.id, message.msg_id
             )
             session.rollback()
             failed_source = session.get(Source, source.id)
             if failed_source:
-                should_archive = fail_source_processing(session, failed_source, str(exc))
+                should_archive = fail_source_processing(
+                    session,
+                    failed_source,
+                    safe_source_error_message(SourceFailureReason.UNEXPECTED_ERROR),
+                )
             else:
                 logger.warning(
                     "Archiving source queue message %s for missing failed source %s "

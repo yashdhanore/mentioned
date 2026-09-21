@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import signal
 from uuid import uuid4
 
+import pytest
 from sqlmodel import Session, SQLModel, create_engine
 
 from src.config import Settings
 from src.sources.models import Source, SourceStatus
+from src.worker import ShutdownFlag, install_signal_handlers
 
 
 def test_worker_entrypoint_exports_main():
@@ -97,3 +100,128 @@ def test_run_polling_worker_iteration_returns_false_when_no_pending_source():
         SQLModel.metadata.drop_all(engine)
 
     assert did_process is False
+
+
+def test_shutdown_flag_request_stop_sets_flag():
+    flag = ShutdownFlag()
+
+    flag.request_stop(signal.SIGTERM, None)
+
+    assert flag.should_stop is True
+
+
+def test_install_signal_handlers_registers_sigterm_and_sigint(monkeypatch):
+    registered: list[int] = []
+    monkeypatch.setattr(signal, "signal", lambda sig, _handler: registered.append(sig))
+
+    install_signal_handlers(ShutdownFlag())
+
+    assert signal.SIGTERM in registered
+    assert signal.SIGINT in registered
+
+
+def test_run_polling_worker_stops_between_iterations_on_shutdown_flag(monkeypatch):
+    from src.worker import _run_polling_worker
+
+    calls: list[int] = []
+    flag = ShutdownFlag()
+
+    def fake_iteration(_settings, _engine) -> bool:
+        calls.append(1)
+        if len(calls) >= 2:
+            flag.should_stop = True
+        return False
+
+    monkeypatch.setattr("src.worker._run_polling_worker_iteration", fake_iteration)
+    monkeypatch.setattr("src.worker.time.sleep", lambda _seconds: None)
+
+    _run_polling_worker(Settings(worker_id="worker-poll"), object(), flag)
+
+    assert len(calls) == 2
+
+
+def test_run_polling_worker_recovers_from_iteration_exception_and_backs_off(monkeypatch):
+    from src.worker import _run_polling_worker
+
+    calls: list[int] = []
+    slept: list[float] = []
+    flag = ShutdownFlag()
+
+    def fake_iteration(_settings, _engine) -> bool:
+        calls.append(1)
+        if len(calls) == 1:
+            raise RuntimeError("boom")
+        flag.should_stop = True
+        return False
+
+    monkeypatch.setattr("src.worker._run_polling_worker_iteration", fake_iteration)
+    monkeypatch.setattr("src.worker.time.sleep", lambda seconds: slept.append(seconds))
+
+    _run_polling_worker(Settings(worker_id="worker-poll"), object(), flag)
+
+    assert len(calls) == 2
+    assert slept
+
+
+def test_run_polling_worker_reraises_keyboard_interrupt(monkeypatch):
+    from src.worker import _run_polling_worker
+
+    def fake_iteration(_settings, _engine) -> bool:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("src.worker._run_polling_worker_iteration", fake_iteration)
+
+    with pytest.raises(KeyboardInterrupt):
+        _run_polling_worker(Settings(worker_id="worker-poll"), object(), ShutdownFlag())
+
+
+def test_run_queue_worker_stops_between_iterations_on_shutdown_flag(monkeypatch):
+    from src.worker import _run_queue_worker
+
+    calls: list[int] = []
+    flag = ShutdownFlag()
+
+    def fake_iteration(_settings, _engine) -> None:
+        calls.append(1)
+        if len(calls) >= 2:
+            flag.should_stop = True
+
+    monkeypatch.setattr("src.worker._run_queue_worker_iteration", fake_iteration)
+
+    _run_queue_worker(Settings(worker_id="worker-queue"), object(), flag)
+
+    assert len(calls) == 2
+
+
+def test_run_queue_worker_recovers_from_iteration_exception_and_backs_off(monkeypatch):
+    from src.worker import _run_queue_worker
+
+    calls: list[int] = []
+    slept: list[float] = []
+    flag = ShutdownFlag()
+
+    def fake_iteration(_settings, _engine) -> None:
+        calls.append(1)
+        if len(calls) == 1:
+            raise RuntimeError("boom")
+        flag.should_stop = True
+
+    monkeypatch.setattr("src.worker._run_queue_worker_iteration", fake_iteration)
+    monkeypatch.setattr("src.worker.time.sleep", lambda seconds: slept.append(seconds))
+
+    _run_queue_worker(Settings(worker_id="worker-queue"), object(), flag)
+
+    assert len(calls) == 2
+    assert slept
+
+
+def test_run_queue_worker_reraises_system_exit(monkeypatch):
+    from src.worker import _run_queue_worker
+
+    def fake_iteration(_settings, _engine) -> None:
+        raise SystemExit
+
+    monkeypatch.setattr("src.worker._run_queue_worker_iteration", fake_iteration)
+
+    with pytest.raises(SystemExit):
+        _run_queue_worker(Settings(worker_id="worker-queue"), object(), ShutdownFlag())

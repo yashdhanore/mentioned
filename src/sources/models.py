@@ -34,6 +34,12 @@ class Source(SQLModel, table=True):
     error_message: str | None = Field(default=None)
     skip_reason: str | None = Field(default=None)
     processing_started_at: datetime | None = Field(default=None)
+    # The sources table has a heartbeat_at column (migrations 0003/0017) that no
+    # application code reads or writes; it is not mapped here on purpose.
+    # recover_stale_sources keys staleness on processing_started_at, so a heartbeat
+    # column that nothing refreshes would just be misleading. Leaving the DB column
+    # alone (schema is Alembic's, not this model's, to drop) rather than pretending
+    # to maintain it.
     processed_at: datetime | None = Field(default=None)
     created_at: datetime = Field(default_factory=utc_now, nullable=False)
     updated_at: datetime = Field(default_factory=utc_now, nullable=False)

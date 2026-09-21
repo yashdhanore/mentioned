@@ -17,10 +17,10 @@ import json
 import logging
 from dataclasses import dataclass
 
-from google import genai
-from google.genai.types import GenerateContentConfig, HttpOptions, HttpRetryOptions, Part
+from google.genai.types import GenerateContentConfig, Part
 
 from src.config import get_settings
+from src.extraction.gemini_client import get_gemini_client
 
 logger = logging.getLogger(__name__)
 
@@ -93,25 +93,6 @@ Return JSON only: {{"verdict": "relevant|irrelevant|uncertain", "reason": "<shor
 # ---------------------------------------------------------------------------
 
 
-def _get_client() -> genai.Client:
-    settings = get_settings()
-    retry_options = HttpRetryOptions(attempts=1)
-    if settings.gemini.use_vertexai:
-        if not settings.gemini.vertex_project:
-            raise RuntimeError("GOOGLE_CLOUD_PROJECT is not configured for Vertex AI")
-        return genai.Client(
-            vertexai=True,
-            project=settings.gemini.vertex_project,
-            location=settings.gemini.vertex_location,
-            http_options=HttpOptions(api_version="v1", retry_options=retry_options),
-        )
-
-    api_key = settings.gemini.gemini_api_key
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY is not configured")
-    return genai.Client(api_key=api_key, http_options=HttpOptions(retry_options=retry_options))
-
-
 def _fetch_thumbnail_bytes(thumbnail_url: str) -> tuple[bytes, str] | None:
     """Fetch the thumbnail image through the existing SSRF-protected downloader."""
     from src.storage.thumbnails import _download_thumbnail
@@ -129,7 +110,7 @@ def _call_gate_model(
     thumbnail_mime: str | None,
 ):
     settings = get_settings()
-    client = _get_client()
+    client = get_gemini_client(settings)
 
     parts: list = []
     if thumbnail_bytes and thumbnail_mime:

@@ -10,6 +10,7 @@ from src.extraction.gemini import extract_mentions_from_media
 from src.extraction.local_pipeline import extract_mentions_locally
 from src.extraction.relevance import Verdict, assess_relevance
 from src.extraction.schemas import ExtractedMention, PipelineResult
+from src.sources.failure import SourceFailureReason, safe_source_error_message
 
 logger = logging.getLogger(__name__)
 
@@ -22,14 +23,16 @@ def run_pipeline(source_url: str) -> PipelineResult:
             assets = download_assets_with_metadata(source_url, Path(tmp))
         except Exception as exc:
             logger.warning("Download failed for %s: %s", source_url, exc)
-            return PipelineResult(error=f"Download failed: {exc}")
+            return PipelineResult(
+                error=safe_source_error_message(SourceFailureReason.DOWNLOAD_FAILED)
+            )
 
         paths = assets.paths
         if not paths:
             return PipelineResult(
                 thumbnail_url=assets.thumbnail_url,
                 source_creator_handle=assets.source_creator_handle,
-                error="No media downloaded",
+                error=safe_source_error_message(SourceFailureReason.NO_MEDIA),
             )
 
         total_size_mb = sum(path.stat().st_size for path in paths) / 1024 / 1024
@@ -70,7 +73,7 @@ def run_pipeline(source_url: str) -> PipelineResult:
             return PipelineResult(
                 thumbnail_url=assets.thumbnail_url,
                 source_creator_handle=assets.source_creator_handle,
-                error=f"Extraction failed: {exc}",
+                error=safe_source_error_message(SourceFailureReason.EXTRACTION_FAILED),
             )
 
         logger.info("%s extraction returned %d mentions", backend, len(raw.get("mentions", [])))

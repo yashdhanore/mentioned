@@ -250,6 +250,37 @@ def fail_source_processing(session: Session, source: Source, error: str) -> bool
     return True
 
 
+def fail_source_processing_forcibly(session: Session, source_id: str | UUID, error: str) -> bool:
+    """Fail a source regardless of its current claim attempt.
+
+    Used for the poison-message cutoff: a message that has been redelivered too many
+    times may not be in the exact PROCESSING/processing_started_at state
+    fail_source_processing expects (or may never have been claimed at all), so this
+    bypasses that optimistic check. It only ever moves a source out of PENDING or
+    PROCESSING, so it can never clobber a source that already reached a terminal state.
+    """
+    parsed_source_id = parse_uuid(source_id)
+    now = utc_now()
+    stmt = (
+        update(Source)
+        .where(
+            Source.id == parsed_source_id,
+            Source.status.in_([SourceStatus.PENDING, SourceStatus.PROCESSING]),
+        )
+        .values(status=SourceStatus.FAILED, error_message=error, processed_at=now, updated_at=now)
+        .returning(Source.id)
+    )
+    with session.no_autoflush:
+        failed_id = session.execute(stmt).scalar_one_or_none()
+    if failed_id is None:
+        session.rollback()
+        return False
+
+    enqueue_push_notification(session, parsed_source_id)
+    session.commit()
+    return True
+
+
 def claim_next_pending_source(session: Session) -> Source | None:
     candidate = session.exec(
         select(Source).where(Source.status == SourceStatus.PENDING).order_by(Source.created_at)

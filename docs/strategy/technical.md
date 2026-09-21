@@ -1,6 +1,6 @@
 # Technical Decisions And Ideation
 
-Last updated: 2026-09-21
+Last updated: 2026-09-22
 
 This is the canonical home for Mentioned technical decisions, architecture status, technical
 ideation, and rejected approaches. Technical decisions must start from the product direction in
@@ -473,6 +473,24 @@ The work splits along two independent axes:
   OCR text artifacts that only the pre-Gemini pipeline produced; its one Reel became a label. The
   harness pattern (golden set, confidence intervals, hallucination reported separately) follows
   `ai-engineering-from-scratch` phase 11 lesson 10 and the phase 19 video capstone.
+
+### 2026-09-22 - Worker Poison-Message And Shutdown Policy
+
+- Status: Accepted and implemented.
+- Product constraint: Protects the save -> extract -> revisit loop's reliability - a single
+  malformed queue message or one unhandled exception must not crash-loop the single worker instance
+  and silently stop all extraction for every user.
+- Notes: `src/sources/queue.py` and `src/push/queue.py` now archive malformed or unknown-version
+  pgmq messages instead of raising, so a bad message cannot repeat forever. A message whose
+  `read_ct` exceeds the new `WORKER_QUEUE_MAX_DELIVERIES` setting (default 5) is treated as poison:
+  the source is force-failed with a stable message and the queue message is archived, rather than
+  redelivered indefinitely. `src/worker.py`'s polling and queue loops now catch unexpected exceptions
+  per iteration (log with traceback, back off, continue; `KeyboardInterrupt`/`SystemExit` still
+  propagate) and handle SIGTERM/SIGINT with a plain flag checked between iterations so Render's
+  `maxShutdownDelaySeconds: 300` gives the worker time to finish an in-flight source before exiting.
+  `sources.error_message` is API-visible to every user who saved that URL, so it is now always one of
+  a small set of stable messages (`src/sources/failure.py`); raw exception/provider detail is logged
+  server-side only, never stored on the row.
 
 ### Book Catalog And Reading List Support
 

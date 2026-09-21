@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import patch
 
 import pytest
+from google.genai import errors as genai_errors
 
 from src.config import get_settings
 from src.extraction import gemini
+
+
+def _api_error(code: int) -> genai_errors.APIError:
+    return genai_errors.APIError(code, {"error": {"message": "boom"}})
 
 
 @pytest.fixture(autouse=True)
@@ -16,21 +20,21 @@ def clear_settings_cache():
     get_settings.cache_clear()
 
 
-@patch("src.extraction.gemini.genai.Client")
-def test_get_client_uses_vertexai_config(mock_client, monkeypatch):
-    monkeypatch.setenv("GEMINI_USE_VERTEXAI", "true")
-    monkeypatch.setenv("GEMINI_VERTEX_PROJECT", "mentioned-test")
-    monkeypatch.setenv("GEMINI_VERTEX_LOCATION", "europe-west4")
+def test_get_client_delegates_to_shared_gemini_client(monkeypatch):
+    # scripts/compare_gemini_video_models.py imports this zero-arg wrapper directly.
+    sentinel = object()
+    captured_settings = []
 
-    gemini._get_client()
+    def fake_get_gemini_client(settings):
+        captured_settings.append(settings)
+        return sentinel
 
-    kwargs = mock_client.call_args.kwargs
-    assert kwargs["vertexai"] is True
-    assert kwargs["project"] == "mentioned-test"
-    assert kwargs["location"] == "europe-west4"
-    assert kwargs["http_options"].api_version == "v1"
-    assert kwargs["http_options"].retry_options.attempts == 1
-    assert "api_key" not in kwargs
+    monkeypatch.setattr(gemini, "get_gemini_client", fake_get_gemini_client)
+
+    client = gemini._get_client()
+
+    assert client is sentinel
+    assert captured_settings == [get_settings()]
 
 
 def test_upload_to_gemini_uses_vertex_inline_limit(monkeypatch, tmp_path):
@@ -75,7 +79,7 @@ def test_extract_mentions_from_media_sends_all_media_parts(monkeypatch, tmp_path
             return SimpleNamespace(text='{"mentions": []}')
 
     client = SimpleNamespace(models=Models())
-    monkeypatch.setattr(gemini, "_get_client", lambda: client)
+    monkeypatch.setattr(gemini, "get_gemini_client", lambda _settings: client)
     monkeypatch.setattr(
         gemini,
         "upload_to_gemini",
@@ -102,9 +106,69 @@ def test_extract_mentions_from_media_rejects_oversized_media_before_client(
     monkeypatch.setenv("MAX_MEDIA_TOTAL_BYTES", "10")
     monkeypatch.setattr(
         gemini,
-        "_get_client",
-        lambda: (_ for _ in ()).throw(AssertionError("client should not be created")),
+        "get_gemini_client",
+        lambda _settings: (_ for _ in ()).throw(AssertionError("client should not be created")),
     )
 
     with pytest.raises(RuntimeError, match="Media file exceeds limit"):
         gemini.extract_mentions_from_media(media_file)
+
+
+def test_generate_with_retry_retries_retryable_error_then_succeeds(monkeypatch):
+    monkeypatch.setattr(gemini.time, "sleep", lambda _seconds: None)
+    calls = {"count": 0}
+
+    class Models:
+        def generate_content(self, **kwargs):
+            calls["count"] += 1
+            if calls["count"] < 3:
+                raise _api_error(503)
+            return SimpleNamespace(text='{"mentions": []}')
+
+    client = SimpleNamespace(models=Models())
+
+    response = gemini._generate_with_retry(
+        client, model="m", contents=[], config=None, total_attempts=3
+    )
+
+    assert response.text == '{"mentions": []}'
+    assert calls["count"] == 3
+
+
+def test_generate_with_retry_raises_immediately_on_non_retryable_error(monkeypatch):
+    def _fail_if_called(_seconds):
+        raise AssertionError("should not sleep on a non-retryable error")
+
+    monkeypatch.setattr(gemini.time, "sleep", _fail_if_called)
+    calls = {"count": 0}
+
+    class Models:
+        def generate_content(self, **kwargs):
+            calls["count"] += 1
+            raise _api_error(400)
+
+    client = SimpleNamespace(models=Models())
+
+    with pytest.raises(genai_errors.APIError) as excinfo:
+        gemini._generate_with_retry(client, model="m", contents=[], config=None, total_attempts=3)
+
+    assert excinfo.value.code == 400
+    assert calls["count"] == 1
+
+
+def test_generate_with_retry_raises_after_exhausting_attempts(monkeypatch):
+    monkeypatch.setattr(gemini.time, "sleep", lambda _seconds: None)
+    calls = {"count": 0}
+
+    class Models:
+        def generate_content(self, **kwargs):
+            calls["count"] += 1
+            raise _api_error(503)
+
+    client = SimpleNamespace(models=Models())
+
+    with pytest.raises(genai_errors.APIError) as excinfo:
+        gemini._generate_with_retry(client, model="m", contents=[], config=None, total_attempts=3)
+
+    assert excinfo.value.code == 503
+    assert calls["count"] == 3
