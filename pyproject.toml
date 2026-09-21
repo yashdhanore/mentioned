@@ -12,10 +12,9 @@ dependencies = [
     "psycopg[binary]>=3.2.0",
     "pyjwt[crypto]>=2.8.0",
     "python-dotenv>=1.0.0",
-    # sqlmodel 0.0.45 maps datetime fields to UTCDateTime, which rejects the naive
-    # UTC datetimes this codebase writes (src/timeutils.py). Lift the cap when the
-    # models move to timezone-aware datetimes.
-    "sqlmodel>=0.0.22,<0.0.45",
+    # sqlmodel>=0.0.45 maps datetime fields to UTCDateTime: aware UTC in, aware UTC
+    # out (including on SQLite). src/timeutils.py produces aware UTC datetimes to match.
+    "sqlmodel>=0.0.45",
     "supabase>=2.30.0,<3.0.0",
     # Instagram required browser impersonation (yt-dlp #17074); the fix shipped in the
     # 2026.07.04 stable release (PR #17113), so pin to a stable release again instead of
@@ -55,9 +54,7 @@ target-version = "py312"
 extend-exclude = ["*.md"]
 
 [tool.ruff.lint]
-# DTZ (naive datetime usage) is deferred to the timezone-aware datetime migration
-# (item 7), which enables it once src/timeutils.py and the models are aware-datetime.
-select = ["E", "F", "I", "B", "UP", "C4", "SIM", "RUF", "PT"]
+select = ["E", "F", "I", "B", "UP", "C4", "SIM", "RUF", "PT", "DTZ"]
 
 [tool.ruff.lint.per-file-ignores]
 "migrations/versions/*.py" = ["E501"]

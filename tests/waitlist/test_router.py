@@ -16,11 +16,15 @@ async def test_create_waitlist_signup_is_public(client, session):
     data = resp.json()
     assert data["email"] == "reader@example.com"
     assert data["created"] is True
+    # Pin the wire format: aware UTC datetimes serialize with an explicit "Z"
+    # offset, not a bare "YYYY-MM-DDTHH:MM:SS" with no timezone designator.
+    assert data["created_at"].endswith("Z")
 
     signup = session.exec(select(WaitlistSignup)).one()
     assert signup.email == "reader@example.com"
     assert signup.source == "landing-page"
     assert signup.user_agent == "pytest"
+    assert signup.created_at.tzinfo is not None
 
 
 async def test_create_waitlist_signup_is_idempotent(client, session):

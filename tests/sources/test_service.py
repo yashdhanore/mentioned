@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, timedelta
+from datetime import timedelta
 from uuid import UUID
 
 import pytest
@@ -31,32 +31,29 @@ OWNER_UUID = UUID(OWNER)
 OTHER_OWNER = "00000000-0000-4000-8000-000000000002"
 
 
-def test_increment_retry_window_handles_timezone_aware_started_at() -> None:
-    # Postgres returns timezone-aware datetimes for DateTime(timezone=True)
-    # columns, while utc_now() is naive. The window comparison must not
-    # raise "can't compare offset-naive and offset-aware datetimes".
+def test_increment_retry_window_keeps_window_when_recent() -> None:
     now = utc_now()
-    aware_started_at = (now - timedelta(seconds=10)).replace(tzinfo=UTC)
+    started_at = now - timedelta(seconds=10)
 
-    started_at, count = _increment_retry_window(
-        aware_started_at,
+    result_started_at, count = _increment_retry_window(
+        started_at,
         2,
         now,
         timedelta(minutes=1),
     )
 
-    # Within the window: same instant (normalized to naive UTC), incremented count.
+    # Within the window: same instant, incremented count.
     assert count == 3
-    assert started_at == aware_started_at.replace(tzinfo=None)
-    assert started_at.tzinfo is None
+    assert result_started_at == started_at
+    assert result_started_at.tzinfo is not None
 
 
-def test_increment_retry_window_resets_when_aware_started_at_is_stale() -> None:
+def test_increment_retry_window_resets_when_stale() -> None:
     now = utc_now()
-    aware_started_at = (now - timedelta(minutes=5)).replace(tzinfo=UTC)
+    started_at = now - timedelta(minutes=5)
 
-    started_at, count = _increment_retry_window(
-        aware_started_at,
+    result_started_at, count = _increment_retry_window(
+        started_at,
         9,
         now,
         timedelta(minutes=1),
@@ -64,7 +61,7 @@ def test_increment_retry_window_resets_when_aware_started_at_is_stale() -> None:
 
     # Outside the window: reset to now / count 1.
     assert count == 1
-    assert started_at == now
+    assert result_started_at == now
 
 
 def test_save_source_for_user_creates_source_and_saved_source(

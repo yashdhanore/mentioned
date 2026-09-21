@@ -69,11 +69,17 @@ def _insert_saved_source(
             insert into public.sources
               (id, source_key, platform, source_type, external_id, canonical_url)
             values
-              (:source_id, :source_key, 'instagram', 'reel', :source_id, :canonical_url)
+              (:source_id, :source_key, 'instagram', 'reel', :external_id, :canonical_url)
             """
         ),
         {
             "source_id": source_id,
+            # Bound separately from :source_id (same string value, different column
+            # type: uuid vs text) - psycopg's extended query protocol infers one type
+            # per parameter name across the whole statement, so reusing :source_id
+            # here raises "inconsistent types deduced for parameter" against a real
+            # Postgres server.
+            "external_id": source_id,
             "source_key": f"instagram:reel:{source_id}",
             "canonical_url": canonical_url,
         },

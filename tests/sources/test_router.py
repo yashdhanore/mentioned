@@ -85,6 +85,13 @@ async def test_create_saved_source(client) -> None:
     data = resp.json()
     assert data["source_key"] == "instagram:reel:ABC123"
     assert data["status"] == "processing"
+    # Pin the wire format: aware UTC datetimes serialize with an explicit "Z"
+    # offset, not a bare "YYYY-MM-DDTHH:MM:SS" with no timezone designator.
+    # mobile/src/screens/reel-detail-screen.tsx does `Date.parse(createdAt)`,
+    # which (per the ECMAScript date-time string spec) treats a string with no
+    # offset as LOCAL time - so the old naive format was a latent bug for any
+    # device not in UTC+0; the explicit "Z" fixes it rather than breaking it.
+    assert data["created_at"].endswith("Z")
 
 
 async def test_create_saved_source_allows_http_when_https_not_required(client) -> None:

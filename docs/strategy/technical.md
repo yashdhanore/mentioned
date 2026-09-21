@@ -530,6 +530,44 @@ The work splits along two independent axes:
   being pip-installed). `requires-python`/ruff `target-version` moved to 3.12 to match what CI and the
   Docker base image (`python:3.12.14-slim`) actually run; no code currently depends on 3.11.
 
+### 2026-09-22 - Timezone-Aware Datetimes
+
+- Status: Accepted and implemented.
+- Product constraint: Contract safety and operational trust for the save -> extract -> revisit loop -
+  `sqlmodel<0.0.45` was already a stopgap (0.0.45 rejects naive datetime writes), and the app-level
+  naive-vs-aware mismatch was live-bug-adjacent (see the wire-format finding below).
+- Notes: Every live datetime column in this schema was already `timestamptz` from the very first
+  migration (0003) onward - there was no `timestamp without time zone` column to convert, so the
+  planned "convert remaining naive columns" Alembic revision turned out to be unnecessary and was not
+  added. The actual gap was purely application-side: `src/timeutils.py`'s `utc_now()` stripped tzinfo
+  before returning, `src/sources/service.py` carried a hack to re-strip tzinfo off values read back
+  from Postgres (which already came back aware), and `sqlmodel<0.0.45` was capped to tolerate the
+  mismatch. Made `utc_now()` return aware UTC, removed the strip-tzinfo hack, required
+  `sqlmodel>=0.0.45` (which maps `datetime` fields to its `UTCDateTime` type: aware UTC in, aware UTC
+  out, on SQLite too), and enabled ruff's `DTZ` rule family - zero findings, since the codebase already
+  funneled every "now" through `utc_now()`.
+  **Wire format finding:** aware UTC datetimes serialize with a trailing `Z`
+  (`"2026-01-01T10:00:00Z"`) instead of the old bare `"2026-01-01T10:00:00"` with no offset. Checked
+  `mobile/src/screens/reel-detail-screen.tsx`'s `savedAtLabel()`, the only place the app parses
+  `created_at` (`Date.parse(createdAt)`): a JS date-time string with no offset parses as **local**
+  time per the ECMAScript spec, so the old wire format was a latent bug for any device not in UTC+0
+  (verified: a device in UTC+5:30 would show "Saved 5h ago" for a source saved seconds ago; a
+  negative-offset device would show "Saved just now" forever). The explicit `Z` fixes this rather than
+  breaking it, so the wire format was allowed to change; pinned with a test asserting `created_at`
+  ends in `"Z"` on both `/v1/saved-sources` and `/v1/waitlist` responses.
+  **Verified against real Postgres** (throwaway `supabase/postgres:17.6.1.167` container, removed
+  after): `alembic upgrade head` through 20260922_0018, `downgrade -1`/`-2` and back up for both new
+  revisions (0017, 0018), and a direct insert/read/compare round trip with the actual `Source` model
+  confirmed `tzinfo=UTC` on every value read back. Also ran `tests/test_postgres_dedicated_worker_rls.py`
+  with its three role connection strings against the same container - all 4 pass; fixed an unrelated
+  pre-existing bug in that file where the same bind parameter name was reused for a `uuid` column and
+  a `text` column in one INSERT, which a real Postgres/psycopg3 rejects with "inconsistent types
+  deduced for parameter" (SQLite silently tolerated it, so this had never been caught).
+  **Correction:** the `sources` table has never had a `heartbeat_at` column in any migration; that
+  column only ever existed on the legacy `jobs` table (dropped by revision 0017). An earlier item-4
+  commit added a code comment to `src/sources/models.py` incorrectly attributing a `heartbeat_at`
+  column to `sources` - corrected in this change once the migration inventory caught it.
+
 ### Book Catalog And Reading List Support
 
 > Product intent lives in `docs/strategy/product.md`. Technical work here should support the

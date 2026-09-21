@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import delete, func, update
@@ -21,11 +21,6 @@ def _increment_retry_window(
     now: datetime,
     window: timedelta,
 ) -> tuple[datetime, int]:
-    # Postgres returns timezone-aware values for DateTime(timezone=True) columns,
-    # but `now` is naive (utc_now()). Normalize to naive UTC so the
-    # comparison never mixes offset-aware and offset-naive datetimes.
-    if window_started_at is not None and window_started_at.tzinfo is not None:
-        window_started_at = window_started_at.astimezone(UTC).replace(tzinfo=None)
     if window_started_at is None or window_started_at < now - window:
         return now, 1
     return window_started_at, count + 1
