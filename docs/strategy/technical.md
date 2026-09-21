@@ -492,6 +492,27 @@ The work splits along two independent axes:
   a small set of stable messages (`src/sources/failure.py`); raw exception/provider detail is logged
   server-side only, never stored on the row.
 
+### 2026-09-22 - Alembic Owns All Of `public`, Including Grants And RLS
+
+- Status: Accepted and implemented; extends ADR 0001.
+- Product constraint: Contract safety and operational trust for the save -> extract -> revisit loop
+  - a database built from `alembic upgrade head` alone must have the same schema, grants, and RLS
+  as production, or a fresh environment silently diverges from what the API/worker expect.
+- Notes: `waitlist_signups` existed only via a hand-written Supabase migration, so `POST /v1/waitlist`
+  had no backing table on a database built purely from Alembic; added
+  `migrations/versions/20260922_0018_waitlist_signups.py` (idempotent, safe on both a fresh database
+  and production, which already has the table). Its RLS policy is scoped `to mentioned_api`,
+  replacing the old policy that had no `to <role>` clause and so applied to every role. The two
+  now-redundant Supabase SQL files were not deleted (the Supabase CLI tracks applied migrations by
+  version, not checksum, so deleting a recorded-applied version risks `supabase db push` reporting
+  missing remote versions) but rewritten as idempotent, order-independent no-ops with a header
+  comment pointing at the Alembic revision that owns the object. `scripts/dev-up.sh` no longer needs
+  to move `supabase/migrations/*.sql` out of the repo before first-time `supabase start`, because the
+  one file that referenced an Alembic-owned table (`jobs`) is now guarded against that table not
+  existing. Root `AGENTS.md` and `supabase/AGENTS.md` were corrected to say Alembic owns grants and
+  RLS too, not just tables/columns - the Supabase CLI's real job is storage buckets, auth, and local
+  stack config.
+
 ### Book Catalog And Reading List Support
 
 > Product intent lives in `docs/strategy/product.md`. Technical work here should support the

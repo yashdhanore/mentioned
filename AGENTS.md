@@ -39,5 +39,5 @@ Mentioned is a FastAPI, Supabase, Expo, and Astro product for extracting books, 
 
 - Match the existing style and boundaries in the files you touch.
 - Add or update focused tests when behavior changes.
-- Use Alembic for table/column schema changes: add a revision under `migrations/versions/`; prod applies it via `alembic upgrade head` in the worker pre-deploy step. Use the Supabase CLI only for Supabase-managed concerns (RLS policies, storage buckets, auth/Supabase config); see [supabase/AGENTS.md](supabase/AGENTS.md).
+- Use Alembic for schema changes in `public`: tables, columns, grants, and row-level security policies all go in a new revision under `migrations/versions/`; prod applies it via `alembic upgrade head` in the worker pre-deploy step. The Supabase CLI owns only storage buckets, auth, and local stack config, nothing in `public`; see [supabase/AGENTS.md](supabase/AGENTS.md).
 - For hosted backend failures, inspect Render evidence before guessing from local code.

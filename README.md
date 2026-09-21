@@ -44,7 +44,7 @@ flowchart LR
 | `tests/` | Backend pytest suite, mirroring the `src/` layout. |
 | `mobile/` | Expo/React Native iOS app and share extension. See `mobile/README.md`. |
 | `web/` | Astro landing page and waitlist form. |
-| `supabase/` | Supabase CLI config for the local stack, plus the few Supabase-side migrations (thumbnail storage bucket, waitlist table). |
+| `supabase/` | Supabase CLI config for the local stack, storage buckets, and auth; the storage bucket migration is load-bearing, the other two SQL files are guarded no-ops kept for Supabase CLI migration-history reasons (see the ADR). |
 | `scripts/` | Release checks, smoke tests, local dev scripts, eval tooling. |
 | `evals/` | Reel lists and run notes for evaluating extraction quality across Gemini models. |
 | `docs/` | Deployment runbook, architecture decision records, product/technical strategy notes. |
@@ -83,14 +83,14 @@ make dev-down  # stops everything; local DB state is kept for next time
 First run bootstraps a local Postgres via the Supabase CLI (`supabase start`), creates the `mentioned_api`/`mentioned_worker` roles, and applies all Alembic and Supabase-managed migrations automatically.
 Requires Docker and the Supabase CLI (`brew install supabase/tap/supabase`).
 
-For the API and worker to actually use that Postgres instead of the SQLite default, add to your `.env`:
+`scripts/dev-up.sh` exports `DATABASE_URL`/`WORKER_DATABASE_URL` for the API and worker processes it starts, pointing at that local Postgres, so `make dev` uses Postgres (queue-backed worker, real RLS) with no `.env` edits needed:
 
 ```
 DATABASE_URL=postgresql://mentioned_api:local-dev-api-pw@127.0.0.1:54322/postgres
 WORKER_DATABASE_URL=postgresql://mentioned_worker:local-dev-worker-pw@127.0.0.1:54322/postgres
 ```
 
-Without this, the API still boots fine on SQLite.
+Running `fastapi dev` or `mentioned-worker` directly (outside `make dev`), without these set in your `.env`, falls back to SQLite.
 On SQLite there is no pgmq, so `enqueue_source_extraction` is a silent no-op and the worker instead runs a polling loop that claims pending `Source` rows directly with the same atomic claim used in production (`src/worker.py`, `claim_next_pending_source`); saved sources still get processed, just serially and on a poll interval instead of through a queue.
 
 Real extraction needs `EXTRACTION_BACKEND=gemini` and a `GEMINI_API_KEY`, plus `ffmpeg` installed for video transcoding.

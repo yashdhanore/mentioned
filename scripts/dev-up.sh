@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Starts the full local dev stack: Supabase (Postgres/Storage), backend API,
-# worker, web app, and mobile app (Expo web). Logs go to .dev-logs/.
+# worker, web app, and mobile app (Expo web). Logs go to .dev-logs/, PIDs to .dev-logs/*.pid.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
@@ -34,24 +34,17 @@ wait_for() {
 }
 
 echo "Starting local Supabase (Postgres, Storage, Auth)..."
-if ! supabase start > "$LOG_DIR/supabase.log" 2>&1; then
-  if grep -q "does not exist" "$LOG_DIR/supabase.log"; then
-    # First run on an empty database: supabase/migrations/*.sql assumes the
-    # app schema (owned by Alembic) already exists. Bootstrap Alembic first,
-    # then apply the Supabase-managed migrations on top.
-    echo "  First-time setup: bootstrapping schema before Supabase-managed migrations..."
-    mkdir -p .dev-logs/.migrations-tmp
-    mv supabase/migrations/*.sql .dev-logs/.migrations-tmp/ 2>/dev/null
-    supabase stop > /dev/null 2>&1
-    supabase start >> "$LOG_DIR/supabase.log" 2>&1 || {
-      echo "supabase start failed even after clearing migrations, see $LOG_DIR/supabase.log" >&2
-      exit 1
-    }
-  else
-    echo "supabase start failed, see $LOG_DIR/supabase.log" >&2
-    exit 1
-  fi
-fi
+supabase start > "$LOG_DIR/supabase.log" 2>&1 || {
+  echo "supabase start failed, see $LOG_DIR/supabase.log" >&2
+  exit 1
+}
+
+# DATABASE_URL/WORKER_DATABASE_URL: the same local Postgres roles/URLs documented in
+# README.md, exported so the API and worker processes below use Postgres (queue-backed
+# worker, real RLS) without requiring a manual .env edit. python-dotenv's load_dotenv
+# does not override already-set env vars, so this takes precedence over any .env value.
+export DATABASE_URL="postgresql://mentioned_api:local-dev-api-pw@127.0.0.1:54322/postgres"
+export WORKER_DATABASE_URL="postgresql://mentioned_worker:local-dev-worker-pw@127.0.0.1:54322/postgres"
 
 echo "Ensuring local dev database roles exist..."
 docker exec -i supabase_db_mentioned psql -U postgres -d postgres -v ON_ERROR_STOP=1 >> "$LOG_DIR/supabase.log" 2>&1 <<'SQL'
@@ -66,32 +59,43 @@ BEGIN
 END
 $$;
 SQL
+if [ $? -ne 0 ]; then
+  echo "Creating local dev database roles failed, see $LOG_DIR/supabase.log" >&2
+  exit 1
+fi
 
 echo "Applying backend schema migrations (alembic)..."
 DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
   .venv/bin/alembic upgrade head >> "$LOG_DIR/supabase.log" 2>&1
-
-if [ -d .dev-logs/.migrations-tmp ] && [ -n "$(ls -A .dev-logs/.migrations-tmp 2>/dev/null)" ]; then
-  mv .dev-logs/.migrations-tmp/*.sql supabase/migrations/
-  rmdir .dev-logs/.migrations-tmp
-  echo "Applying Supabase-managed migrations (storage buckets, RLS)..."
-  supabase migration up --local >> "$LOG_DIR/supabase.log" 2>&1
+if [ $? -ne 0 ]; then
+  echo "alembic upgrade head failed, see $LOG_DIR/supabase.log" >&2
+  exit 1
 fi
+
+echo "Applying Supabase-managed migrations (storage buckets, RLS)..."
+supabase migration up --local >> "$LOG_DIR/supabase.log" 2>&1 || {
+  echo "supabase migration up --local failed, see $LOG_DIR/supabase.log" >&2
+  exit 1
+}
 
 echo "Starting backend API..."
 .venv/bin/fastapi dev --port 8000 > "$LOG_DIR/backend.log" 2>&1 &
+echo $! > "$LOG_DIR/backend.pid"
 disown
 
 echo "Starting worker..."
 .venv/bin/mentioned-worker > "$LOG_DIR/worker.log" 2>&1 &
+echo $! > "$LOG_DIR/worker.pid"
 disown
 
 echo "Starting web app..."
 (cd web && npm run dev) > "$LOG_DIR/web.log" 2>&1 &
+echo $! > "$LOG_DIR/web.pid"
 disown
 
 echo "Starting mobile app (Expo web)..."
 (cd mobile && npx expo start --web) > "$LOG_DIR/mobile.log" 2>&1 &
+echo $! > "$LOG_DIR/mobile.pid"
 disown
 
 echo ""
