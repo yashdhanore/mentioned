@@ -6,48 +6,51 @@ from collections.abc import Callable
 from sqlalchemy.engine import Engine
 from sqlmodel import Session
 
-from src.jobs.models import Job, JobStatus
-from src.jobs.service import get_job
 from src.push.expo import (
     PushDeliveryResult,
     PushDeliveryRetryableError,
-    send_job_push_notifications,
+    send_source_push_notifications,
 )
 from src.push.queue import PushNotificationMessage, archive_push_notification_message
-from src.push.service import disable_push_token_value, list_active_push_tokens
+from src.push.service import (
+    SourcePushTarget,
+    disable_push_token_value,
+    list_push_targets_for_source,
+)
+from src.sources.models import Source, SourceStatus
 
 logger = logging.getLogger(__name__)
 
-PushSender = Callable[[Job, list[str]], PushDeliveryResult]
+PushSender = Callable[[Source, list[SourcePushTarget]], PushDeliveryResult]
 
 
 def process_push_notification_message(
     message: PushNotificationMessage,
     worker_engine: Engine,
-    send_notifications: PushSender = send_job_push_notifications,
+    send_notifications: PushSender = send_source_push_notifications,
 ) -> None:
     with Session(worker_engine) as session:
-        job = get_job(session, message.job_id)
-        if not job:
+        source = session.get(Source, message.source_id)
+        if not source:
             logger.warning(
-                "Archiving push message %s for missing job %s",
+                "Archiving push message %s for missing source %s",
                 message.msg_id,
-                message.job_id,
+                message.source_id,
             )
             archive_push_notification_message(session, message.msg_id)
             session.commit()
             return
-        if job.status == JobStatus.PENDING:
+        if source.status not in (SourceStatus.DONE, SourceStatus.FAILED):
             logger.info(
-                "Leaving push message %s unarchived for pending job %s",
+                "Leaving push message %s unarchived for unfinished source %s",
                 message.msg_id,
-                job.id,
+                source.id,
             )
             return
-        tokens = list_active_push_tokens(session, job.owner_id)
+        targets = list_push_targets_for_source(session, source.id)
 
     try:
-        result = send_notifications(job, tokens)
+        result = send_notifications(source, targets)
     except PushDeliveryRetryableError as exc:
         logger.warning(
             "Leaving push message %s unarchived after retryable delivery failure: %s",
@@ -61,4 +64,4 @@ def process_push_notification_message(
             disable_push_token_value(session, expo_push_token)
         archive_push_notification_message(session, message.msg_id)
         session.commit()
-        logger.info("Archived push message %s for job %s", message.msg_id, job.id)
+        logger.info("Archived push message %s for source %s", message.msg_id, source.id)

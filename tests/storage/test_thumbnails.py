@@ -6,10 +6,9 @@ import httpx
 import respx
 
 from src.config import AuthConfig, Settings
-from src.storage.thumbnails import store_job_thumbnail
+from src.storage.thumbnails import store_source_thumbnail
 
-OWNER_ID = UUID("00000000-0000-4000-8000-000000000001")
-JOB_ID = UUID("11111111-1111-4111-8111-111111111111")
+SOURCE_ID = UUID("11111111-1111-4111-8111-111111111111")
 RAW_URL = "https://scontent.cdninstagram.com/v/t51.2885-15/thumbnail.jpg"
 
 
@@ -49,7 +48,7 @@ def settings_with_storage_key() -> Settings:
 
 
 @respx.mock
-def test_store_job_thumbnail_uploads_valid_cdn_image(monkeypatch):
+def test_store_source_thumbnail_uploads_valid_cdn_image(monkeypatch):
     bucket = FakeBucket()
     monkeypatch.setattr(
         "src.storage.thumbnails.create_client",
@@ -59,20 +58,19 @@ def test_store_job_thumbnail_uploads_valid_cdn_image(monkeypatch):
         return_value=httpx.Response(200, headers={"content-type": "image/jpeg"}, content=b"jpeg")
     )
 
-    public_url = store_job_thumbnail(
+    public_url = store_source_thumbnail(
         RAW_URL,
-        owner_id=OWNER_ID,
-        job_id=JOB_ID,
+        source_id=SOURCE_ID,
         settings=settings_with_storage_key(),
     )
 
     assert public_url == (
         "https://example.supabase.co/storage/v1/object/public/job-thumbnails/"
-        f"users/{OWNER_ID}/jobs/{JOB_ID}/thumbnail.jpg"
+        f"users/{SOURCE_ID}/jobs/{SOURCE_ID}/thumbnail.jpg"
     )
     assert bucket.uploads == [
         (
-            f"users/{OWNER_ID}/jobs/{JOB_ID}/thumbnail.jpg",
+            f"users/{SOURCE_ID}/jobs/{SOURCE_ID}/thumbnail.jpg",
             b"jpeg",
             {
                 "cache-control": "31536000",
@@ -84,17 +82,16 @@ def test_store_job_thumbnail_uploads_valid_cdn_image(monkeypatch):
 
 
 @respx.mock
-def test_store_job_thumbnail_skips_invalid_host(monkeypatch):
+def test_store_source_thumbnail_skips_invalid_host(monkeypatch):
     bucket = FakeBucket()
     monkeypatch.setattr(
         "src.storage.thumbnails.create_client",
         lambda _url, _key: FakeSupabaseClient(bucket),
     )
 
-    public_url = store_job_thumbnail(
+    public_url = store_source_thumbnail(
         "https://example.com/thumb.jpg",
-        owner_id=OWNER_ID,
-        job_id=JOB_ID,
+        source_id=SOURCE_ID,
         settings=settings_with_storage_key(),
     )
 
@@ -103,7 +100,7 @@ def test_store_job_thumbnail_skips_invalid_host(monkeypatch):
 
 
 @respx.mock
-def test_store_job_thumbnail_skips_redirect_to_invalid_host(monkeypatch):
+def test_store_source_thumbnail_skips_redirect_to_invalid_host(monkeypatch):
     bucket = FakeBucket()
     monkeypatch.setattr(
         "src.storage.thumbnails.create_client",
@@ -116,10 +113,9 @@ def test_store_job_thumbnail_skips_redirect_to_invalid_host(monkeypatch):
         )
     )
 
-    public_url = store_job_thumbnail(
+    public_url = store_source_thumbnail(
         RAW_URL,
-        owner_id=OWNER_ID,
-        job_id=JOB_ID,
+        source_id=SOURCE_ID,
         settings=settings_with_storage_key(),
     )
 
@@ -128,7 +124,7 @@ def test_store_job_thumbnail_skips_redirect_to_invalid_host(monkeypatch):
 
 
 @respx.mock
-def test_store_job_thumbnail_skips_non_image_content(monkeypatch):
+def test_store_source_thumbnail_skips_non_image_content(monkeypatch):
     bucket = FakeBucket()
     monkeypatch.setattr(
         "src.storage.thumbnails.create_client",
@@ -138,10 +134,9 @@ def test_store_job_thumbnail_skips_non_image_content(monkeypatch):
         return_value=httpx.Response(200, headers={"content-type": "text/html"}, content=b"nope")
     )
 
-    public_url = store_job_thumbnail(
+    public_url = store_source_thumbnail(
         RAW_URL,
-        owner_id=OWNER_ID,
-        job_id=JOB_ID,
+        source_id=SOURCE_ID,
         settings=settings_with_storage_key(),
     )
 
@@ -150,7 +145,7 @@ def test_store_job_thumbnail_skips_non_image_content(monkeypatch):
 
 
 @respx.mock
-def test_store_job_thumbnail_skips_oversized_image(monkeypatch):
+def test_store_source_thumbnail_skips_oversized_image(monkeypatch):
     bucket = FakeBucket()
     monkeypatch.setattr(
         "src.storage.thumbnails.create_client",
@@ -164,10 +159,9 @@ def test_store_job_thumbnail_skips_oversized_image(monkeypatch):
         )
     )
 
-    public_url = store_job_thumbnail(
+    public_url = store_source_thumbnail(
         RAW_URL,
-        owner_id=OWNER_ID,
-        job_id=JOB_ID,
+        source_id=SOURCE_ID,
         settings=settings_with_storage_key(),
     )
 
@@ -176,17 +170,16 @@ def test_store_job_thumbnail_skips_oversized_image(monkeypatch):
 
 
 @respx.mock
-def test_store_job_thumbnail_skips_when_service_role_key_missing(monkeypatch):
+def test_store_source_thumbnail_skips_when_service_role_key_missing(monkeypatch):
     bucket = FakeBucket()
     monkeypatch.setattr(
         "src.storage.thumbnails.create_client",
         lambda _url, _key: FakeSupabaseClient(bucket),
     )
 
-    public_url = store_job_thumbnail(
+    public_url = store_source_thumbnail(
         RAW_URL,
-        owner_id=OWNER_ID,
-        job_id=JOB_ID,
+        source_id=SOURCE_ID,
         settings=Settings(auth=AuthConfig(supabase_project_url="https://example.supabase.co")),
     )
 

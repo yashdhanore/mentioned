@@ -6,9 +6,8 @@ from sqlmodel import Session, delete
 
 from src.config import Settings, get_settings
 from src.ids import parse_uuid
-from src.jobs.models import Job, JobEvent
-from src.mentions.models import Mention
 from src.push.models import PushToken
+from src.sources.models import SavedSource
 
 try:
     from supabase import create_client
@@ -20,11 +19,14 @@ logger = logging.getLogger(__name__)
 
 
 def delete_account_data(session: Session, owner_id: str) -> None:
-    """Hard-delete every row this user owns. Runs inside the caller's RLS context."""
+    """Hard-delete every row this user owns. Runs inside the caller's RLS context.
+
+    The shared `sources`/`source_items` cache rows are left in place: other users
+    may still have their own `saved_sources` row pointing at the same canonical
+    source, and this cache carries no owner id to delete by.
+    """
     owner_uuid = parse_uuid(owner_id)
-    session.exec(delete(JobEvent).where(JobEvent.owner_id == owner_uuid))
-    session.exec(delete(Mention).where(Mention.owner_id == owner_uuid))
-    session.exec(delete(Job).where(Job.owner_id == owner_uuid))
+    session.exec(delete(SavedSource).where(SavedSource.owner_id == owner_uuid))
     session.exec(delete(PushToken).where(PushToken.owner_id == owner_uuid))
     session.commit()
 

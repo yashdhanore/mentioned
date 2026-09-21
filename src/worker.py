@@ -8,18 +8,13 @@ from sqlmodel import Session
 
 from src.config import Settings, get_settings
 from src.database import check_worker_database_role, create_sql_engine, engine
-from src.ingestion.processor import default_ingestion
-from src.ingestion.queue_worker import (
-    process_extract_job_message,
-    process_source_extraction_message,
-)
-from src.jobs.models import Job
-from src.jobs.queue import read_extract_job_messages
-from src.jobs.service import claim_next_job, recover_stale_jobs
+from src.ingestion.queue_worker import process_source_extraction_message
+from src.ingestion.source_processor import default_source_ingestion
 from src.push.queue import read_push_notification_messages
 from src.push.worker import process_push_notification_message
+from src.sources.models import Source
 from src.sources.queue import read_source_extraction_messages
-from src.sources.service import recover_stale_sources
+from src.sources.service import claim_next_pending_source, recover_stale_sources
 
 logger = logging.getLogger(__name__)
 
@@ -44,30 +39,35 @@ def _drain_push_notifications(settings: Settings, worker_engine: Engine) -> None
         process_push_notification_message(message, worker_engine)
 
 
+def _run_polling_worker_iteration(settings: Settings, worker_engine: Engine) -> bool:
+    with Session(worker_engine) as session:
+        recovered = recover_stale_sources(session, settings.worker_stale_timeout_seconds)
+        if recovered:
+            logger.info("Recovered %d stale sources", recovered)
+        source = claim_next_pending_source(session)
+
+    if not source:
+        return False
+
+    logger.info("Claimed source %s (%s)", source.id, source.canonical_url)
+    with Session(worker_engine) as session:
+        source = session.get(Source, source.id)
+        if source:
+            default_source_ingestion.process_source(session, source)
+            logger.info("Source %s finished with status: %s", source.id, source.status)
+    return True
+
+
 def _run_polling_worker(settings: Settings, worker_engine: Engine) -> None:
-    worker_id = settings.worker_id
     poll_interval = settings.worker_poll_interval_seconds
-    stale_timeout = settings.worker_stale_timeout_seconds
-
-    logger.info("Worker %s starting in polling mode (poll=%.1fs)", worker_id, poll_interval)
+    logger.info(
+        "Worker %s starting in polling mode (poll=%.1fs)", settings.worker_id, poll_interval
+    )
     while True:
-        with Session(worker_engine) as session:
-            recovered = recover_stale_jobs(session, stale_timeout)
-            if recovered:
-                logger.info("Recovered %d stale jobs", recovered)
-            job = claim_next_job(session, worker_id)
-
-        if not job:
-            logger.debug("No pending jobs, sleeping %.1fs", poll_interval)
+        processed = _run_polling_worker_iteration(settings, worker_engine)
+        if not processed:
+            logger.debug("No pending sources, sleeping %.1fs", poll_interval)
             time.sleep(poll_interval)
-            continue
-
-        logger.info("Claimed job %s (%s)", job.id, job.source_url)
-        with Session(worker_engine) as session:
-            job = session.get(Job, job.id)
-            if job:
-                default_ingestion.process_job(session, job)
-                logger.info("Job %s finished with status: %s", job.id, job.status)
 
 
 def _run_queue_worker(settings: Settings, worker_engine: Engine) -> None:
@@ -82,9 +82,6 @@ def _run_queue_worker(settings: Settings, worker_engine: Engine) -> None:
 
 def _run_queue_worker_iteration(settings: Settings, worker_engine: Engine) -> None:
     with Session(worker_engine) as session:
-        recovered = recover_stale_jobs(session, settings.worker_stale_timeout_seconds)
-        if recovered:
-            logger.info("Recovered %d stale jobs", recovered)
         recovered_sources = recover_stale_sources(session, settings.worker_stale_timeout_seconds)
         if recovered_sources:
             logger.info("Recovered %d stale sources", recovered_sources)
@@ -99,20 +96,6 @@ def _run_queue_worker_iteration(settings: Settings, worker_engine: Engine) -> No
     for message in source_messages:
         process_source_extraction_message(message, worker_engine, settings)
 
-    if source_messages:
-        return
-
-    with Session(worker_engine) as session:
-        messages = read_extract_job_messages(
-            session,
-            visibility_timeout_seconds=settings.worker_queue_visibility_timeout_seconds,
-            max_poll_seconds=settings.worker_queue_max_poll_seconds,
-            poll_interval_ms=settings.worker_queue_poll_interval_ms,
-        )
-        session.commit()
-
-    for message in messages:
-        process_extract_job_message(message, worker_engine, settings)
     _drain_push_notifications(settings, worker_engine)
 
 

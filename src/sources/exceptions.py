@@ -1,19 +1,27 @@
 from __future__ import annotations
 
-
-class SourceError(Exception):
-    status_code: int = 400
-    error_code: str = "source_error"
-    message: str = "An error occurred"
+from src.errors import AppError
 
 
-class InvalidSourceUrl(SourceError):
+class InvalidSourceUrl(AppError):
     status_code = 400
     error_code = "invalid_source_url"
     message = "Invalid source URL"
 
 
-class SavedSourceNotFound(SourceError):
+class SavedSourceNotFound(AppError):
     status_code = 404
     error_code = "saved_source_not_found"
     message = "Saved source not found"
+
+
+class RateLimited(AppError):
+    status_code = 429
+    error_code = "rate_limited"
+    message = "Too many requests"
+
+
+class QuotaExceeded(AppError):
+    status_code = 429
+    error_code = "quota_exceeded"
+    message = "Quota exceeded"

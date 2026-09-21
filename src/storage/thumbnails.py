@@ -125,8 +125,10 @@ def _download_thumbnail(raw_url: str) -> ThumbnailImage | None:
     return None
 
 
-def _storage_path(owner_id: UUID, job_id: UUID, extension: str) -> str:
-    return f"users/{owner_id}/jobs/{job_id}/thumbnail{extension}"
+def _storage_path(source_id: UUID, extension: str) -> str:
+    # The path still says "jobs" because changing it would orphan thumbnails
+    # already uploaded to Supabase Storage under the old layout.
+    return f"users/{source_id}/jobs/{source_id}/thumbnail{extension}"
 
 
 def _public_url(value: Any) -> str | None:
@@ -140,11 +142,10 @@ def _public_url(value: Any) -> str | None:
     return None
 
 
-def store_job_thumbnail(
+def store_source_thumbnail(
     raw_thumbnail_url: str | None,
     *,
-    owner_id: UUID,
-    job_id: UUID,
+    source_id: UUID,
     settings: Settings | None = None,
 ) -> str | None:
     if not raw_thumbnail_url:
@@ -164,7 +165,7 @@ def store_job_thumbnail(
     if image is None:
         return None
 
-    path = _storage_path(owner_id, job_id, image.extension)
+    path = _storage_path(source_id, image.extension)
     try:
         client = create_client(supabase_url, service_role_key)
         bucket = client.storage.from_(THUMBNAIL_STORAGE_BUCKET)
@@ -179,5 +180,5 @@ def store_job_thumbnail(
         )
         return _public_url(bucket.get_public_url(path))
     except Exception as exc:
-        logger.warning("Failed to store thumbnail for job %s: %s", job_id, exc)
+        logger.warning("Failed to store thumbnail for source %s: %s", source_id, exc)
         return None
