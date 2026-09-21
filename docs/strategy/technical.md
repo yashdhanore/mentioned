@@ -148,6 +148,50 @@ The work splits along two independent axes:
 - Open contribution: the gate's verdict criteria prompt (`GATE_CRITERIA` in `relevance.py`) is the
   real skip bar and is owner-tuned; the schema/IO/fail-open wrapper are fixed.
 
+### 2026-09-21 - Jev (TypeSafe AI) Evaluated As Gemini Replacement
+
+- Status: Rejected as a replacement for either Gemini call. Kept as a candidate for two narrow,
+  text-only decision points (enrichment candidate matching, per-mention confidence) once provider
+  cost/latency instrumentation exists and Jev leaves waitlist-only early access.
+- Product constraint: Supports cost control and extraction reliability for the save -> extract ->
+  revisit loop without changing the frozen v1 HTTP contract.
+- What Jev is (as of 2026-09-21): TypeSafe AI's "System One" model, early access since 2026-09-15.
+  It is a transformer but not an LLM - it emits no text. It takes a text state plus typed questions
+  (choice / score / boolean) and returns typed values with calibrated probabilities, many questions
+  in parallel per request. ~0.4s vs 10-38s for frontier LLMs; $0.042/M input tokens, output free;
+  32k context; trained with RLCD (Reinforcement Learning for Calibrated Decisions), which optimises
+  probabilities against outcomes rather than human preference.
+- Decisive blocker: **Jev is text-only - no image or video input.** Both of our model calls are
+  multimodal. `src/extraction/gemini.py` sends video+audio; `src/extraction/relevance.py` sends the
+  post thumbnail alongside the caption. The 2026-06-24 gate note makes the thumbnail load-bearing on
+  purpose: the caption is attacker-controlled, so the image is the independent signal that stops
+  caption text from forcing a skip. A caption-only Jev gate would be both less accurate and a
+  prompt-injection regression, so this is not a swap we can make even in principle today.
+- Cost argument does not hold either: the gate already runs on `gemini-2.5-flash-lite` over a short
+  caption plus one thumbnail. The bill driver is the full video+audio call, which Jev cannot do at
+  all. Jev's 40-400x cheaper headline applies to the call that is already cheap, so a successful swap
+  would shave a rounding error off the wrong line item.
+- Where Jev would genuinely fit, if it ships image input or we feed it text we already have:
+  1. **Enrichment candidate matching.** `_fetch_first_volume` in `src/extraction/google_books.py`
+     takes the first Google Books volume, and `find_google_place_sync` has the same shape. Picking
+     the best candidate from a text list of titles/authors/addresses is exactly a typed choice with
+     a confidence floor, and it is already pure text.
+  2. **Per-mention confidence.** The 2026-06-24 note explicitly distrusts Gemini's self-reported
+     float confidence as poorly calibrated, which is why the gate uses a 3-way enum with `uncertain`
+     as abstention. RLCD calibration is the direct answer to that complaint and would make the
+     per-type confidence floor in the 2026-06-25 places note meaningful rather than nominal. This is
+     the most interesting long-term angle: Jev as a scoring layer over Gemini's extraction output,
+     not as a replacement for it.
+- Why not now, beyond the modality blocker: waitlist-gated early access on a single proprietary
+  hosted API (availability risk for the worker's critical path), public accuracy evidence is mixed
+  with model-generated reference labels and no published calibration reporting, and it adds a second
+  provider dependency to a pipeline whose known brittleness is already provider-bound. Same posture
+  as the 2026-06-21 LLaVA-Video 72B rejection: a provider change needs an eval set of real saved
+  sources and cost/latency instrumentation first, and neither exists yet.
+- Revisit trigger: TypeSafe ships image input (reopens the relevance gate), or the Axis A cost
+  instrumentation lands and a saved-source eval set shows enrichment mismatches or miscalibrated
+  confidence are costing real recall/precision (opens the two text-only fits above).
+
 ### 2026-06-25 - Place Enrichment Via Google Places (First Non-Book Enrichment)
 
 - Status: Accepted, pre-implementation. Spec doc removed in a later repo cleanup; this note is the
