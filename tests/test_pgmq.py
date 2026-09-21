@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -40,7 +41,7 @@ def test_parse_message_payload_rejects_non_object_json():
 
 
 def test_parse_message_payload_rejects_malformed_json():
-    with pytest.raises(ValueError):
+    with pytest.raises(json.JSONDecodeError):
         parse_message_payload("not json")
 
 

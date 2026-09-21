@@ -11,9 +11,11 @@ __pycache__/
 app.db
 data/artifacts/
 mentioned_backend.egg-info/
-mobile/.expo/
-mobile/node_modules/
-mobile/package-lock.json
-web/.astro/
-web/dist/
-web/node_modules/
+.dev-logs
+.worktrees
+tests
+docs
+.agents
+mobile
+web
+.github

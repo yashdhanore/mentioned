@@ -513,6 +513,23 @@ The work splits along two independent axes:
   RLS too, not just tables/columns - the Supabase CLI's real job is storage buckets, auth, and local
   stack config.
 
+### 2026-09-22 - uv Lockfile And A Stable yt-dlp Pin
+
+- Status: Accepted and implemented.
+- Product constraint: Cost control and operational trust for the save -> extract -> revisit loop -
+  a production-risk incident already happened from this gap (sqlmodel 0.0.45 broke every insert on a
+  fresh install because dependencies were lower-bound only, with no lockfile).
+- Notes: Adopted `uv` with a committed, hash-pinned `uv.lock`; `uv sync --frozen` resolves to the
+  exact same versions in dev, CI, and the Docker build. Re-pinned `yt-dlp[curl-cffi]` to `>=2026.8.19`
+  (a real stable release) instead of the upstream `master` tarball: the Instagram browser
+  impersonation fix (yt-dlp #17074) shipped in the 2026.07.04 stable release (PR #17113), so a moving,
+  unhashable `master` tarball is no longer needed. The Docker image now installs only the dependency
+  layer via `uv sync --frozen --no-dev --no-install-project` before copying source, so code-only
+  changes do not reinstall every dependency, and the image has exactly one copy of `src` (the API runs
+  `fastapi run src/main.py`, the worker runs `python -m src.worker`, neither depends on this package
+  being pip-installed). `requires-python`/ruff `target-version` moved to 3.12 to match what CI and the
+  Docker base image (`python:3.12.14-slim`) actually run; no code currently depends on 3.11.
+
 ### Book Catalog And Reading List Support
 
 > Product intent lives in `docs/strategy/product.md`. Technical work here should support the

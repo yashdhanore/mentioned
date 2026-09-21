@@ -3,7 +3,7 @@ name = "mentioned-backend"
 version = "0.2.0"
 description = "Backend for extracting mentioned books, products, and places from Instagram content."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.13.0",
     "fastapi[standard]>=0.115.0",
@@ -17,10 +17,10 @@ dependencies = [
     # models move to timezone-aware datetimes.
     "sqlmodel>=0.0.22,<0.0.45",
     "supabase>=2.30.0,<3.0.0",
-    # Instagram now requires browser impersonation (yt-dlp #17074); the fix is
-    # master-only until fixed stable (>2026.6.9) ships. Tarball form needs no git
-    # in the slim image. Re-pin to >=<fixed stable> once published.
-    "yt-dlp[curl-cffi] @ https://github.com/yt-dlp/yt-dlp/archive/master.tar.gz",
+    # Instagram required browser impersonation (yt-dlp #17074); the fix shipped in the
+    # 2026.07.04 stable release (PR #17113), so pin to a stable release again instead of
+    # the unpinnable, unhashable moving `master` tarball.
+    "yt-dlp[curl-cffi]>=2026.8.19",
 ]
 
 [project.optional-dependencies]
@@ -48,14 +48,16 @@ asyncio_mode = "auto"
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 # This is a Python backend repo with Markdown docs/plans elsewhere that embed illustrative
 # Python snippets; ruff's Markdown code-block formatting is not meant for those, so restrict
 # ruff to actual Python source.
 extend-exclude = ["*.md"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP"]
+# DTZ (naive datetime usage) is deferred to the timezone-aware datetime migration
+# (item 7), which enables it once src/timeutils.py and the models are aware-datetime.
+select = ["E", "F", "I", "B", "UP", "C4", "SIM", "RUF", "PT"]
 
 [tool.ruff.lint.per-file-ignores]
 "migrations/versions/*.py" = ["E501"]
