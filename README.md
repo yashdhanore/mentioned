@@ -3,6 +3,38 @@
 Validation scaffold for a backend that turns public Instagram Reel and post URLs into readable
 text extracted from captions, media metadata, frames, and post images.
 
+## Local development (full stack)
+
+Run the API, worker, web app, and mobile app together against a local Postgres, so the real
+queue-based extraction pipeline runs the same way it does in production:
+
+```bash
+make dev       # starts everything
+make dev-logs  # tail all logs together
+make dev-down  # stops everything; local DB state is kept for next time
+```
+
+First run bootstraps a local Postgres via the Supabase CLI (`supabase start`), creates the
+`mentioned_api`/`mentioned_worker` roles, and applies all Alembic and Supabase-managed migrations
+automatically. Requires Docker and the Supabase CLI (`brew install supabase/tap/supabase`).
+
+For the API and worker to actually use that Postgres instead of the SQLite default, add to your
+`.env`:
+
+```
+DATABASE_URL=postgresql://mentioned_api:local-dev-api-pw@127.0.0.1:54322/postgres
+WORKER_DATABASE_URL=postgresql://mentioned_worker:local-dev-worker-pw@127.0.0.1:54322/postgres
+```
+
+Without this, the API still boots fine on SQLite, but saved sources will get stuck at `pending`
+forever: the source-extraction queue only works on Postgres (`pgmq`), so on SQLite
+`enqueue_source_extraction` (`src/sources/queue.py`) is a silent no-op.
+
+You'll also need a `GEMINI_API_KEY` (extraction fails without one — `EXTRACTION_BACKEND=local` is
+a stub that always returns zero mentions, not a working offline alternative), and `ffmpeg`
+installed for video transcoding. A `GOOGLE_BOOKS_API_KEY` is optional but recommended: without it,
+book cover/metadata lookups are unauthenticated and get rate-limited almost immediately.
+
 ## Run the API
 
 ```bash

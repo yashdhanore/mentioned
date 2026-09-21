@@ -25,6 +25,7 @@ Mentioned is a FastAPI, Supabase, Expo, and Astro product for extracting books, 
 
 ## Core Commands
 
+- Run the full stack locally (Postgres, API, worker, web, mobile) in one command: `make dev` (see [README](README.md#local-development-full-stack)); stop with `make dev-down`.
 - Install backend dev dependencies: `python -m venv .venv && source .venv/bin/activate && pip install -e ".[dev]"`
 - Run the API: `fastapi dev`
 - Run the worker: `mentioned-worker` or `python -m src.worker`

@@ -12,6 +12,7 @@ __pycache__/
 .codex/plugins/
 .cursor/hooks/state/
 .playwright-mcp/
+.dev-logs/
 *.db
 TEMP_README.md
 data/artifacts/
