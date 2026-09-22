@@ -63,8 +63,6 @@ select = ["E", "F", "I", "B", "UP", "C4", "SIM", "RUF", "PT", "DTZ"]
 # actual prompt.
 "src/extraction/gemini.py" = ["E501"]
 
-[tool.ruff.format]
-
 [build-system]
 requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"

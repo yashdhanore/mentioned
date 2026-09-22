@@ -64,8 +64,6 @@ def _invalid_origin(origin: str) -> bool:
     parsed = urlparse(origin)
     if not parsed.scheme or not parsed.hostname:
         return True
-    if _is_local_hostname(parsed.hostname):
-        return parsed.scheme != "http"
     return parsed.scheme != "https"
 
 
@@ -118,10 +116,7 @@ def _check_release_env(worker_replicas: str | None) -> list[str]:
     if not origins:
         errors.append("CORS_ALLOWED_ORIGINS must include at least one HTTPS origin")
     elif any(_invalid_origin(origin) for origin in origins):
-        errors.append(
-            "CORS_ALLOWED_ORIGINS must contain only HTTPS origins, except explicit localhost "
-            "HTTP origins for development"
-        )
+        errors.append("CORS_ALLOWED_ORIGINS must contain only HTTPS origins")
 
     hosts = _csv("TRUSTED_HOSTS")
     if not hosts:

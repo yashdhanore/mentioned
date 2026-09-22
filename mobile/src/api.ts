@@ -157,7 +157,7 @@ function parseApiError(status: number, payload: ApiErrorPayload | null): ApiErro
 // Render's API can be slow to respond on a cold start (after a deploy or
 // restart). We give each attempt a bounded timeout, and for *idempotent* GET
 // requests only we retry once so a single cold-start blip is invisible to the
-// user. POST/DELETE are never retried — repeating them could duplicate a job
+// user. POST/DELETE are never retried - repeating them could duplicate a job
 // or delete the wrong thing.
 
 const REQUEST_TIMEOUT_MS = 30_000;

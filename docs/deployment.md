@@ -113,13 +113,13 @@ With the API and worker running, submit a real saved source, poll until terminal
 TOKEN='paste-supabase-access-token'
 SECOND_TOKEN='paste-second-user-supabase-access-token'
 SOURCE_URL='https://www.instagram.com/reel/SHORTCODE/'
-python scripts/smoke_job_flow.py --require-items
+python scripts/smoke_saved_source_flow.py --require-items
 ```
 
 Optional overrides:
 
 ```bash
-python scripts/smoke_job_flow.py \
+python scripts/smoke_saved_source_flow.py \
   --api-base-url http://127.0.0.1:8000 \
   --source-url "$SOURCE_URL" \
   --token "$TOKEN" \
