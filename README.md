@@ -83,22 +83,24 @@ flowchart LR
 
 ## Local development (full stack)
 
-Run the API, worker, web app, and mobile app (Expo web) against a local Postgres with the same queue-based pipeline as production:
+Runs the API, worker, web app, and mobile app (Expo web) against a local Supabase with the same queue-based pipeline as production.
+You need Docker, the [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started), [uv](https://docs.astral.sh/uv/), Node 20, and `ffmpeg` (without it, videos over the size limit are sent uncompressed).
 
 ```bash
-make dev       # starts everything
+uv sync --frozen --extra dev
+cp .env.example .env
+# In .env set EXTRACTION_BACKEND=gemini, GEMINI_API_KEY, and GOOGLE_BOOKS_API_KEY
+make dev       # starts everything; the first run also installs npm dependencies
 make dev-logs  # tail all logs together
 make dev-down  # stops everything; local DB state is kept for next time
 ```
 
-Requires Docker, the Supabase CLI (`brew install supabase/tap/supabase`), and the backend `.venv` from `uv sync --frozen --extra dev`.
-The first run starts Postgres with `supabase start`, creates the `mentioned_api` and `mentioned_worker` roles, and applies all migrations.
-`scripts/dev-up.sh` points the API and worker at those roles, so no `.env` edits are needed.
-Run outside `make dev` without a `DATABASE_URL`, the API and worker fall back to SQLite, where the worker polls for pending sources instead of reading pgmq.
+Then open the mobile app at http://localhost:8081, tap +, and paste a public Instagram Reel link; the worker's progress is in `.dev-logs/worker.log`.
+Without `EXTRACTION_BACKEND=gemini`, the worker uses a stub that returns zero mentions.
+Without `GOOGLE_BOOKS_API_KEY`, Books lookups are rate-limited almost immediately.
 
-Real extraction needs `EXTRACTION_BACKEND=gemini` and a `GEMINI_API_KEY`; `.env.example` ships `EXTRACTION_BACKEND=local`, a stub that returns zero mentions.
-Install `ffmpeg` too, or videos over the size limit are sent uncompressed.
-Set `GOOGLE_BOOKS_API_KEY`, or unauthenticated Books lookups get rate-limited almost immediately.
+`scripts/dev-up.sh` starts Supabase, creates the `mentioned_api` and `mentioned_worker` Postgres roles, applies all migrations, and points the API, worker, and mobile app at the local stack, so nothing else in `.env` needs to change.
+Run outside `make dev` without a `DATABASE_URL`, the API and worker fall back to SQLite, where the worker polls for pending sources instead of reading pgmq.
 
 ## Tests and checks
 
