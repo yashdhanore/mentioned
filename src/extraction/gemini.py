@@ -26,6 +26,8 @@ Rules:
 - For books: include author if visible or spoken
 - Confidence reflects how certain you are (visible cover = high, just mentioned in passing = lower)
 - Do NOT include incidental background items, UI elements, or generic references
+- A place is a specific location the creator recommends going to, such as a restaurant, shop, hotel, beach, landmark, or a destination pitched as a trip
+- Do NOT list a place that only describes another item, such as the country or city a book is set in, where an author is from, or an on-screen label like "Turkey" next to a book
 """
 
 MENTION_SCHEMA = {
