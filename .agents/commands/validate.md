@@ -19,10 +19,10 @@ python -m pytest
 
 Run these only when relevant:
 
-- Visual extraction artifact/eval changes:
+- Extraction prompt, schema, or model changes (after a comparison run):
 
   ```bash
-  python scripts/evaluate_visual_manifest.py --artifacts-dir data/artifacts
+  python scripts/score_extraction_eval.py --results outputs/<run>/result.json
   ```
 
 - Production release environment shape:

@@ -56,3 +56,9 @@ python scripts/compare_gemini_video_models.py \
   --media-dir outputs/gemini-compare-20 \
   --output outputs/gemini-compare-20/result.json
 ```
+
+Score either run against the hand labels in `evals/reel-labels.json` (see `evals/README.md`):
+
+```bash
+python scripts/score_extraction_eval.py --results outputs/gemini-compare-20/result.json
+```

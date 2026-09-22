@@ -34,7 +34,7 @@ clear implementation request. Prefer implementing from `.agents/plans/*.plan.md`
 6. When relevant, run:
 
    ```bash
-   python scripts/evaluate_visual_manifest.py --artifacts-dir data/artifacts
+   python scripts/score_extraction_eval.py --results outputs/<run>/result.json
    ```
 
 7. For Supabase changes, run the relevant Supabase CLI verification from

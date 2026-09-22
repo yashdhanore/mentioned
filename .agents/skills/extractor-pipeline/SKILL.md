@@ -1,6 +1,6 @@
 ---
 name: extractor-pipeline
-description: Use when changing or debugging Instagram URL extraction, media download, Gemini/LLM mention extraction, provider fallbacks, artifact output, visual evaluation, or tests under src/extraction.
+description: Use when changing or debugging Instagram URL extraction, media download, Gemini/LLM mention extraction, provider fallbacks, artifact output, labeled evaluation, or tests under src/extraction.
 ---
 
 # Extractor Pipeline
@@ -18,7 +18,7 @@ Read only what is relevant:
 - LLM/provider clients: `src/extraction/gemini.py`, `src/extraction/google_books.py`
 - Worker integration: `src/worker.py`, `src/jobs/queue.py`, `src/jobs/service.py`
 - Tests: `tests/extraction/`, worker tests that assert extraction output
-- Visual evals: `evals/visual_regression_manifest.json`, `scripts/evaluate_visual_manifest.py`
+- Labeled evals: `evals/README.md`, `evals/reel-labels.json`, `scripts/score_extraction_eval.py`
 
 ## Workflow
 
@@ -48,10 +48,10 @@ For broader worker impact:
 python -m pytest tests
 ```
 
-When artifact output or visual extraction changes:
+When extraction prompts, schemas, or models change:
 
 ```bash
-python scripts/evaluate_visual_manifest.py --artifacts-dir data/artifacts
+python scripts/score_extraction_eval.py --results outputs/<run>/result.json
 ```
 
 ## Common Risks
