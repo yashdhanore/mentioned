@@ -6,6 +6,7 @@ import time
 from collections.abc import Sequence
 from pathlib import Path
 
+import httpx
 from google import genai
 from google.genai import errors as genai_errors
 from google.genai.types import GenerateContentConfig, Part
@@ -143,7 +144,10 @@ def upload_to_gemini(client: genai.Client, media_path: Path, *, use_vertexai: bo
 
 
 RETRY_DELAYS = [2, 5, 10]  # seconds between retries
-RETRYABLE_STATUS_CODES = {429, 500, 503}
+RETRYABLE_STATUS_CODES = {408, 429, 500, 502, 503, 504}
+# The SDK lets httpx timeouts and dropped connections through unwrapped. A slow Gemini
+# period shows up as a read timeout, and one of those used to fail the whole save.
+RETRYABLE_TRANSPORT_ERRORS = (httpx.TimeoutException, httpx.NetworkError)
 
 
 def _media_path_list(media_paths: Path | Sequence[Path]) -> list[Path]:
@@ -179,15 +183,16 @@ def _generate_with_retry(
     for attempt in range(total_attempts - 1):
         try:
             return client.models.generate_content(model=model, contents=contents, config=config)
-        except genai_errors.APIError as exc:
-            if exc.code not in RETRYABLE_STATUS_CODES:
+        except (genai_errors.APIError, *RETRYABLE_TRANSPORT_ERRORS) as exc:
+            if isinstance(exc, genai_errors.APIError) and exc.code not in RETRYABLE_STATUS_CODES:
                 raise
             delay = RETRY_DELAYS[attempt]
             logger.warning(
-                "Gemini request failed (attempt %d/%d), retrying in %ds: %s",
+                "Gemini request failed (attempt %d/%d), retrying in %ds: %s: %s",
                 attempt + 1,
                 total_attempts,
                 delay,
+                type(exc).__name__,
                 exc,
             )
             time.sleep(delay)
