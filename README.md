@@ -16,7 +16,7 @@ It currently supports public Instagram Reel and post URLs only; the backend reje
 6. The worker claims the source with an atomic `UPDATE ... WHERE status = 'pending' ... RETURNING` so two workers can never process the same source at once (`src/sources/service.py`, `claim_source_for_processing`).
 7. A cheap relevance gate looks at the caption and thumbnail and can skip extraction when it is confident there is nothing to find; any doubt falls through to full extraction (`src/extraction/relevance.py`).
 8. `yt-dlp` downloads the Reel or post media (`src/extraction/download.py`), and Gemini reads the video/images and returns structured book, product, and place mentions (`src/extraction/gemini.py`).
-9. Book mentions are enriched against the Google Books API for cover art and metadata (`src/books/enrichment.py`).
+9. Each book mention is checked against the top five Google Books results on title and author before a cover and metadata are attached; a book nothing passes keeps its extracted title and gets no cover, rather than someone else's (`src/books/resolution.py`, `src/books/enrichment.py`).
 10. The worker writes the result back to `sources`/`source_items` and enqueues a push-notification fan-out to every user who saved that source (`src/push/service.py`, `src/push/worker.py`).
 11. The app reads `GET /v1/saved-sources` to show saved Reels/posts and their extracted items.
 
@@ -60,6 +60,7 @@ A few decisions worth a closer look if you are reviewing this code:
 - **Thumbnail fetcher hardened against SSRF.** Thumbnails are only fetched from an allowlisted Instagram CDN host suffix, redirects are followed manually and re-validated against the same allowlist, only a fixed set of image content types is accepted, and the response body is streamed with a hard byte cap instead of trusting `Content-Length` (`src/storage/thumbnails.py`).
 - **Relevance gate with a shadow mode.** Before the expensive Gemini video call, a cheap caption+thumbnail check can skip extraction, but only in `active` mode and only on a confident `irrelevant` verdict; `shadow` mode logs the verdict without skipping anything, so the gate can be evaluated before it affects users (`src/extraction/relevance.py`). It fails open, so a misconfigured gate model (such as a retired one returning 404) logs at error level instead of quietly sending every source to full extraction.
 - **A release gate script instead of a manual checklist.** `scripts/check_release_env.py` checks the production environment shape (auth mode, HTTPS enforcement, distinct database roles, CORS/host allowlists, rate-limit guardrails, worker replica count) without printing secrets, and is meant to run before every beta deploy.
+- **Catalog resolution that refuses to guess.** The first Google Books result for a title is often a summary, a sequel, or a box set, so the resolver checks the top five on title and author and leaves an unconfirmed book unattached (`src/books/resolution.py`). A text-only tool-using agent can then search again for the books the check could not confirm, and may only pick a volume it has actually seen in a search result (`src/books/resolution_agent.py`, eval only for now).
 - **A strict allowlist for shared URLs on the client.** The share extension and paste-link flow both run shared text through the same parser, which only accepts `https://instagram.com` or `https://www.instagram.com` URLs with a `/reel/` or `/p/` path before it ever reaches the API (`mobile/src/utils/shared-source-url.ts`).
 
 ## Extraction quality
@@ -77,6 +78,18 @@ Error analysis drove the changes: most of the first run's errors turned out to b
 A confidence threshold looked like a free win and was dropped when the next run showed the model's confidence was not stable.
 The set has no place, product, or empty Reels yet, so it says nothing about recall on those.
 Full results, method, and limits are in [`evals/README.md`](evals/README.md#results).
+
+The step after extraction is measured too: does each book end up attached to the right catalog entry (`scripts/score_resolution_eval.py`)?
+On the 126 unique labeled books, hand-checked:
+
+| Strategy | Same work | Collection or bundle | Wrong book | Unresolved |
+| --- | --- | --- | --- | --- |
+| First Google Books hit (previous production) | 110 | 6 | 6 | 4 |
+| Top 5 checked on title and author (production) | 122 | 0 | 0 | 4 |
+| Top 5 + tool-using agent for the rest (eval only) | 124 | 1 | 0 | 1 |
+
+The first hit showed 5% of books with the wrong cover (a summary, a sequel, a theatre adaptation); the check removed all of them without losing a book, and the agent recovered three of the four it could not confirm for about half a cent in total.
+Details and limits are in [`evals/README.md`](evals/README.md#book-resolution).
 
 ## Known limitations
 
