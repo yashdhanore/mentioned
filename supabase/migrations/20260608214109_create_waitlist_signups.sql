@@ -1,3 +1,7 @@
+-- Alembic owns public.waitlist_signups now (migrations/versions/20260922_0018_waitlist_signups.py).
+-- Kept only because the Supabase CLI tracks applied migrations by version, not checksum, and this
+-- version is already recorded as applied in production; body stays idempotent and order-independent
+-- with that Alembic revision so either one can run first without weakening the other's RLS policy.
 create extension if not exists pgcrypto;
 
 create table if not exists public.waitlist_signups (
@@ -20,15 +24,17 @@ alter table public.waitlist_signups enable row level security;
 revoke all on table public.waitlist_signups from anon, authenticated;
 
 drop policy if exists waitlist_signups_app_manage on public.waitlist_signups;
-create policy waitlist_signups_app_manage on public.waitlist_signups
-  for all
-  using (true)
-  with check (true);
+drop policy if exists waitlist_signups_api_manage on public.waitlist_signups;
 
 do $$
 begin
   if exists (select 1 from pg_roles where rolname = 'mentioned_api') then
     grant usage on schema public to mentioned_api;
     grant select, insert, update on table public.waitlist_signups to mentioned_api;
+    create policy waitlist_signups_api_manage on public.waitlist_signups
+      for all
+      to mentioned_api
+      using (true)
+      with check (true);
   end if;
 end $$;

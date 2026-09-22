@@ -1,19 +1,15 @@
 """Shared time helpers.
 
-SQLModel timestamp columns in this codebase (see `src/*/models.py`) declare plain
-`datetime` fields with no `timezone=True` on the Python side, so application code
-must keep producing naive UTC datetimes for comparisons and writes to stay
-consistent with existing rows and with values read back from the database.
+Every live datetime column in this schema is `timestamptz` (confirmed across all
+Alembic migrations), and sqlmodel>=0.0.45 maps `datetime` model fields to its
+`UTCDateTime` type, which requires aware datetimes for writes and returns aware
+UTC datetimes on read, including on SQLite. Application code must produce aware
+UTC datetimes for comparisons and writes to match.
 """
 
 from datetime import UTC, datetime
 
 
 def utc_now() -> datetime:
-    """Return the current time as a naive UTC datetime.
-
-    Equivalent to the deprecated `datetime.utcnow()`, but built from the
-    timezone-aware `datetime.now(UTC)` and then stripped of tzinfo so it stays a
-    drop-in replacement for the naive datetimes this codebase already uses.
-    """
-    return datetime.now(UTC).replace(tzinfo=None)
+    """Return the current time as a timezone-aware UTC datetime."""
+    return datetime.now(UTC)

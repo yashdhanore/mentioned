@@ -44,7 +44,7 @@ flowchart LR
 | `tests/` | Backend pytest suite, mirroring the `src/` layout. |
 | `mobile/` | Expo/React Native iOS app and share extension. See `mobile/README.md`. |
 | `web/` | Astro landing page and waitlist form. |
-| `supabase/` | Supabase CLI config for the local stack, plus the few Supabase-side migrations (thumbnail storage bucket, waitlist table). |
+| `supabase/` | Supabase CLI config for the local stack, storage buckets, and auth; the storage bucket migration is load-bearing, the other two SQL files are guarded no-ops kept for Supabase CLI migration-history reasons (see the ADR). |
 | `scripts/` | Release checks, smoke tests, local dev scripts, eval tooling. |
 | `evals/` | Reel lists and run notes for evaluating extraction quality across Gemini models. |
 | `docs/` | Deployment runbook, architecture decision records, product/technical strategy notes. |
@@ -67,7 +67,7 @@ A few decisions worth a closer look if you are reviewing this code:
 - Place enrichment is wired up end to end but the actual Google Places lookup is a stub that always returns nothing (`src/places/enrichment.py`, `find_google_place_sync`); place mentions are stored without address or map data today.
 - The worker is single-process and deployed as exactly one Render instance (`render.yaml`, `numInstances: 1`); there is no bounded-concurrency or multi-worker extraction path yet.
 - `EXTRACTION_BACKEND=local` is a stub for offline development; it always returns zero mentions rather than running any real extraction (`src/extraction/local_pipeline.py`).
-- Backend dependencies are lower-bound pinned with no lockfile, and `yt-dlp` is pulled from upstream `master` because Instagram currently requires a fix that has not shipped in a stable `yt-dlp` release yet (see the comment in `pyproject.toml`).
+- Backend dependencies are resolved and pinned by `uv` into a committed `uv.lock`, so `uv sync --frozen` and Docker builds are reproducible; run `uv lock` after changing `pyproject.toml` dependencies.
 - Only Instagram is supported, and every other host is rejected at the URL-validation layer (`src/extraction/url.py`).
 
 ## Local development (full stack)
@@ -83,14 +83,14 @@ make dev-down  # stops everything; local DB state is kept for next time
 First run bootstraps a local Postgres via the Supabase CLI (`supabase start`), creates the `mentioned_api`/`mentioned_worker` roles, and applies all Alembic and Supabase-managed migrations automatically.
 Requires Docker and the Supabase CLI (`brew install supabase/tap/supabase`).
 
-For the API and worker to actually use that Postgres instead of the SQLite default, add to your `.env`:
+`scripts/dev-up.sh` exports `DATABASE_URL`/`WORKER_DATABASE_URL` for the API and worker processes it starts, pointing at that local Postgres, so `make dev` uses Postgres (queue-backed worker, real RLS) with no `.env` edits needed:
 
 ```
 DATABASE_URL=postgresql://mentioned_api:local-dev-api-pw@127.0.0.1:54322/postgres
 WORKER_DATABASE_URL=postgresql://mentioned_worker:local-dev-worker-pw@127.0.0.1:54322/postgres
 ```
 
-Without this, the API still boots fine on SQLite.
+Running `fastapi dev` or `mentioned-worker` directly (outside `make dev`), without these set in your `.env`, falls back to SQLite.
 On SQLite there is no pgmq, so `enqueue_source_extraction` is a silent no-op and the worker instead runs a polling loop that claims pending `Source` rows directly with the same atomic claim used in production (`src/worker.py`, `claim_next_pending_source`); saved sources still get processed, just serially and on a poll interval instead of through a queue.
 
 Real extraction needs `EXTRACTION_BACKEND=gemini` and a `GEMINI_API_KEY`, plus `ffmpeg` installed for video transcoding.
@@ -99,12 +99,13 @@ A `GOOGLE_BOOKS_API_KEY` is optional but recommended: without it, book cover/met
 
 ## Tests and checks
 
-Backend:
+Backend, using [uv](https://docs.astral.sh/uv/) (install it first if you don't have it):
 
 ```bash
-ruff check .
-ruff format --check .
-pytest
+uv sync --frozen --extra dev
+uv run ruff check .
+uv run ruff format --check .
+uv run pytest
 ```
 
 `pytest` runs the FastAPI/worker/extraction test suite under `tests/`.
@@ -114,7 +115,7 @@ An additional Postgres role/RLS proof is opt-in and skipped unless three admin-l
 POSTGRES_TEST_DATABASE_URL=postgresql://admin-or-owner-url \
 POSTGRES_TEST_API_DATABASE_URL=postgresql://mentioned_api-url \
 POSTGRES_TEST_WORKER_DATABASE_URL=postgresql://mentioned_worker-url \
-python -m pytest tests/test_postgres_dedicated_worker_rls.py
+uv run pytest tests/test_postgres_dedicated_worker_rls.py
 ```
 
 Mobile, from `mobile/`:

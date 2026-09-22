@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import logging
+import signal
 import time
+from types import FrameType
 
 from sqlalchemy.engine import Engine
 from sqlmodel import Session
@@ -17,6 +19,26 @@ from src.sources.queue import read_source_extraction_messages
 from src.sources.service import claim_next_pending_source, recover_stale_sources
 
 logger = logging.getLogger(__name__)
+
+
+class ShutdownFlag:
+    """A plain flag checked between loop iterations, set by a signal handler.
+
+    No threads: SIGTERM/SIGINT just flip a bool, so the current iteration (an
+    in-flight source) always finishes before the worker loop notices and exits.
+    """
+
+    def __init__(self) -> None:
+        self.should_stop = False
+
+    def request_stop(self, signum: int, _frame: FrameType | None) -> None:
+        logger.info("Received signal %s, will exit after the current iteration finishes", signum)
+        self.should_stop = True
+
+
+def install_signal_handlers(flag: ShutdownFlag) -> None:
+    signal.signal(signal.SIGTERM, flag.request_stop)
+    signal.signal(signal.SIGINT, flag.request_stop)
 
 
 def resolve_worker_engine(settings: Settings) -> Engine:
@@ -36,7 +58,7 @@ def _drain_push_notifications(settings: Settings, worker_engine: Engine) -> None
         session.commit()
 
     for message in messages:
-        process_push_notification_message(message, worker_engine)
+        process_push_notification_message(message, worker_engine, settings)
 
 
 def _run_polling_worker_iteration(settings: Settings, worker_engine: Engine) -> bool:
@@ -58,26 +80,41 @@ def _run_polling_worker_iteration(settings: Settings, worker_engine: Engine) -> 
     return True
 
 
-def _run_polling_worker(settings: Settings, worker_engine: Engine) -> None:
+def _run_polling_worker(settings: Settings, worker_engine: Engine, shutdown: ShutdownFlag) -> None:
     poll_interval = settings.worker_poll_interval_seconds
     logger.info(
         "Worker %s starting in polling mode (poll=%.1fs)", settings.worker_id, poll_interval
     )
-    while True:
-        processed = _run_polling_worker_iteration(settings, worker_engine)
+    while not shutdown.should_stop:
+        try:
+            processed = _run_polling_worker_iteration(settings, worker_engine)
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except Exception:
+            logger.exception("Unhandled error in polling worker iteration, backing off")
+            time.sleep(poll_interval)
+            continue
         if not processed:
             logger.debug("No pending sources, sleeping %.1fs", poll_interval)
             time.sleep(poll_interval)
+    logger.info("Worker %s stopped", settings.worker_id)
 
 
-def _run_queue_worker(settings: Settings, worker_engine: Engine) -> None:
+def _run_queue_worker(settings: Settings, worker_engine: Engine, shutdown: ShutdownFlag) -> None:
     logger.info(
         "Worker %s starting in queue mode (visibility_timeout=%ss)",
         settings.worker_id,
         settings.worker_queue_visibility_timeout_seconds,
     )
-    while True:
-        _run_queue_worker_iteration(settings, worker_engine)
+    while not shutdown.should_stop:
+        try:
+            _run_queue_worker_iteration(settings, worker_engine)
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except Exception:
+            logger.exception("Unhandled error in queue worker iteration, backing off")
+            time.sleep(settings.worker_poll_interval_seconds)
+    logger.info("Worker %s stopped", settings.worker_id)
 
 
 def _run_queue_worker_iteration(settings: Settings, worker_engine: Engine) -> None:
@@ -104,10 +141,13 @@ def run_worker() -> None:
     worker_engine = resolve_worker_engine(settings)
     check_worker_database_role(worker_engine, require_postgres=settings.is_production)
 
+    shutdown = ShutdownFlag()
+    install_signal_handlers(shutdown)
+
     if worker_engine.dialect.name == "postgresql":
-        _run_queue_worker(settings, worker_engine)
+        _run_queue_worker(settings, worker_engine, shutdown)
         return
-    _run_polling_worker(settings, worker_engine)
+    _run_polling_worker(settings, worker_engine, shutdown)
 
 
 def main() -> None:

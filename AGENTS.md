@@ -26,11 +26,13 @@ Mentioned is a FastAPI, Supabase, Expo, and Astro product for extracting books, 
 ## Core Commands
 
 - Run the full stack locally (Postgres, API, worker, web, mobile) in one command: `make dev` (see [README](README.md#local-development-full-stack)); stop with `make dev-down`.
-- Install backend dev dependencies: `python -m venv .venv && source .venv/bin/activate && pip install -e ".[dev]"`
-- Run the API: `fastapi dev`
-- Run the worker: `mentioned-worker` or `python -m src.worker`
-- Run backend tests: `pytest`
-- Lint/format the backend: `ruff check .` and `ruff format --check .`
+- Install backend dev dependencies: `uv sync --frozen --extra dev` (installs [uv](https://docs.astral.sh/uv/) first if needed); this creates `.venv` and installs this package, so both `mentioned-worker` and `python -m src.worker` work locally.
+- Run the API: `uv run fastapi dev` (or `source .venv/bin/activate` once, then `fastapi dev`)
+- Run the worker: `uv run mentioned-worker` or `uv run python -m src.worker`
+- Run backend tests: `uv run pytest`
+- Lint/format the backend: `uv run ruff check .` and `uv run ruff format --check .`
+- After changing dependencies in `pyproject.toml`, run `uv lock` and commit the updated `uv.lock`.
+- The Docker image (`Dockerfile`) installs only dependencies (`uv sync --frozen --no-dev --no-install-project`), not this package itself, so the API runs via `fastapi run src/main.py` and the worker via `python -m src.worker` there, not the console script.
 - Run mobile checks from `mobile/`: `npm test` (focused scripts plus `lint` and `typecheck`); lint alone with `npm run lint`, format check with `npm run format:check`.
 - Run web checks from `web/`: `npm test` (typecheck, build, and Playwright e2e)
 - CI runs the backend, mobile, and web checks on every pull request and push to `main`; see `.github/workflows/ci.yml`.
@@ -39,5 +41,5 @@ Mentioned is a FastAPI, Supabase, Expo, and Astro product for extracting books, 
 
 - Match the existing style and boundaries in the files you touch.
 - Add or update focused tests when behavior changes.
-- Use Alembic for table/column schema changes: add a revision under `migrations/versions/`; prod applies it via `alembic upgrade head` in the worker pre-deploy step. Use the Supabase CLI only for Supabase-managed concerns (RLS policies, storage buckets, auth/Supabase config); see [supabase/AGENTS.md](supabase/AGENTS.md).
+- Use Alembic for schema changes in `public`: tables, columns, grants, and row-level security policies all go in a new revision under `migrations/versions/`; prod applies it via `alembic upgrade head` in the worker pre-deploy step. The Supabase CLI owns only storage buckets, auth, and local stack config, nothing in `public`; see [supabase/AGENTS.md](supabase/AGENTS.md).
 - For hosted backend failures, inspect Render evidence before guessing from local code.

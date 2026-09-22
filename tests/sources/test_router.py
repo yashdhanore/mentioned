@@ -24,6 +24,10 @@ def _quota_settings() -> Settings:
     )
 
 
+def _https_required_settings() -> Settings:
+    return Settings(source_require_https=True)
+
+
 def _save_source(
     session: Session,
     external_id: str,
@@ -81,6 +85,46 @@ async def test_create_saved_source(client) -> None:
     data = resp.json()
     assert data["source_key"] == "instagram:reel:ABC123"
     assert data["status"] == "processing"
+    # Pin the wire format: aware UTC datetimes serialize with an explicit "Z"
+    # offset, not a bare "YYYY-MM-DDTHH:MM:SS" with no timezone designator.
+    # mobile/src/screens/reel-detail-screen.tsx does `Date.parse(createdAt)`,
+    # which (per the ECMAScript date-time string spec) treats a string with no
+    # offset as LOCAL time - so the old naive format was a latent bug for any
+    # device not in UTC+0; the explicit "Z" fixes it rather than breaking it.
+    assert data["created_at"].endswith("Z")
+
+
+async def test_create_saved_source_allows_http_when_https_not_required(client) -> None:
+    resp = await client.post(
+        "/v1/saved-sources", json={"url": "http://www.instagram.com/reel/ABC123/"}
+    )
+
+    assert resp.status_code == 202
+    data = resp.json()
+    assert data["source_key"] == "instagram:reel:ABC123"
+
+
+async def test_create_saved_source_rejects_http_when_https_required(client, monkeypatch) -> None:
+    monkeypatch.setattr("src.sources.router.get_settings", _https_required_settings)
+
+    resp = await client.post(
+        "/v1/saved-sources", json={"url": "http://www.instagram.com/reel/ABC123/"}
+    )
+
+    assert resp.status_code == 400
+    assert resp.json()["error_code"] == "invalid_source_url"
+
+
+async def test_create_saved_source_allows_https_when_https_required(client, monkeypatch) -> None:
+    monkeypatch.setattr("src.sources.router.get_settings", _https_required_settings)
+
+    resp = await client.post(
+        "/v1/saved-sources", json={"url": "https://www.instagram.com/reel/ABC123/"}
+    )
+
+    assert resp.status_code == 202
+    data = resp.json()
+    assert data["source_key"] == "instagram:reel:ABC123"
 
 
 async def test_list_saved_sources_returns_items(client, session: Session) -> None:

@@ -237,11 +237,18 @@ def test_waitlist_supabase_migration_has_rls_and_role_scoped_permissions() -> No
     assert "create unique index if not exists waitlist_signups_email_lower_idx" in migration
     assert "alter table public.waitlist_signups enable row level security" in migration
     assert "revoke all on table public.waitlist_signups from anon, authenticated" in migration
-    assert "create policy waitlist_signups_app_manage" in migration
     assert (
         "grant select, insert, update on table public.waitlist_signups to mentioned_api"
         in migration
     )
+    # The policy must be scoped to a role (`to mentioned_api`), not left unscoped
+    # (`for all using (true)` with no `to <role>` applies to every role, including
+    # anon/authenticated as soon as anything grants them table privileges). The old
+    # unscoped policy is dropped, not recreated.
+    assert "create policy waitlist_signups_api_manage" in migration
+    assert "to mentioned_api" in migration
+    assert "drop policy if exists waitlist_signups_app_manage" in migration
+    assert "create policy waitlist_signups_app_manage" not in migration
 
 
 def test_push_notifications_migration_has_private_tokens_and_worker_queue() -> None:

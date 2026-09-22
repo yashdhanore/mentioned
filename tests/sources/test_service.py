@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from datetime import UTC, timedelta
+from datetime import timedelta
 from uuid import UUID
 
 import pytest
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
+from src.extraction.url import SourceUrlError
 from src.sources.models import SavedSource, Source, SourceItem, SourceStatus
 from src.sources.service import (
     _increment_retry_window,
@@ -17,6 +18,7 @@ from src.sources.service import (
     count_saved_sources_created_since,
     delete_saved_source,
     fail_source_processing,
+    fail_source_processing_forcibly,
     get_saved_source_by_key,
     recover_stale_sources,
     retry_failed_saved_source,
@@ -29,32 +31,29 @@ OWNER_UUID = UUID(OWNER)
 OTHER_OWNER = "00000000-0000-4000-8000-000000000002"
 
 
-def test_increment_retry_window_handles_timezone_aware_started_at() -> None:
-    # Postgres returns timezone-aware datetimes for DateTime(timezone=True)
-    # columns, while utc_now() is naive. The window comparison must not
-    # raise "can't compare offset-naive and offset-aware datetimes".
+def test_increment_retry_window_keeps_window_when_recent() -> None:
     now = utc_now()
-    aware_started_at = (now - timedelta(seconds=10)).replace(tzinfo=UTC)
+    started_at = now - timedelta(seconds=10)
 
-    started_at, count = _increment_retry_window(
-        aware_started_at,
+    result_started_at, count = _increment_retry_window(
+        started_at,
         2,
         now,
         timedelta(minutes=1),
     )
 
-    # Within the window: same instant (normalized to naive UTC), incremented count.
+    # Within the window: same instant, incremented count.
     assert count == 3
-    assert started_at == aware_started_at.replace(tzinfo=None)
-    assert started_at.tzinfo is None
+    assert result_started_at == started_at
+    assert result_started_at.tzinfo is not None
 
 
-def test_increment_retry_window_resets_when_aware_started_at_is_stale() -> None:
+def test_increment_retry_window_resets_when_stale() -> None:
     now = utc_now()
-    aware_started_at = (now - timedelta(minutes=5)).replace(tzinfo=UTC)
+    started_at = now - timedelta(minutes=5)
 
-    started_at, count = _increment_retry_window(
-        aware_started_at,
+    result_started_at, count = _increment_retry_window(
+        started_at,
         9,
         now,
         timedelta(minutes=1),
@@ -62,7 +61,7 @@ def test_increment_retry_window_resets_when_aware_started_at_is_stale() -> None:
 
     # Outside the window: reset to now / count 1.
     assert count == 1
-    assert started_at == now
+    assert result_started_at == now
 
 
 def test_save_source_for_user_creates_source_and_saved_source(
@@ -82,6 +81,41 @@ def test_save_source_for_user_creates_source_and_saved_source(
     assert source.status == SourceStatus.PENDING
     assert saved.owner_id == OWNER_UUID
     assert enqueued == [str(source.id)]
+
+
+def test_save_source_for_user_rejects_http_when_https_required(
+    session: Session, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        "src.sources.service.enqueue_source_extraction",
+        lambda _session, source_id: None,
+    )
+
+    with pytest.raises(SourceUrlError):
+        save_source_for_user(
+            session,
+            OWNER,
+            "http://www.instagram.com/reel/ABC123/",
+            require_https=True,
+        )
+
+
+def test_save_source_for_user_allows_http_when_https_not_required(
+    session: Session, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        "src.sources.service.enqueue_source_extraction",
+        lambda _session, source_id: None,
+    )
+
+    saved = save_source_for_user(
+        session,
+        OWNER,
+        "http://www.instagram.com/reel/ABC123/",
+        require_https=False,
+    )
+
+    assert saved.owner_id == OWNER_UUID
 
 
 def test_save_source_for_user_reuses_existing_source_and_saved_source(
@@ -331,6 +365,49 @@ def test_fail_source_processing_rejects_stale_attempt(session: Session) -> None:
     assert refreshed is not None
     assert refreshed.status == SourceStatus.DONE
     assert refreshed.error_message is None
+
+
+def test_fail_source_processing_forcibly_fails_pending_source(session: Session) -> None:
+    saved = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/FORCEPEND/")
+
+    failed = fail_source_processing_forcibly(session, saved.source_id, "poison message")
+
+    updated_source = session.get(Source, saved.source_id)
+    assert failed is True
+    assert updated_source is not None
+    assert updated_source.status == SourceStatus.FAILED
+    assert updated_source.error_message == "poison message"
+
+
+def test_fail_source_processing_forcibly_fails_processing_source_without_matching_attempt(
+    session: Session,
+) -> None:
+    saved = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/FORCEPROC/")
+    source = claim_source_for_processing(session, saved.source_id)
+    assert source is not None
+
+    failed = fail_source_processing_forcibly(session, saved.source_id, "poison message")
+
+    updated_source = session.get(Source, saved.source_id)
+    assert failed is True
+    assert updated_source is not None
+    assert updated_source.status == SourceStatus.FAILED
+    assert updated_source.error_message == "poison message"
+
+
+def test_fail_source_processing_forcibly_never_clobbers_a_done_source(session: Session) -> None:
+    saved = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/FORCEDONE/")
+    source = claim_source_for_processing(session, saved.source_id)
+    assert source is not None
+    complete_source_processing(session, source, [])
+
+    failed = fail_source_processing_forcibly(session, saved.source_id, "poison message")
+
+    updated_source = session.get(Source, saved.source_id)
+    assert failed is False
+    assert updated_source is not None
+    assert updated_source.status == SourceStatus.DONE
+    assert updated_source.error_message is None
 
 
 def test_recover_stale_sources_resets_old_processing_sources(session: Session) -> None:

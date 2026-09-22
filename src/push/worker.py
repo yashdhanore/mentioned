@@ -6,6 +6,7 @@ from collections.abc import Callable
 from sqlalchemy.engine import Engine
 from sqlmodel import Session
 
+from src.config import Settings
 from src.push.expo import (
     PushDeliveryResult,
     PushDeliveryRetryableError,
@@ -27,8 +28,23 @@ PushSender = Callable[[Source, list[SourcePushTarget]], PushDeliveryResult]
 def process_push_notification_message(
     message: PushNotificationMessage,
     worker_engine: Engine,
+    settings: Settings,
     send_notifications: PushSender = send_source_push_notifications,
 ) -> None:
+    if message.read_count > settings.worker_queue_max_deliveries:
+        logger.error(
+            "Push message %s exceeded max deliveries (read_count=%s > %s) for source %s; "
+            "archiving message",
+            message.msg_id,
+            message.read_count,
+            settings.worker_queue_max_deliveries,
+            message.source_id,
+        )
+        with Session(worker_engine) as session:
+            archive_push_notification_message(session, message.msg_id)
+            session.commit()
+        return
+
     with Session(worker_engine) as session:
         source = session.get(Source, message.source_id)
         if not source:

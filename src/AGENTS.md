@@ -6,6 +6,9 @@ Saved source ingestion behavior lives under `src/ingestion/`; keep `src/worker.p
 Saved-source response assembly lives in `src/sources/read_models.py`; keep routers focused on HTTP/auth/quota adapters.
 Book enrichment behavior lives under `src/books/`; keep provider-specific fetch/parsing out of ingestion callers.
 Shared HTTP error types live in `src/errors.py` (`AppError`); domain modules subclass it and `src/main.py` registers one exception handler for the whole hierarchy.
+Shared pgmq session/payload helpers used by `src/sources/queue.py` and `src/push/queue.py` live in `src/pgmq.py`; each queue's own `read`/`read_with_poll` SQL and message shape stay separate since they genuinely differ.
+`src/worker.py` handles SIGTERM/SIGINT with a plain flag checked between loop iterations (finishes the in-flight source, then exits) and never lets an unhandled exception kill the process; both source and push queue readers archive malformed/unknown-version messages instead of raising, and `process_source_extraction_message`/`process_push_notification_message` fail and archive a message once its `read_count` exceeds `WORKER_QUEUE_MAX_DELIVERIES` (poison-message cutoff).
+`sources.error_message` is API-visible to every user who saved that URL; store one of the stable messages from `src/sources/failure.py`, never raw exception text (log that server-side instead).
 
 ## Commands
 

@@ -158,11 +158,14 @@ def _check_release_env(worker_replicas: str | None) -> list[str]:
         "MAX_MEDIA_TOTAL_BYTES",
         100 * 1024 * 1024,
     )
-    if not max_file_error and not max_total_error and max_file_bytes and max_total_bytes:
-        if max_file_bytes > max_total_bytes:
-            errors.append(
-                "MAX_MEDIA_FILE_BYTES must be less than or equal to MAX_MEDIA_TOTAL_BYTES"
-            )
+    if (
+        not max_file_error
+        and not max_total_error
+        and max_file_bytes
+        and max_total_bytes
+        and max_file_bytes > max_total_bytes
+    ):
+        errors.append("MAX_MEDIA_FILE_BYTES must be less than or equal to MAX_MEDIA_TOTAL_BYTES")
 
     if worker_replicas != "1":
         errors.append("worker replicas must be exactly 1 for beta")

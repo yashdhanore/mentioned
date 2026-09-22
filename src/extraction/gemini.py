@@ -7,9 +7,11 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from google import genai
-from google.genai.types import GenerateContentConfig, HttpOptions, HttpRetryOptions, Part
+from google.genai import errors as genai_errors
+from google.genai.types import GenerateContentConfig, Part
 
 from src.config import get_settings
+from src.extraction.gemini_client import get_gemini_client
 
 logger = logging.getLogger(__name__)
 
@@ -51,22 +53,9 @@ VERTEX_INLINE_SIZE_LIMIT = 100 * 1024 * 1024  # 100 MB
 
 
 def _get_client() -> genai.Client:
-    settings = get_settings()
-    retry_options = HttpRetryOptions(attempts=1)
-    if settings.gemini.use_vertexai:
-        if not settings.gemini.vertex_project:
-            raise RuntimeError("GOOGLE_CLOUD_PROJECT is not configured for Vertex AI")
-        return genai.Client(
-            vertexai=True,
-            project=settings.gemini.vertex_project,
-            location=settings.gemini.vertex_location,
-            http_options=HttpOptions(api_version="v1", retry_options=retry_options),
-        )
-
-    api_key = settings.gemini.gemini_api_key
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY is not configured")
-    return genai.Client(api_key=api_key, http_options=HttpOptions(retry_options=retry_options))
+    # scripts/compare_gemini_video_models.py (off limits for this change) imports this
+    # zero-arg helper directly; keep it as a thin wrapper around the shared client builder.
+    return get_gemini_client(get_settings())
 
 
 def _mime_type_for(path: Path) -> str:
@@ -164,6 +153,32 @@ def _check_size_limits(paths: Sequence[Path], *, max_file_bytes: int, max_total_
         )
 
 
+def _generate_with_retry(
+    client: genai.Client,
+    *,
+    model: str,
+    contents: list,
+    config: GenerateContentConfig,
+    total_attempts: int,
+):
+    for attempt in range(total_attempts - 1):
+        try:
+            return client.models.generate_content(model=model, contents=contents, config=config)
+        except genai_errors.APIError as exc:
+            if exc.code not in RETRYABLE_STATUS_CODES:
+                raise
+            delay = RETRY_DELAYS[attempt]
+            logger.warning(
+                "Gemini request failed (attempt %d/%d), retrying in %ds: %s",
+                attempt + 1,
+                total_attempts,
+                delay,
+                exc,
+            )
+            time.sleep(delay)
+    return client.models.generate_content(model=model, contents=contents, config=config)
+
+
 def extract_mentions_from_media(media_paths: Path | Sequence[Path]) -> dict:
     settings = get_settings()
     paths = _media_path_list(media_paths)
@@ -174,44 +189,25 @@ def extract_mentions_from_media(media_paths: Path | Sequence[Path]) -> dict:
         max_file_bytes=settings.max_media_file_bytes,
         max_total_bytes=settings.max_media_total_bytes,
     )
-    client = _get_client()
+    client = get_gemini_client(settings)
     file_parts = [
         upload_to_gemini(client, media_path, use_vertexai=settings.gemini.use_vertexai)
         for media_path in paths
     ]
 
-    last_exc = None
-    for attempt in range(settings.gemini.gemini_total_attempts):
-        try:
-            response = client.models.generate_content(
-                model=settings.gemini.gemini_model,
-                contents=[*file_parts, EXTRACTION_PROMPT],
-                config=GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema=MENTION_SCHEMA,
-                    temperature=0.1,
-                ),
-            )
-            try:
-                return json.loads(response.text)
-            except (json.JSONDecodeError, TypeError) as exc:
-                logger.warning("Failed to parse Gemini response: %s", exc)
-                return {"mentions": []}
-        except Exception as exc:
-            last_exc = exc
-            # Check if it's a retryable error (503, 429, etc.)
-            exc_str = str(exc)
-            is_retryable = any(str(code) in exc_str for code in RETRYABLE_STATUS_CODES)
-            if not is_retryable or attempt == settings.gemini.gemini_total_attempts - 1:
-                raise
-            delay = RETRY_DELAYS[attempt]
-            logger.warning(
-                "Gemini request failed (attempt %d/%d), retrying in %ds: %s",
-                attempt + 1,
-                settings.gemini.gemini_total_attempts,
-                delay,
-                exc,
-            )
-            time.sleep(delay)
-
-    raise last_exc  # unreachable, but satisfies type checker
+    response = _generate_with_retry(
+        client,
+        model=settings.gemini.gemini_model,
+        contents=[*file_parts, EXTRACTION_PROMPT],
+        config=GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=MENTION_SCHEMA,
+            temperature=0.1,
+        ),
+        total_attempts=settings.gemini.gemini_total_attempts,
+    )
+    try:
+        return json.loads(response.text)
+    except (json.JSONDecodeError, TypeError) as exc:
+        logger.warning("Failed to parse Gemini response: %s", exc)
+        return {"mentions": []}

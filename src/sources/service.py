@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import delete, func, update
@@ -21,20 +21,19 @@ def _increment_retry_window(
     now: datetime,
     window: timedelta,
 ) -> tuple[datetime, int]:
-    # Postgres returns timezone-aware values for DateTime(timezone=True) columns,
-    # but `now` is naive (utc_now()). Normalize to naive UTC so the
-    # comparison never mixes offset-aware and offset-naive datetimes.
-    if window_started_at is not None and window_started_at.tzinfo is not None:
-        window_started_at = window_started_at.astimezone(UTC).replace(tzinfo=None)
     if window_started_at is None or window_started_at < now - window:
         return now, 1
     return window_started_at, count + 1
 
 
-def save_source_for_user(session: Session, owner_id: str, raw_url: str) -> SavedSource:
+def save_source_for_user(
+    session: Session, owner_id: str, raw_url: str, *, require_https: bool = False
+) -> SavedSource:
     for attempt in range(2):
         try:
-            return _save_source_for_user_once(session, owner_id, raw_url)
+            return _save_source_for_user_once(
+                session, owner_id, raw_url, require_https=require_https
+            )
         except IntegrityError:
             session.rollback()
             if attempt == 1:
@@ -45,9 +44,11 @@ def save_source_for_user(session: Session, owner_id: str, raw_url: str) -> Saved
     raise RuntimeError("Could not save source after retry")
 
 
-def _save_source_for_user_once(session: Session, owner_id: str, raw_url: str) -> SavedSource:
+def _save_source_for_user_once(
+    session: Session, owner_id: str, raw_url: str, *, require_https: bool
+) -> SavedSource:
     owner_uuid = parse_uuid(owner_id)
-    identity = identify_source(raw_url, require_https=False)
+    identity = identify_source(raw_url, require_https=require_https)
     should_enqueue = False
 
     source = session.exec(select(Source).where(Source.source_key == identity.source_key)).first()
@@ -240,6 +241,37 @@ def fail_source_processing(session: Session, source: Source, error: str) -> bool
 
     session.expire(source)
     enqueue_push_notification(session, source_id)
+    session.commit()
+    return True
+
+
+def fail_source_processing_forcibly(session: Session, source_id: str | UUID, error: str) -> bool:
+    """Fail a source regardless of its current claim attempt.
+
+    Used for the poison-message cutoff: a message that has been redelivered too many
+    times may not be in the exact PROCESSING/processing_started_at state
+    fail_source_processing expects (or may never have been claimed at all), so this
+    bypasses that optimistic check. It only ever moves a source out of PENDING or
+    PROCESSING, so it can never clobber a source that already reached a terminal state.
+    """
+    parsed_source_id = parse_uuid(source_id)
+    now = utc_now()
+    stmt = (
+        update(Source)
+        .where(
+            Source.id == parsed_source_id,
+            Source.status.in_([SourceStatus.PENDING, SourceStatus.PROCESSING]),
+        )
+        .values(status=SourceStatus.FAILED, error_message=error, processed_at=now, updated_at=now)
+        .returning(Source.id)
+    )
+    with session.no_autoflush:
+        failed_id = session.execute(stmt).scalar_one_or_none()
+    if failed_id is None:
+        session.rollback()
+        return False
+
+    enqueue_push_notification(session, parsed_source_id)
     session.commit()
     return True
 

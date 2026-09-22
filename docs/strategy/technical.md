@@ -1,6 +1,6 @@
 # Technical Decisions And Ideation
 
-Last updated: 2026-09-21
+Last updated: 2026-09-22
 
 This is the canonical home for Mentioned technical decisions, architecture status, technical
 ideation, and rejected approaches. Technical decisions must start from the product direction in
@@ -473,6 +473,100 @@ The work splits along two independent axes:
   OCR text artifacts that only the pre-Gemini pipeline produced; its one Reel became a label. The
   harness pattern (golden set, confidence intervals, hallucination reported separately) follows
   `ai-engineering-from-scratch` phase 11 lesson 10 and the phase 19 video capstone.
+
+### 2026-09-22 - Worker Poison-Message And Shutdown Policy
+
+- Status: Accepted and implemented.
+- Product constraint: Protects the save -> extract -> revisit loop's reliability - a single
+  malformed queue message or one unhandled exception must not crash-loop the single worker instance
+  and silently stop all extraction for every user.
+- Notes: `src/sources/queue.py` and `src/push/queue.py` now archive malformed or unknown-version
+  pgmq messages instead of raising, so a bad message cannot repeat forever. A message whose
+  `read_ct` exceeds the new `WORKER_QUEUE_MAX_DELIVERIES` setting (default 5) is treated as poison:
+  the source is force-failed with a stable message and the queue message is archived, rather than
+  redelivered indefinitely. `src/worker.py`'s polling and queue loops now catch unexpected exceptions
+  per iteration (log with traceback, back off, continue; `KeyboardInterrupt`/`SystemExit` still
+  propagate) and handle SIGTERM/SIGINT with a plain flag checked between iterations so Render's
+  `maxShutdownDelaySeconds: 300` gives the worker time to finish an in-flight source before exiting.
+  `sources.error_message` is API-visible to every user who saved that URL, so it is now always one of
+  a small set of stable messages (`src/sources/failure.py`); raw exception/provider detail is logged
+  server-side only, never stored on the row.
+
+### 2026-09-22 - Alembic Owns All Of `public`, Including Grants And RLS
+
+- Status: Accepted and implemented; extends ADR 0001.
+- Product constraint: Contract safety and operational trust for the save -> extract -> revisit loop
+  - a database built from `alembic upgrade head` alone must have the same schema, grants, and RLS
+  as production, or a fresh environment silently diverges from what the API/worker expect.
+- Notes: `waitlist_signups` existed only via a hand-written Supabase migration, so `POST /v1/waitlist`
+  had no backing table on a database built purely from Alembic; added
+  `migrations/versions/20260922_0018_waitlist_signups.py` (idempotent, safe on both a fresh database
+  and production, which already has the table). Its RLS policy is scoped `to mentioned_api`,
+  replacing the old policy that had no `to <role>` clause and so applied to every role. The two
+  now-redundant Supabase SQL files were not deleted (the Supabase CLI tracks applied migrations by
+  version, not checksum, so deleting a recorded-applied version risks `supabase db push` reporting
+  missing remote versions) but rewritten as idempotent, order-independent no-ops with a header
+  comment pointing at the Alembic revision that owns the object. `scripts/dev-up.sh` no longer needs
+  to move `supabase/migrations/*.sql` out of the repo before first-time `supabase start`, because the
+  one file that referenced an Alembic-owned table (`jobs`) is now guarded against that table not
+  existing. Root `AGENTS.md` and `supabase/AGENTS.md` were corrected to say Alembic owns grants and
+  RLS too, not just tables/columns - the Supabase CLI's real job is storage buckets, auth, and local
+  stack config.
+
+### 2026-09-22 - uv Lockfile And A Stable yt-dlp Pin
+
+- Status: Accepted and implemented.
+- Product constraint: Cost control and operational trust for the save -> extract -> revisit loop -
+  a production-risk incident already happened from this gap (sqlmodel 0.0.45 broke every insert on a
+  fresh install because dependencies were lower-bound only, with no lockfile).
+- Notes: Adopted `uv` with a committed, hash-pinned `uv.lock`; `uv sync --frozen` resolves to the
+  exact same versions in dev, CI, and the Docker build. Re-pinned `yt-dlp[curl-cffi]` to `>=2026.8.19`
+  (a real stable release) instead of the upstream `master` tarball: the Instagram browser
+  impersonation fix (yt-dlp #17074) shipped in the 2026.07.04 stable release (PR #17113), so a moving,
+  unhashable `master` tarball is no longer needed. The Docker image now installs only the dependency
+  layer via `uv sync --frozen --no-dev --no-install-project` before copying source, so code-only
+  changes do not reinstall every dependency, and the image has exactly one copy of `src` (the API runs
+  `fastapi run src/main.py`, the worker runs `python -m src.worker`, neither depends on this package
+  being pip-installed). `requires-python`/ruff `target-version` moved to 3.12 to match what CI and the
+  Docker base image (`python:3.12.14-slim`) actually run; no code currently depends on 3.11.
+
+### 2026-09-22 - Timezone-Aware Datetimes
+
+- Status: Accepted and implemented.
+- Product constraint: Contract safety and operational trust for the save -> extract -> revisit loop -
+  `sqlmodel<0.0.45` was already a stopgap (0.0.45 rejects naive datetime writes), and the app-level
+  naive-vs-aware mismatch was live-bug-adjacent (see the wire-format finding below).
+- Notes: Every live datetime column in this schema was already `timestamptz` from the very first
+  migration (0003) onward - there was no `timestamp without time zone` column to convert, so the
+  planned "convert remaining naive columns" Alembic revision turned out to be unnecessary and was not
+  added. The actual gap was purely application-side: `src/timeutils.py`'s `utc_now()` stripped tzinfo
+  before returning, `src/sources/service.py` carried a hack to re-strip tzinfo off values read back
+  from Postgres (which already came back aware), and `sqlmodel<0.0.45` was capped to tolerate the
+  mismatch. Made `utc_now()` return aware UTC, removed the strip-tzinfo hack, required
+  `sqlmodel>=0.0.45` (which maps `datetime` fields to its `UTCDateTime` type: aware UTC in, aware UTC
+  out, on SQLite too), and enabled ruff's `DTZ` rule family - zero findings, since the codebase already
+  funneled every "now" through `utc_now()`.
+  **Wire format finding:** aware UTC datetimes serialize with a trailing `Z`
+  (`"2026-01-01T10:00:00Z"`) instead of the old bare `"2026-01-01T10:00:00"` with no offset. Checked
+  `mobile/src/screens/reel-detail-screen.tsx`'s `savedAtLabel()`, the only place the app parses
+  `created_at` (`Date.parse(createdAt)`): a JS date-time string with no offset parses as **local**
+  time per the ECMAScript spec, so the old wire format was a latent bug for any device not in UTC+0
+  (verified: a device in UTC+5:30 would show "Saved 5h ago" for a source saved seconds ago; a
+  negative-offset device would show "Saved just now" forever). The explicit `Z` fixes this rather than
+  breaking it, so the wire format was allowed to change; pinned with a test asserting `created_at`
+  ends in `"Z"` on both `/v1/saved-sources` and `/v1/waitlist` responses.
+  **Verified against real Postgres** (throwaway `supabase/postgres:17.6.1.167` container, removed
+  after): `alembic upgrade head` through 20260922_0018, `downgrade -1`/`-2` and back up for both new
+  revisions (0017, 0018), and a direct insert/read/compare round trip with the actual `Source` model
+  confirmed `tzinfo=UTC` on every value read back. Also ran `tests/test_postgres_dedicated_worker_rls.py`
+  with its three role connection strings against the same container - all 4 pass; fixed an unrelated
+  pre-existing bug in that file where the same bind parameter name was reused for a `uuid` column and
+  a `text` column in one INSERT, which a real Postgres/psycopg3 rejects with "inconsistent types
+  deduced for parameter" (SQLite silently tolerated it, so this had never been caught).
+  **Correction:** the `sources` table has never had a `heartbeat_at` column in any migration; that
+  column only ever existed on the legacy `jobs` table (dropped by revision 0017). An earlier item-4
+  commit added a code comment to `src/sources/models.py` incorrectly attributing a `heartbeat_at`
+  column to `sources` - corrected in this change once the migration inventory caught it.
 
 ### Book Catalog And Reading List Support
 
