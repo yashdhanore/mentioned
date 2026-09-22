@@ -1,10 +1,12 @@
 ---
+import { Image } from 'astro:assets';
+import appMark from '../assets/app-mark.png';
 ---
 
 <header class="content-nav">
   <a class="content-nav__brand" href="/" aria-label="Mentioned home">
     <span class="content-nav__mark">
-      <img src="/assets/app-mark.png" alt="" width="28" height="28" />
+      <Image src={appMark} alt="" width={56} height={56} />
     </span>
     <span>Mentioned</span>
   </a>
