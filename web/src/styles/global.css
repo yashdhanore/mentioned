@@ -1093,6 +1093,111 @@ html[data-motion="enhanced"] [data-shelf-memory] {
   will-change: transform, opacity;
 }
 
+.content-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: min(760px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 28px 0 0;
+}
+
+.content-nav__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-ink);
+  font-size: 16px;
+  font-weight: 820;
+}
+
+.content-nav__mark {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 8px 20px rgba(16, 26, 23, 0.1);
+}
+
+.content-nav__mark img {
+  width: 24px;
+  height: 24px;
+}
+
+.content-nav__back {
+  color: var(--color-secondary);
+  font-size: 13px;
+  font-weight: 700;
+  transition: color 420ms var(--ease-spring);
+}
+
+.content-nav__back:hover {
+  color: var(--color-ink);
+}
+
+.content-page {
+  width: min(760px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 56px 0 120px;
+}
+
+.content-page__eyebrow {
+  margin: 0 0 14px;
+}
+
+.content-page h1 {
+  margin: 0 0 8px;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: clamp(36px, 6vw, 52px);
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1.05;
+}
+
+.content-page__meta {
+  margin: 0 0 36px;
+  color: var(--color-secondary);
+  font-size: 14px;
+}
+
+.content-page h2 {
+  margin: 40px 0 12px;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 750;
+  line-height: 1.2;
+}
+
+.content-page p {
+  max-width: 640px;
+  margin: 0 0 16px;
+  color: var(--color-secondary);
+  font-size: 16px;
+  line-height: 1.65;
+}
+
+.content-page a {
+  color: var(--color-primary-pressed);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+@media (max-width: 767px) {
+  .content-nav {
+    padding-top: 18px;
+  }
+
+  .content-page {
+    padding: 40px 0 88px;
+  }
+}
+
 html[data-motion="reduced"] [data-reveal],
 html[data-motion="reduced"] [data-hero-reel],
 html[data-motion="reduced"] [data-hero-artifact],

@@ -124,6 +124,10 @@ def _check_release_env(worker_replicas: str | None) -> list[str]:
     elif any(_invalid_host(host) for host in hosts):
         errors.append("TRUSTED_HOSTS must contain only explicit non-local hosts")
 
+    web_base_url = _env("WEB_BASE_URL")
+    if web_base_url and _invalid_origin(web_base_url):
+        errors.append("WEB_BASE_URL must be an HTTPS origin")
+
     if not _env("SUPABASE_PROJECT_URL"):
         errors.append("SUPABASE_PROJECT_URL must be set")
     if not _env("SUPABASE_SERVICE_ROLE_KEY"):

@@ -54,6 +54,11 @@ def _blank_as_none(value: Any) -> Any:
     return text or None
 
 
+def _blank_as_none_no_trailing_slash(value: Any) -> Any:
+    text = _blank_as_none(value)
+    return text.rstrip("/") if isinstance(text, str) else text
+
+
 def _blank_as(default: Any):
     def _parse(value: Any) -> Any:
         if isinstance(value, str) and not value.strip():
@@ -83,6 +88,7 @@ EnvBool = Annotated[bool, BeforeValidator(_parse_bool)]
 StrippedStr = Annotated[str, BeforeValidator(_strip)]
 CasefoldStr = Annotated[str, BeforeValidator(_casefold)]
 OptionalEnvStr = Annotated[str | None, BeforeValidator(_blank_as_none)]
+OptionalEnvUrl = Annotated[str | None, BeforeValidator(_blank_as_none_no_trailing_slash)]
 EnvCsv = Annotated[tuple[str, ...], NoDecode, BeforeValidator(_parse_csv)]
 
 
@@ -150,6 +156,7 @@ class Settings(BaseSettings):
 
     app_name: str = "Mentioned Backend"
     app_env: CasefoldStr = "local"
+    web_base_url: OptionalEnvUrl = None
     docs_enabled: EnvBool = True
     cors_allowed_origins: EnvCsv = ()
     trusted_hosts: EnvCsv = ()

@@ -45,6 +45,30 @@ def test_release_env_accepts_valid_default_guardrails(valid_release_env: None) -
     assert check_release_env._check_release_env("1") == []
 
 
+def test_release_env_accepts_missing_web_base_url(
+    valid_release_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("WEB_BASE_URL", raising=False)
+
+    assert check_release_env._check_release_env("1") == []
+
+
+def test_release_env_accepts_https_web_base_url(
+    valid_release_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("WEB_BASE_URL", "https://mentioned-web.onrender.com")
+
+    assert check_release_env._check_release_env("1") == []
+
+
+def test_release_env_rejects_non_https_web_base_url(
+    valid_release_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("WEB_BASE_URL", "http://mentioned-web.onrender.com")
+
+    assert "WEB_BASE_URL must be an HTTPS origin" in check_release_env._check_release_env("1")
+
+
 @pytest.mark.parametrize(
     ("name", "value", "expected"),
     [

@@ -1,0 +1,28 @@
+---
+import ContentNav from '../components/ContentNav.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="Support - Mentioned"
+  description="Get help with Mentioned: account access, extraction results, or data deletion."
+>
+  <div class="page-shell">
+    <ContentNav />
+
+    <main class="content-page">
+      <span class="eyebrow content-page__eyebrow">Support</span>
+      <h1>Support</h1>
+
+      <p>
+        Need help with Mentioned, account access, extraction results, or data deletion?
+        Email <a href="mailto:yashdhanore@gmail.com">yashdhanore@gmail.com</a>.
+      </p>
+
+      <p><a href="/privacy">Privacy Policy</a></p>
+    </main>
+
+    <SiteFooter />
+  </div>
+</BaseLayout>
