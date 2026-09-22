@@ -141,6 +141,7 @@ def _check_release_env(worker_replicas: str | None) -> list[str]:
     elif not _env("GEMINI_API_KEY"):
         errors.append("GEMINI_API_KEY must be set when Vertex AI is disabled")
 
+    guardrail_values: dict[str, int] = {}
     for name, (default, low, high) in GUARDRAILS.items():
         value, error = _env_int_with_default(name, default)
         if error:
@@ -148,22 +149,12 @@ def _check_release_env(worker_replicas: str | None) -> list[str]:
             continue
         if value is None or value < low or value > high:
             errors.append(f"{name} must be between {low} and {high}")
+        if value is not None:
+            guardrail_values[name] = value
 
-    max_file_bytes, max_file_error = _env_int_with_default(
-        "MAX_MEDIA_FILE_BYTES",
-        50 * 1024 * 1024,
-    )
-    max_total_bytes, max_total_error = _env_int_with_default(
-        "MAX_MEDIA_TOTAL_BYTES",
-        100 * 1024 * 1024,
-    )
-    if (
-        not max_file_error
-        and not max_total_error
-        and max_file_bytes
-        and max_total_bytes
-        and max_file_bytes > max_total_bytes
-    ):
+    max_file_bytes = guardrail_values.get("MAX_MEDIA_FILE_BYTES")
+    max_total_bytes = guardrail_values.get("MAX_MEDIA_TOTAL_BYTES")
+    if max_file_bytes and max_total_bytes and max_file_bytes > max_total_bytes:
         errors.append("MAX_MEDIA_FILE_BYTES must be less than or equal to MAX_MEDIA_TOTAL_BYTES")
 
     if worker_replicas != "1":

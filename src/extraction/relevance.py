@@ -22,6 +22,7 @@ from google.genai.types import GenerateContentConfig, Part
 
 from src.config import get_settings
 from src.extraction.gemini_client import get_gemini_client
+from src.storage.thumbnails import download_thumbnail
 
 logger = logging.getLogger(__name__)
 
@@ -91,14 +92,12 @@ thumbnail image. Decide whether a full, expensive video analysis is worthwhile.
 
 Return JSON only: {{"verdict": "relevant|irrelevant|uncertain", "reason": "<short>"}}
 """
-# ---------------------------------------------------------------------------
 
 
 def _fetch_thumbnail_bytes(thumbnail_url: str) -> tuple[bytes, str] | None:
-    """Fetch the thumbnail image through the existing SSRF-protected downloader."""
-    from src.storage.thumbnails import _download_thumbnail
-
-    image = _download_thumbnail(thumbnail_url)
+    # The URL comes from scraped metadata, so it goes through the host-allowlisted,
+    # size-capped thumbnail downloader rather than a plain GET.
+    image = download_thumbnail(thumbnail_url)
     if image is None:
         return None
     return image.data, image.content_type
@@ -135,7 +134,7 @@ def _parse_verdict(raw_text: str | None) -> RelevanceAssessment:
         return RelevanceAssessment(verdict=Verdict.UNCERTAIN, reason="empty response")
     try:
         payload = json.loads(raw_text)
-    except (json.JSONDecodeError, TypeError):
+    except json.JSONDecodeError:
         return RelevanceAssessment(verdict=Verdict.UNCERTAIN, reason="unparseable response")
     if not isinstance(payload, dict):
         return RelevanceAssessment(verdict=Verdict.UNCERTAIN, reason="unexpected response shape")
@@ -174,4 +173,4 @@ def assess_relevance(*, caption: str | None, thumbnail_url: str | None) -> Relev
         logger.warning("Relevance gate call failed, failing open to uncertain: %s", exc)
         return RelevanceAssessment(verdict=Verdict.UNCERTAIN, reason="gate error")
 
-    return _parse_verdict(getattr(response, "text", None))
+    return _parse_verdict(response.text)

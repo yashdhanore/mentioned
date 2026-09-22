@@ -21,23 +21,6 @@ def clear_settings_cache():
     get_settings.cache_clear()
 
 
-def test_get_client_delegates_to_shared_gemini_client(monkeypatch):
-    # scripts/compare_gemini_video_models.py imports this zero-arg wrapper directly.
-    sentinel = object()
-    captured_settings = []
-
-    def fake_get_gemini_client(settings):
-        captured_settings.append(settings)
-        return sentinel
-
-    monkeypatch.setattr(gemini, "get_gemini_client", fake_get_gemini_client)
-
-    client = gemini._get_client()
-
-    assert client is sentinel
-    assert captured_settings == [get_settings()]
-
-
 def test_upload_to_gemini_uses_vertex_inline_limit(monkeypatch, tmp_path):
     media_file = tmp_path / "media_001.mp4"
     media_file.write_bytes(b"fake video")
@@ -128,7 +111,7 @@ def test_generate_with_retry_retries_retryable_error_then_succeeds(monkeypatch):
 
     client = SimpleNamespace(models=Models())
 
-    response = gemini._generate_with_retry(
+    response = gemini.generate_with_retry(
         client, model="m", contents=[], config=None, total_attempts=3
     )
 
@@ -151,7 +134,7 @@ def test_generate_with_retry_raises_immediately_on_non_retryable_error(monkeypat
     client = SimpleNamespace(models=Models())
 
     with pytest.raises(genai_errors.APIError) as excinfo:
-        gemini._generate_with_retry(client, model="m", contents=[], config=None, total_attempts=3)
+        gemini.generate_with_retry(client, model="m", contents=[], config=None, total_attempts=3)
 
     assert excinfo.value.code == 400
     assert calls["count"] == 1
@@ -169,7 +152,7 @@ def test_generate_with_retry_raises_after_exhausting_attempts(monkeypatch):
     client = SimpleNamespace(models=Models())
 
     with pytest.raises(genai_errors.APIError) as excinfo:
-        gemini._generate_with_retry(client, model="m", contents=[], config=None, total_attempts=3)
+        gemini.generate_with_retry(client, model="m", contents=[], config=None, total_attempts=3)
 
     assert excinfo.value.code == 503
     assert calls["count"] == 3
@@ -187,7 +170,7 @@ def test_generate_with_retry_retries_timeouts_and_dropped_connections(monkeypatc
 
     client = SimpleNamespace(models=Models())
 
-    response = gemini._generate_with_retry(
+    response = gemini.generate_with_retry(
         client, model="m", contents=[], config=None, total_attempts=3
     )
 
@@ -207,6 +190,6 @@ def test_generate_with_retry_gives_up_after_repeated_timeouts(monkeypatch):
     client = SimpleNamespace(models=Models())
 
     with pytest.raises(httpx.ReadTimeout):
-        gemini._generate_with_retry(client, model="m", contents=[], config=None, total_attempts=3)
+        gemini.generate_with_retry(client, model="m", contents=[], config=None, total_attempts=3)
 
     assert calls["count"] == 3

@@ -16,7 +16,7 @@ docker info >/dev/null 2>&1 || {
   exit 1
 }
 [ -x .venv/bin/fastapi ] || {
-  echo ".venv not found. Run: python -m venv .venv && source .venv/bin/activate && pip install -e \".[dev]\"" >&2
+  echo ".venv not found. Run: uv sync --frozen --extra dev" >&2
   exit 1
 }
 
@@ -72,7 +72,7 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-echo "Applying Supabase-managed migrations (storage buckets, RLS)..."
+echo "Applying Supabase-managed migrations (storage buckets)..."
 supabase migration up --local >> "$LOG_DIR/supabase.log" 2>&1 || {
   echo "supabase migration up --local failed, see $LOG_DIR/supabase.log" >&2
   exit 1

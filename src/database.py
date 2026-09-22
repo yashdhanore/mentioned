@@ -31,12 +31,7 @@ def create_sql_engine(database_url: str) -> Engine:
 settings = get_settings()
 engine = create_sql_engine(settings.database_url)
 
-
-def _set_connection_rls_user(connection, owner_id: str) -> None:
-    connection.execute(
-        text("select set_config('app.current_user_id', :owner_id, true)"),
-        {"owner_id": owner_id},
-    )
+_SET_RLS_USER_SQL = text("select set_config('app.current_user_id', :owner_id, true)")
 
 
 @event.listens_for(SQLAlchemySession, "after_begin")
@@ -46,16 +41,13 @@ def _apply_rls_user_context(session, _transaction, connection) -> None:
         return
     if connection.dialect.name != "postgresql":
         return
-    _set_connection_rls_user(connection, owner_id)
+    connection.execute(_SET_RLS_USER_SQL, {"owner_id": owner_id})
 
 
 def set_rls_user_context(session: Session, owner_id: str) -> None:
     session.info["rls_user_id"] = owner_id
     if session.in_transaction() and session.bind and session.bind.dialect.name == "postgresql":
-        session.execute(
-            text("select set_config('app.current_user_id', :owner_id, true)"),
-            {"owner_id": owner_id},
-        )
+        session.execute(_SET_RLS_USER_SQL, {"owner_id": owner_id})
 
 
 def create_db_and_tables(bind: Engine | None = None) -> None:
@@ -94,8 +86,7 @@ def _check_non_privileged_database_role(bind: Engine, *, label: str) -> None:
 def check_api_database_role(bind: Engine | None = None) -> None:
     if not settings.is_production:
         return
-    check_engine = bind or engine
-    _check_non_privileged_database_role(check_engine, label="API")
+    _check_non_privileged_database_role(bind or engine, label="API")
 
 
 def check_worker_database_role(bind: Engine, *, require_postgres: bool = False) -> None:
@@ -104,11 +95,6 @@ def check_worker_database_role(bind: Engine, *, require_postgres: bool = False) 
             raise RuntimeError("Production worker database must be PostgreSQL")
         return
     _check_non_privileged_database_role(bind, label="worker")
-
-
-def check_database_ready() -> None:
-    with engine.connect() as connection:
-        connection.execute(text("select 1"))
 
 
 def get_session() -> Iterator[Session]:

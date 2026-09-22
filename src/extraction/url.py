@@ -32,15 +32,3 @@ def normalize_input_url(raw_url: str, *, require_https: bool = False) -> str:
     ]
     cleaned_query = urlencode(query_pairs, doseq=True)
     return urlunsplit((parts.scheme, hostname, cleaned_path, cleaned_query, ""))
-
-
-def validate_instagram_url(raw_url: str, *, require_https: bool = False) -> str:
-    normalized = normalize_input_url(raw_url, require_https=require_https)
-    parts = urlsplit(normalized)
-    path = parts.path.lower()
-    if "/reel/" not in path and "/p/" not in path:
-        raise SourceUrlError(
-            "Only public Instagram Reel and post URLs are supported",
-            error_code="unsupported_source_kind",
-        )
-    return normalized

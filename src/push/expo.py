@@ -10,6 +10,7 @@ from src.push.service import SourcePushTarget
 from src.sources.models import Source, SourceStatus
 
 EXPO_PUSH_SEND_URL = "https://exp.host/--/api/v2/push/send"
+EXPO_PUSH_TIMEOUT_SECONDS = 10
 # The mobile app still names its Android notification channel "job-status".
 SOURCE_STATUS_NOTIFICATION_CHANNEL_ID = "job-status"
 DEVICE_NOT_REGISTERED = "DeviceNotRegistered"
@@ -74,7 +75,7 @@ def send_source_push_notifications(
         return PushDeliveryResult(disabled_tokens=set())
 
     try:
-        response = httpx.post(EXPO_PUSH_SEND_URL, json=messages, timeout=10)
+        response = httpx.post(EXPO_PUSH_SEND_URL, json=messages, timeout=EXPO_PUSH_TIMEOUT_SECONDS)
         response.raise_for_status()
     except httpx.HTTPError as exc:
         raise PushDeliveryRetryableError(str(exc)) from exc
@@ -94,6 +95,8 @@ def send_source_push_notifications(
         if error == DEVICE_NOT_REGISTERED:
             disabled_tokens.add(token)
         else:
-            logger.warning("Expo push ticket error for token %s: %s", token, item)
+            # Log the error code, not the ticket: the ticket and its message carry the push
+            # token, which is enough to send notifications to that device.
+            logger.warning("Expo push ticket error: %s", error or "unknown")
 
     return PushDeliveryResult(disabled_tokens=disabled_tokens)

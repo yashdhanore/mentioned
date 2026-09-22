@@ -25,9 +25,6 @@ class _ScalarResult:
     def scalar_one(self):
         return self._value
 
-    def scalar_one_or_none(self):
-        return self._value
-
 
 class FakePostgresSession:
     def __init__(self, rows):

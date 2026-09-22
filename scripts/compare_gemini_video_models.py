@@ -18,11 +18,10 @@ from src.extraction.download import DownloadedAssets, download_assets_with_metad
 from src.extraction.gemini import (
     EXTRACTION_PROMPT,
     MENTION_SCHEMA,
-    RETRY_DELAYS,
-    RETRYABLE_STATUS_CODES,
-    _get_client,
+    generate_with_retry,
     upload_to_gemini,
 )
+from src.extraction.gemini_client import get_gemini_client
 
 DEFAULT_MODELS = ("gemini-2.5-flash", "gemini-3.1-flash-lite")
 PRICING_SOURCE = "Gemini Developer API paid tier, standard mode, checked 2026-09-22"
@@ -58,6 +57,7 @@ DEFAULT_PRICE_TABLE: dict[str, dict[str, float]] = {
 }
 
 SOURCE_URL_RE = re.compile(r"https?://[^\s)\]>\"]+")
+MEDIA_MANIFEST_NAME = "media-manifest.json"
 
 
 class CompareError(RuntimeError):
@@ -82,15 +82,8 @@ def _round_usd(value: float | None) -> float | None:
 
 
 def _normalize_models(models: list[str] | None) -> list[str]:
-    model_names = models or list(DEFAULT_MODELS)
-    normalized: list[str] = []
-    seen = set()
-    for model in model_names:
-        model_name = model.strip()
-        if not model_name or model_name in seen:
-            continue
-        normalized.append(model_name)
-        seen.add(model_name)
+    stripped = (model.strip() for model in models or DEFAULT_MODELS)
+    normalized = list(dict.fromkeys(model for model in stripped if model))
     if not normalized:
         raise CompareError("At least one model is required")
     return normalized
@@ -99,15 +92,9 @@ def _normalize_models(models: list[str] | None) -> list[str]:
 def _source_urls_from_text(value: str | None) -> list[str]:
     if not value:
         return []
-    source_urls: list[str] = []
-    seen = set()
-    for match in SOURCE_URL_RE.finditer(value):
-        source_url = match.group(0).rstrip(".,")
-        if source_url in seen:
-            continue
-        source_urls.append(source_url)
-        seen.add(source_url)
-    return source_urls
+    return list(
+        dict.fromkeys(match.group(0).rstrip(".,") for match in SOURCE_URL_RE.finditer(value))
+    )
 
 
 def _normalize_source_urls(args: argparse.Namespace) -> list[str]:
@@ -122,13 +109,7 @@ def _normalize_source_urls(args: argparse.Namespace) -> list[str]:
     if not sources:
         sources.extend(_source_urls_from_text(_env("SOURCE_URL")))
 
-    normalized: list[str] = []
-    seen = set()
-    for source_url in sources:
-        if source_url in seen:
-            continue
-        normalized.append(source_url)
-        seen.add(source_url)
+    normalized = list(dict.fromkeys(sources))
     if not normalized:
         raise CompareError(
             "Missing source URL. Pass one or more URLs, set SOURCE_URLS, or set SOURCE_URL."
@@ -222,54 +203,33 @@ def _estimate_cost(model: str, usage: dict[str, Any] | None) -> dict[str, Any] |
     }
 
 
-def _jsonable_metadata(value: object) -> dict | None:
-    if value is None:
-        return None
-    model_dump = getattr(value, "model_dump", None)
-    if callable(model_dump):
-        return model_dump(mode="json", exclude_none=True)
-    if isinstance(value, dict):
-        return value
-    return None
-
-
 def _extract_mentions_for_model(paths: list[Path], *, model: str) -> dict[str, Any]:
     settings = get_settings()
-    client = _get_client()
+    client = get_gemini_client(settings)
     file_parts = [
         upload_to_gemini(client, media_path, use_vertexai=settings.gemini.use_vertexai)
         for media_path in paths
     ]
-
-    last_exc = None
-    for attempt in range(settings.gemini.gemini_total_attempts):
-        try:
-            response = client.models.generate_content(
-                model=model,
-                contents=[*file_parts, EXTRACTION_PROMPT],
-                config=GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema=MENTION_SCHEMA,
-                    temperature=0.1,
-                ),
-            )
-            try:
-                raw = json.loads(response.text)
-            except (json.JSONDecodeError, TypeError):
-                raw = {"mentions": []}
-            return {
-                "raw": raw,
-                "usage": _jsonable_metadata(getattr(response, "usage_metadata", None)),
-            }
-        except Exception as exc:
-            last_exc = exc
-            exc_str = str(exc)
-            is_retryable = any(str(code) in exc_str for code in RETRYABLE_STATUS_CODES)
-            if not is_retryable or attempt == settings.gemini.gemini_total_attempts - 1:
-                raise
-            time.sleep(RETRY_DELAYS[attempt])
-
-    raise last_exc
+    response = generate_with_retry(
+        client,
+        model=model,
+        contents=[*file_parts, EXTRACTION_PROMPT],
+        config=GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=MENTION_SCHEMA,
+            temperature=0.1,
+        ),
+        total_attempts=settings.gemini.gemini_total_attempts,
+    )
+    try:
+        raw = json.loads(response.text)
+    except (json.JSONDecodeError, TypeError):
+        raw = {"mentions": []}
+    usage = response.usage_metadata
+    return {
+        "raw": raw,
+        "usage": usage.model_dump(mode="json", exclude_none=True) if usage else None,
+    }
 
 
 def _run_model(paths: list[Path], model: str) -> dict[str, Any]:
@@ -284,8 +244,8 @@ def _run_model(paths: list[Path], model: str) -> dict[str, Any]:
             "error": f"{type(exc).__name__}: {exc}",
         }
 
-    raw = response.get("raw", {"mentions": []})
-    usage = response.get("usage")
+    raw = response["raw"]
+    usage = response["usage"]
     mentions = raw.get("mentions") if isinstance(raw, dict) else None
     return {
         "model": model,
@@ -293,13 +253,10 @@ def _run_model(paths: list[Path], model: str) -> dict[str, Any]:
         "duration_seconds": _round_seconds(time.monotonic() - started),
         "mention_count": len(mentions) if isinstance(mentions, list) else None,
         "usage": usage,
-        "token_summary": _usage_token_summary(usage if isinstance(usage, dict) else None),
-        "estimated_cost": _estimate_cost(model, usage if isinstance(usage, dict) else None),
+        "token_summary": _usage_token_summary(usage),
+        "estimated_cost": _estimate_cost(model, usage),
         "raw": raw,
     }
-
-
-MEDIA_MANIFEST_NAME = "media-manifest.json"
 
 
 def _write_media_manifest(media_dir: Path, source_url: str, assets: DownloadedAssets) -> None:
@@ -382,19 +339,12 @@ def _media_dir_for_source(media_dir: Path, source_count: int, index: int) -> Pat
     return media_dir / f"source_{index + 1:03d}"
 
 
-def compare_models(
-    source_url: str,
-    *,
-    models: list[str] | None = None,
-    media_dir: Path | None = None,
-) -> dict[str, Any]:
-    model_names = _normalize_models(models)
-    if media_dir:
-        media_dir.mkdir(parents=True, exist_ok=True)
-        return _compare_in_dir(source_url, model_names, media_dir, keep_media=True)
-
-    with tempfile.TemporaryDirectory() as tmp:
-        return _compare_in_dir(source_url, model_names, Path(tmp), keep_media=False)
+def _failed_source(source_url: str, exc: Exception) -> dict[str, Any]:
+    return {
+        "source_url": source_url,
+        "download_error": f"{type(exc).__name__}: {exc}",
+        "results": [],
+    }
 
 
 def _summarize_batch(sources: list[dict[str, Any]], models: list[str]) -> dict[str, Any]:
@@ -419,35 +369,26 @@ def _summarize_batch(sources: list[dict[str, Any]], models: list[str]) -> dict[s
     for source in sources:
         if source.get("error") == "No media downloaded" or "download_error" in source:
             failed_downloads += 1
-        for result in source.get("results", []):
-            if not isinstance(result, dict):
-                continue
-            model = result.get("model")
-            if not isinstance(model, str) or model not in by_model:
-                continue
-            item = by_model[model]
+        for result in source["results"]:
+            item = by_model[result["model"]]
             item["sources"] += 1
-            item["duration_seconds"] += float(result.get("duration_seconds") or 0)
-            if result.get("ok") is True:
+            item["duration_seconds"] += result["duration_seconds"]
+            if result["ok"]:
                 item["successful_sources"] += 1
-                item["mentions"] += int(result.get("mention_count") or 0)
+                item["mentions"] += result["mention_count"] or 0
             else:
                 item["failed_sources"] += 1
 
             token_summary = result.get("token_summary")
-            if isinstance(token_summary, dict):
-                item["prompt_tokens"] += int(token_summary.get("prompt_tokens") or 0)
-                item["output_billable_tokens"] += int(
-                    token_summary.get("output_billable_tokens") or 0
-                )
-                item["total_tokens"] += int(token_summary.get("total_tokens") or 0)
+            if token_summary:
+                item["prompt_tokens"] += token_summary["prompt_tokens"]
+                item["output_billable_tokens"] += token_summary["output_billable_tokens"]
+                item["total_tokens"] += token_summary["total_tokens"]
 
             estimated_cost = result.get("estimated_cost")
-            if isinstance(estimated_cost, dict) and isinstance(
-                estimated_cost.get("total_usd"), (int, float)
-            ):
-                item["estimated_cost_usd"] += float(estimated_cost["total_usd"])
-            elif result.get("ok") is True:
+            if estimated_cost:
+                item["estimated_cost_usd"] += estimated_cost["total_usd"]
+            elif result["ok"]:
                 item["cost_estimate_missing"] = True
 
     model_summaries = []
@@ -498,13 +439,7 @@ def compare_sources(
                     )
                 )
             except Exception as exc:
-                sources.append(
-                    {
-                        "source_url": source_url,
-                        "download_error": f"{type(exc).__name__}: {exc}",
-                        "results": [],
-                    }
-                )
+                sources.append(_failed_source(source_url, exc))
     else:
         for source_url in source_urls:
             with tempfile.TemporaryDirectory() as tmp:
@@ -513,13 +448,7 @@ def compare_sources(
                         _compare_in_dir(source_url, model_names, Path(tmp), keep_media=False)
                     )
                 except Exception as exc:
-                    sources.append(
-                        {
-                            "source_url": source_url,
-                            "download_error": f"{type(exc).__name__}: {exc}",
-                            "results": [],
-                        }
-                    )
+                    sources.append(_failed_source(source_url, exc))
 
     return {
         "models": model_names,
@@ -603,14 +532,8 @@ def main() -> int:
         args.output.write_text(f"{output}\n", encoding="utf-8")
     print(output)
 
-    results = [
-        result
-        for source in payload.get("sources", [])
-        if isinstance(source, dict)
-        for result in source.get("results", [])
-        if isinstance(result, dict)
-    ]
-    if results and not any(result.get("ok") is True for result in results):
+    results = [result for source in payload["sources"] for result in source["results"]]
+    if results and not any(result["ok"] for result in results):
         return 2
     return 0
 

@@ -41,6 +41,7 @@ const waitlistEndpoint = `${apiBaseUrl}/v1/waitlist`;
 </section>
 
 <script>
+  const STORED_EMAIL_KEY = 'mentioned.waitlist.email';
   const waitlistForms = document.querySelectorAll<HTMLFormElement>('[data-waitlist-form]');
 
   waitlistForms.forEach((form) => {
@@ -48,7 +49,7 @@ const waitlistEndpoint = `${apiBaseUrl}/v1/waitlist`;
     const submitButton = form.querySelector<HTMLButtonElement>('button[type="submit"]');
     const status = form.querySelector<HTMLElement>('[data-waitlist-status]');
     const endpoint = form.dataset.waitlistEndpoint || '/v1/waitlist';
-    const storedEmail = window.localStorage.getItem('mentioned.waitlist.email');
+    const storedEmail = window.localStorage.getItem(STORED_EMAIL_KEY);
 
     if (storedEmail && emailInput && status) {
       emailInput.value = storedEmail;
@@ -92,7 +93,7 @@ const waitlistEndpoint = `${apiBaseUrl}/v1/waitlist`;
           throw new Error(`Waitlist request failed with ${response.status}`);
         }
 
-        window.localStorage.setItem('mentioned.waitlist.email', email);
+        window.localStorage.setItem(STORED_EMAIL_KEY, email);
         status.textContent = "You're on the waitlist. We'll email when invites open.";
         form.dataset.state = 'submitted';
       } catch {

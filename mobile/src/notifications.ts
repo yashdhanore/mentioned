@@ -166,10 +166,7 @@ export async function disableRegisteredPushToken(expoPushToken: string | null): 
   }
 }
 
-function notificationDataId(
-  data: Record<string, unknown> | undefined,
-  key: string,
-): string | null {
+function notificationDataId(data: Record<string, unknown> | undefined, key: string): string | null {
   const value = data?.[key];
   return typeof value === 'string' && value.trim() ? value : null;
 }

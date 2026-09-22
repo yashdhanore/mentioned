@@ -1,5 +1,4 @@
-import type { ReactNode } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Animated,
   Easing,
@@ -53,7 +52,7 @@ export function ProfileSheet({
     <BottomSheet visible={visible} onClose={onClose}>
       <Text style={styles.sheetTitle}>Profile</Text>
       <Text style={styles.accountEmail}>{accountLabel}</Text>
-      {error ? <InlineMessage tone="error" message={error} /> : null}
+      {error ? <InlineMessage message={error} /> : null}
       <View style={styles.sheetMenu}>
         {privacyPolicyUrl ? (
           <SheetRow label="Privacy Policy" onPress={() => void Linking.openURL(privacyPolicyUrl)} />
@@ -131,7 +130,7 @@ export function PasteSheet({
         textAlignVertical="top"
         value={value}
       />
-      {error ? <InlineMessage tone="error" message={error} /> : null}
+      {error ? <InlineMessage message={error} /> : null}
       <PrimaryButton
         label={isSubmitting ? 'Finding books...' : 'Find books'}
         onPress={onSubmit}
@@ -159,7 +158,7 @@ export function ReelMenuSheet({
   return (
     <BottomSheet visible={visible} onClose={onClose}>
       <Text style={styles.sheetTitle}>Post actions</Text>
-      {error ? <InlineMessage tone="error" message={error} /> : null}
+      {error ? <InlineMessage message={error} /> : null}
       <View style={styles.sheetMenu}>
         <SheetRow
           label="Open original"
@@ -229,7 +228,6 @@ function BottomSheet({
     return null;
   }
 
-  const backdropOpacity = progress;
   const translateY = progress.interpolate({
     inputRange: [0, 1],
     outputRange: [cardHeight.current, 0],
@@ -241,7 +239,7 @@ function BottomSheet({
         style={styles.sheetContainer}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <Animated.View style={[styles.modalOverlay, { opacity: backdropOpacity }]}>
+        <Animated.View style={[styles.modalOverlay, { opacity: progress }]}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Close"
@@ -279,7 +277,11 @@ function SheetRow({
     <Pressable
       accessibilityRole="button"
       disabled={disabled || !onPress}
-      style={({ pressed }) => [styles.sheetRow, disabled && styles.disabledButton, pressed && styles.pressed]}
+      style={({ pressed }) => [
+        styles.sheetRow,
+        disabled && styles.disabledButton,
+        pressed && styles.pressed,
+      ]}
       onPress={onPress}
     >
       <Text style={[styles.sheetRowText, destructive && styles.destructiveText]}>{label}</Text>

@@ -30,7 +30,7 @@ import sys
 import time
 from collections import Counter
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -38,12 +38,13 @@ from scripts.compare_gemini_video_models import DEFAULT_PRICE_TABLE
 from scripts.score_extraction_eval import (
     DEFAULT_LABELS_PATH,
     ExpectedMention,
+    LabeledReel,
     LabelsError,
-    _predicted_mentions,
-    _result_sources,
-    _source_key,
     load_labels,
+    predicted_mentions,
+    result_sources,
     score_source,
+    source_key_for,
 )
 from src.books.resolution import (
     DERIVATIVE_TITLE_RE,
@@ -62,8 +63,8 @@ from src.books.titles import (
 )
 from src.extraction.google_books import (
     BooksSearchResult,
-    _parse_google_book,
     book_search_query,
+    parse_google_book,
     search_volumes,
 )
 
@@ -124,7 +125,7 @@ class CachedBooksSearch:
 def _cached_result(payload: dict[str, Any]) -> BooksSearchResult:
     books = [
         book
-        for book in (_parse_google_book(volume) for volume in payload.get("volumes", []))
+        for book in (parse_google_book(volume) for volume in payload.get("volumes", []))
         if book is not None
     ]
     return BooksSearchResult(status=payload["status"], books=books)
@@ -136,7 +137,7 @@ class Resolver:
 
     search: CachedBooksSearch
     agent: Callable[[str, str | None, Resolution], Resolution] | None
-    memo: dict[tuple[str, str, str | None], Resolution]
+    memo: dict[tuple[str, str, str | None], Resolution] = field(default_factory=dict)
 
     def resolve(self, strategy: str, title: str, author: str | None) -> Resolution:
         key = (strategy, title, author)
@@ -211,7 +212,7 @@ def _resolution_view(resolution: Resolution) -> dict[str, Any]:
     }
 
 
-def _labeled_books(labels: dict[str, Any]) -> list[ExpectedMention]:
+def _labeled_books(labels: dict[str, LabeledReel]) -> list[ExpectedMention]:
     unique: dict[tuple[str, str], ExpectedMention] = {}
     for reel in labels.values():
         if reel.status != "labeled":
@@ -223,7 +224,9 @@ def _labeled_books(labels: dict[str, Any]) -> list[ExpectedMention]:
     return list(unique.values())
 
 
-def score_labeled_titles(labels: dict[str, Any], resolver: Resolver, strategies: tuple[str, ...]):
+def score_labeled_titles(
+    labels: dict[str, LabeledReel], resolver: Resolver, strategies: tuple[str, ...]
+) -> dict[str, Any]:
     books = _labeled_books(labels)
     items = []
     totals = {strategy: Counter() for strategy in strategies}
@@ -252,17 +255,17 @@ def _find_label(expected: tuple[ExpectedMention, ...], view: dict[str, Any]) -> 
 
 
 def score_predictions(
-    labels: dict[str, Any],
+    labels: dict[str, LabeledReel],
     results: dict[str, Any],
     resolver: Resolver,
     strategies: tuple[str, ...],
-):
+) -> dict[str, Any]:
     """Resolve each model's predicted books, split by whether extraction got them right."""
     per_model: dict[str, dict[str, Counter]] = {}
     flagged_false_positives: list[dict[str, Any]] = []
-    for source in _result_sources(results):
+    for source in result_sources(results):
         source_url = source.get("source_url")
-        reel = labels.get(_source_key(source_url)) if isinstance(source_url, str) else None
+        reel = labels.get(source_key_for(source_url)) if isinstance(source_url, str) else None
         if reel is None or reel.status != "labeled":
             continue
         for result in source.get("results", []):
@@ -271,7 +274,7 @@ def score_predictions(
             model = result["model"]
             counters = per_model.setdefault(model, {strategy: Counter() for strategy in strategies})
             predicted = [
-                m for m in _predicted_mentions(result) if m.get("category", "book") == "book"
+                m for m in predicted_mentions(result) if m.get("category", "book") == "book"
             ]
             score = score_source(predicted, reel.expected)
             for match in score.true_positives:
@@ -406,7 +409,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.agent_model:
         agent = build_agent(args.agent_model, lambda q: search(q, max_results=5), usage)
         strategies = STRATEGIES
-    resolver = Resolver(search=search, agent=agent, memo={})
+    resolver = Resolver(search=search, agent=agent)
 
     report: dict[str, Any] = {
         "strategy_names": list(strategies),

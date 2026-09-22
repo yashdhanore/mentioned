@@ -13,12 +13,7 @@ const VIEWBOX = 100;
 function TumbleweedArt({ size }: { size: number }) {
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${VIEWBOX} ${VIEWBOX}`}>
-      <G
-        stroke={colors.secondary}
-        strokeWidth={1.5}
-        fill="none"
-        strokeLinecap="round"
-      >
+      <G stroke={colors.secondary} strokeWidth={1.5} fill="none" strokeLinecap="round">
         <Ellipse cx={50} cy={46} rx={30} ry={30} />
         <Ellipse cx={50} cy={46} rx={29} ry={18} transform="rotate(28 50 46)" />
         <Ellipse cx={50} cy={46} rx={29} ry={18} transform="rotate(-34 50 46)" />
@@ -79,7 +74,11 @@ export function Tumbleweed({ size = 96 }: { size?: number }) {
   });
 
   return (
-    <View style={styles.tumbleweedWrap} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+    <View
+      style={styles.tumbleweedWrap}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
       <View style={styles.tumbleweedShadow} pointerEvents="none">
         <GroundShadow size={size} />
       </View>

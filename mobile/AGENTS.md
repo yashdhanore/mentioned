@@ -8,7 +8,8 @@
 - Start Expo with `npm run start`.
 - Run platform builds with `npm run ios` or `npm run android`.
 - Typecheck with `npm run typecheck`.
-- Lint with `npm run lint` (ESLint flat config, `eslint-config-expo`); check formatting with `npm run format:check` (Prettier). `npm test` runs the focused scripts, lint, and typecheck.
+- Lint with `npm run lint` (ESLint flat config, `eslint-config-expo`); check formatting with `npm run format:check` (Prettier); `npm test` runs both, so CI enforces formatting.
+- `npm test` runs the focused scripts, lint, and typecheck.
 - Use the focused scripts in `mobile/package.json` for capture, shared-source intake, share URL, pending shared source, and Supabase config checks.
 - Node version is pinned in `mobile/.nvmrc`; use the same version locally and in CI.
 

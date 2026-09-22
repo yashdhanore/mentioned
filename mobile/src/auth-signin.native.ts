@@ -23,10 +23,7 @@ export async function signInWithApple(): Promise<void> {
   assertSupabaseConfigured();
 
   const rawNonce = Crypto.randomUUID();
-  const hashedNonce = await Crypto.digestStringAsync(
-    Crypto.CryptoDigestAlgorithm.SHA256,
-    rawNonce,
-  );
+  const hashedNonce = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, rawNonce);
 
   let credential: AppleAuthentication.AppleAuthenticationCredential;
   try {

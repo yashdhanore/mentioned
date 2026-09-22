@@ -10,7 +10,6 @@ from src.config import Settings
 from src.sources.models import SavedSource, Source, SourceItem, SourceStatus
 from src.timeutils import utc_now
 
-pytestmark = pytest.mark.asyncio
 TEST_USER_ID = "00000000-0000-4000-8000-000000000001"
 TEST_USER_UUID = UUID(TEST_USER_ID)
 OTHER_USER_UUID = UUID("00000000-0000-4000-8000-000000000002")
@@ -26,6 +25,16 @@ def _quota_settings() -> Settings:
 
 def _https_required_settings() -> Settings:
     return Settings(source_require_https=True)
+
+
+@pytest.fixture
+def enqueued(monkeypatch) -> list[str]:
+    enqueued: list[str] = []
+    monkeypatch.setattr(
+        "src.sources.service.enqueue_source_extraction",
+        lambda _session, source_id: enqueued.append(str(source_id)),
+    )
+    return enqueued
 
 
 def _save_source(
@@ -85,12 +94,8 @@ async def test_create_saved_source(client) -> None:
     data = resp.json()
     assert data["source_key"] == "instagram:reel:ABC123"
     assert data["status"] == "processing"
-    # Pin the wire format: aware UTC datetimes serialize with an explicit "Z"
-    # offset, not a bare "YYYY-MM-DDTHH:MM:SS" with no timezone designator.
-    # mobile/src/screens/reel-detail-screen.tsx does `Date.parse(createdAt)`,
-    # which (per the ECMAScript date-time string spec) treats a string with no
-    # offset as LOCAL time - so the old naive format was a latent bug for any
-    # device not in UTC+0; the explicit "Z" fixes it rather than breaking it.
+    # The mobile app parses this with Date.parse, which reads a timestamp without an
+    # offset as local time, so the API must send an explicit "Z".
     assert data["created_at"].endswith("Z")
 
 
@@ -129,7 +134,7 @@ async def test_create_saved_source_allows_https_when_https_required(client, monk
 
 async def test_list_saved_sources_returns_items(client, session: Session) -> None:
     source = Source(
-        source_key="instagram:reel/BOOK123".replace("/", ":"),
+        source_key="instagram:reel:BOOK123",
         platform="instagram",
         source_type="reel",
         external_id="BOOK123",
@@ -348,13 +353,8 @@ async def test_create_saved_source_reuses_existing_at_burst_limit(
 async def test_create_saved_source_requeues_existing_failed_source(
     client,
     session: Session,
-    monkeypatch,
+    enqueued: list[str],
 ) -> None:
-    enqueued: list[str] = []
-    monkeypatch.setattr(
-        "src.sources.service.enqueue_source_extraction",
-        lambda _session, source_id: enqueued.append(str(source_id)),
-    )
     saved = _save_source(session, "FAILEDRETRY", status=SourceStatus.FAILED)
     source = session.get(Source, saved.source_id)
     assert source is not None
@@ -388,13 +388,9 @@ async def test_create_saved_source_failed_retry_blocks_at_active_quota(
     client,
     session: Session,
     monkeypatch,
+    enqueued: list[str],
 ) -> None:
     monkeypatch.setattr("src.sources.router.get_settings", _quota_settings)
-    enqueued: list[str] = []
-    monkeypatch.setattr(
-        "src.sources.service.enqueue_source_extraction",
-        lambda _session, source_id: enqueued.append(str(source_id)),
-    )
     saved = _save_source(session, "FAILEDQUOTA", status=SourceStatus.FAILED)
     for index in range(5):
         _save_source(session, f"ACTIVEFAILEDRETRY{index}", status=SourceStatus.PENDING)
@@ -417,13 +413,9 @@ async def test_create_saved_source_failed_retry_uses_burst_throttle(
     client,
     session: Session,
     monkeypatch,
+    enqueued: list[str],
 ) -> None:
     monkeypatch.setattr("src.sources.router.get_settings", _quota_settings)
-    enqueued: list[str] = []
-    monkeypatch.setattr(
-        "src.sources.service.enqueue_source_extraction",
-        lambda _session, source_id: enqueued.append(str(source_id)),
-    )
     now = utc_now()
     target = _save_source(
         session,
@@ -463,13 +455,9 @@ async def test_create_saved_source_failed_retry_combines_create_and_retry_burst_
     client,
     session: Session,
     monkeypatch,
+    enqueued: list[str],
 ) -> None:
     monkeypatch.setattr("src.sources.router.get_settings", _quota_settings)
-    enqueued: list[str] = []
-    monkeypatch.setattr(
-        "src.sources.service.enqueue_source_extraction",
-        lambda _session, source_id: enqueued.append(str(source_id)),
-    )
     now = utc_now()
     target = _save_source(
         session,
@@ -511,13 +499,9 @@ async def test_create_saved_source_failed_retry_uses_daily_throttle(
     client,
     session: Session,
     monkeypatch,
+    enqueued: list[str],
 ) -> None:
     monkeypatch.setattr("src.sources.router.get_settings", _quota_settings)
-    enqueued: list[str] = []
-    monkeypatch.setattr(
-        "src.sources.service.enqueue_source_extraction",
-        lambda _session, source_id: enqueued.append(str(source_id)),
-    )
     now = utc_now()
     target = _save_source(
         session,
@@ -557,13 +541,9 @@ async def test_create_saved_source_failed_retry_combines_create_and_retry_daily_
     client,
     session: Session,
     monkeypatch,
+    enqueued: list[str],
 ) -> None:
     monkeypatch.setattr("src.sources.router.get_settings", _quota_settings)
-    enqueued: list[str] = []
-    monkeypatch.setattr(
-        "src.sources.service.enqueue_source_extraction",
-        lambda _session, source_id: enqueued.append(str(source_id)),
-    )
     now = utc_now()
     target = _save_source(
         session,
@@ -609,13 +589,8 @@ async def test_create_saved_source_failed_retry_combines_create_and_retry_daily_
 async def test_create_saved_source_does_not_requeue_existing_non_failed_source(
     client,
     session: Session,
-    monkeypatch,
+    enqueued: list[str],
 ) -> None:
-    enqueued: list[str] = []
-    monkeypatch.setattr(
-        "src.sources.service.enqueue_source_extraction",
-        lambda _session, source_id: enqueued.append(str(source_id)),
-    )
     saved = _save_source(session, "DONERETRY", status=SourceStatus.DONE)
 
     resp = await client.post(

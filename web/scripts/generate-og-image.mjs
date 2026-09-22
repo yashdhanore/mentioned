@@ -1,5 +1,5 @@
 // One-off generator for public/og-image.png. Run with `node scripts/generate-og-image.mjs`
-// after changing the OG copy or mark; commit the regenerated PNG, not this script's output.
+// after changing the OG copy or mark, then commit the regenerated PNG.
 import sharp from 'sharp';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';

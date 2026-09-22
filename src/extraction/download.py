@@ -5,6 +5,7 @@ import logging
 import re
 import shutil
 import subprocess
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -49,14 +50,10 @@ def _yt_dlp_size_limit(max_file_bytes: int) -> str:
 
 
 def _summarize_yt_dlp_error(exc: subprocess.CalledProcessError) -> str:
-    """Build a diagnostic message from a failed yt-dlp invocation.
+    """One log line with the reason yt-dlp failed.
 
-    ``CalledProcessError.__str__`` only reports the command + exit code, so the
-    actual reason (geo-block, login wall, impersonation failure, rate limit) is
-    lost unless we read ``exc.stderr`` ourselves. This is what made the prior
-    Instagram download failures impossible to diagnose from Render logs.
-
-    Return a single-line string suitable for ``logger.warning``.
+    ``CalledProcessError.__str__`` only reports the command and exit code; the actual
+    reason (geo-block, login wall, rate limit) is only in stderr.
     """
     stderr = exc.stderr or ""
     lines = [line.strip() for line in stderr.splitlines() if line.strip()]
@@ -67,10 +64,10 @@ def _summarize_yt_dlp_error(exc: subprocess.CalledProcessError) -> str:
         message = lines[-1]
     else:
         message = f"yt-dlp exited {exc.returncode} with no stderr"
-    return _redact_signed_urls(message)
+    return redact_signed_urls(message)
 
 
-def _redact_signed_urls(message: str) -> str:
+def redact_signed_urls(message: str) -> str:
     """Strip query strings from CDN URLs so access tokens don't reach logs."""
     return re.sub(r"(https?://[^\s?]+)\?\S*", r"\1?<redacted>", message)
 
@@ -177,10 +174,8 @@ def _handle_from_text(value: Any, *, allow_plain: bool) -> str | None:
     if not raw:
         return None
 
-    candidate = raw
-    has_handle_prefix = candidate.startswith("@")
-    if candidate.startswith("@"):
-        candidate = candidate[1:]
+    has_handle_prefix = raw.startswith("@")
+    candidate = raw.removeprefix("@")
 
     parsed = urlparse(candidate)
     is_instagram_url = parsed.netloc.endswith("instagram.com")
@@ -254,19 +249,21 @@ def _source_creator_handle(metadata: dict[str, Any]) -> str | None:
     return None
 
 
-def _check_size_limits(paths: list[Path], *, max_file_bytes: int, max_total_bytes: int) -> None:
+def check_media_size_limits(
+    paths: Sequence[Path], *, max_file_bytes: int, max_total_bytes: int
+) -> None:
     total_bytes = 0
     for path in paths:
         file_bytes = path.stat().st_size
         if file_bytes > max_file_bytes:
             raise RuntimeError(
-                f"Downloaded media file exceeds limit of {max_file_bytes} bytes "
+                f"Media file exceeds limit of {max_file_bytes} bytes "
                 f"({path.name}: {file_bytes} bytes)"
             )
         total_bytes += file_bytes
     if total_bytes > max_total_bytes:
         raise RuntimeError(
-            f"Downloaded media total exceeds limit of {max_total_bytes} bytes ({total_bytes} bytes)"
+            f"Media total exceeds limit of {max_total_bytes} bytes ({total_bytes} bytes)"
         )
 
 
@@ -437,7 +434,7 @@ def download_assets_with_metadata(url: str, output_dir: Path) -> DownloadedAsset
         paths,
         max_video_count=settings.max_media_video_count,
     )
-    _check_size_limits(
+    check_media_size_limits(
         paths,
         max_file_bytes=settings.max_media_file_bytes,
         max_total_bytes=settings.max_media_total_bytes,
