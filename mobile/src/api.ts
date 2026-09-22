@@ -1,3 +1,5 @@
+import { isLocalHost, isProductionBuild } from '@/utils/runtime-env';
+
 const DEFAULT_API_BASE_URL = 'http://127.0.0.1:8000';
 const DEFAULT_DEV_USER_ID = '00000000-0000-4000-8000-000000000001';
 const publicAuthMode = process.env.EXPO_PUBLIC_AUTH_MODE?.trim().toLowerCase() || '';
@@ -27,14 +29,6 @@ export function clearAccessTokenProvider(): void {
 
 export function devAccessToken(): string {
   return `dev:${DEV_USER_ID}`;
-}
-
-function isProductionBuild(): boolean {
-  return process.env.EXPO_PUBLIC_APP_ENV?.trim().toLowerCase() === 'production';
-}
-
-function isLocalHost(hostname: string): boolean {
-  return ['localhost', '127.0.0.1', '0.0.0.0', '::1'].includes(hostname);
 }
 
 function validateRuntimeConfig(): void {

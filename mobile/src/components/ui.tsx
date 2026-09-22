@@ -3,6 +3,7 @@ import { Pressable, Text, View, type StyleProp, type ViewStyle } from 'react-nat
 import Svg, { Path } from 'react-native-svg';
 
 import { styles as sharedStyles } from '@/styles';
+import { colors } from '@/theme';
 import { styles as localStyles } from './ui.styles';
 
 const styles = { ...sharedStyles, ...localStyles };
@@ -107,7 +108,7 @@ export function AppMark({ size = 32, style }: AppMarkProps = {}) {
         <Path
           d="M300 300 L512 724 L724 300 L724 724"
           fill="none"
-          stroke="#0E6F68"
+          stroke={colors.primary}
           strokeLinecap="round"
           strokeLinejoin="round"
           strokeWidth={92}

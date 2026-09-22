@@ -16,7 +16,7 @@ export const styles = StyleSheet.create({
     width: '100%',
   },
   reelTileScrim: {
-    backgroundColor: 'rgba(16, 26, 23, 0.42)',
+    backgroundColor: colors.scrim,
     bottom: 0,
     height: '54%',
     left: 0,

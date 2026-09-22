@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Easing, Image, Pressable, ScrollView, Text, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, Easing, Image, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { sourceIdentityLabel, type Capture } from '@/captures';
 import { BackIcon, ExternalLinkIcon, MoreIcon } from '@/components/icons';
@@ -10,7 +10,9 @@ import {
   ProcessingMentions,
 } from '@/components/mentions';
 import { AppMark, IconButton, InlineMessage, SecondaryButton } from '@/components/ui';
+import { useReduceMotion } from '@/hooks/use-reduce-motion';
 import { styles as sharedStyles } from '@/styles';
+import { colors } from '@/theme';
 import { styles as localStyles } from './reel-detail-screen.styles';
 
 const styles = { ...sharedStyles, ...localStyles };
@@ -157,7 +159,7 @@ function SourceHero({
         onPress={onOpenSource}
       >
         <Text style={styles.sourceHeroActionText}>Open post</Text>
-        <ExternalLinkIcon color="#0E6F68" size={18} />
+        <ExternalLinkIcon color={colors.primary} size={18} />
       </Pressable>
 
       <View style={styles.sourceHeroMeta}>
@@ -208,23 +210,7 @@ function savedAtLabel(createdAt: string): string | null {
 
 function ProcessingBrandMark() {
   const opacity = useRef(new Animated.Value(0.45)).current;
-  const [reduceMotion, setReduceMotion] = useState(false);
-
-  useEffect(() => {
-    let isMounted = true;
-    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
-
-    void AccessibilityInfo.isReduceMotionEnabled().then((isReduceMotionEnabled) => {
-      if (isMounted) {
-        setReduceMotion(isReduceMotionEnabled);
-      }
-    });
-
-    return () => {
-      isMounted = false;
-      subscription.remove();
-    };
-  }, []);
+  const reduceMotion = useReduceMotion();
 
   useEffect(() => {
     if (reduceMotion) {

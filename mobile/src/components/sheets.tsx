@@ -17,6 +17,7 @@ import { styles as sharedStyles } from '@/styles';
 import { styles as localStyles } from './sheets.styles';
 import { colors } from '@/theme';
 import { InlineMessage, PrimaryButton } from '@/components/ui';
+import { useReduceMotion } from '@/hooks/use-reduce-motion';
 
 const styles = { ...sharedStyles, ...localStyles };
 
@@ -198,13 +199,14 @@ function BottomSheet({
   const [mounted, setMounted] = useState(visible);
   const progress = useRef(new Animated.Value(0)).current;
   const cardHeight = useRef(SHEET_FALLBACK_HEIGHT);
+  const reduceMotion = useReduceMotion();
 
   useEffect(() => {
     if (visible) {
       setMounted(true);
       Animated.timing(progress, {
         toValue: 1,
-        duration: 250,
+        duration: reduceMotion ? 0 : 250,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }).start();
@@ -212,7 +214,7 @@ function BottomSheet({
     }
     Animated.timing(progress, {
       toValue: 0,
-      duration: 200,
+      duration: reduceMotion ? 0 : 200,
       easing: Easing.in(Easing.cubic),
       useNativeDriver: true,
     }).start(({ finished }) => {
@@ -220,7 +222,7 @@ function BottomSheet({
         setMounted(false);
       }
     });
-  }, [visible, progress]);
+  }, [visible, progress, reduceMotion]);
 
   if (!mounted) {
     return null;

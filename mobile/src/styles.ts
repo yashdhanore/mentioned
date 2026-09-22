@@ -1,6 +1,6 @@
 import { StyleSheet } from 'react-native';
 
-import { colors, radius, spacing } from '@/theme';
+import { colors, maxContentWidth, radius, spacing } from '@/theme';
 
 export const styles = StyleSheet.create({
   safeArea: {
@@ -15,7 +15,7 @@ export const styles = StyleSheet.create({
     alignSelf: 'center',
     flexGrow: 1,
     gap: spacing.md,
-    maxWidth: 430,
+    maxWidth: maxContentWidth,
     paddingHorizontal: spacing.screen,
     paddingTop: spacing.md,
     paddingBottom: spacing.lg,

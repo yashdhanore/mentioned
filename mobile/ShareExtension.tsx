@@ -8,6 +8,7 @@ import {
 import { useEffect, useRef } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 
+import { colors } from './src/theme';
 import { extractSharedSourceUrl } from './src/utils/shared-source-url';
 
 export default function ShareExtension(props: InitialProps) {
@@ -67,7 +68,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   title: {
-    color: '#101A17',
+    color: colors.ink,
     fontSize: 20,
     fontWeight: '700',
     marginBottom: 8,
@@ -81,7 +82,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   url: {
-    color: '#101A17',
+    color: colors.ink,
     fontSize: 13,
     lineHeight: 18,
     marginBottom: 16,
@@ -93,13 +94,13 @@ const styles = StyleSheet.create({
   primaryButton: {
     minHeight: 48,
     borderRadius: 8,
-    backgroundColor: '#101A17',
+    backgroundColor: colors.ink,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 16,
   },
   primaryButtonText: {
-    color: '#FFFFFF',
+    color: colors.onPrimary,
     fontSize: 16,
     fontWeight: '700',
   },
@@ -113,7 +114,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   secondaryButtonText: {
-    color: '#101A17',
+    color: colors.ink,
     fontSize: 15,
     fontWeight: '600',
   },

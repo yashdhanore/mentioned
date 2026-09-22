@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useState } from 'react';
-import { SafeAreaView, useWindowDimensions } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { BackHandler, SafeAreaView, useWindowDimensions } from 'react-native';
 
 import {
   deleteAccount,
@@ -15,14 +15,14 @@ import { AuthLoadingScreen } from '@/screens/auth-loading-screen';
 import { HomeScreen } from '@/screens/home-screen';
 import { ReelDetailScreen } from '@/screens/reel-detail-screen';
 import { SignedOutScreen } from '@/screens/signed-out-screen';
-import { spacing } from '@/theme';
+import { maxContentWidth, spacing } from '@/theme';
 import { styles } from '@/styles';
 
 type Sheet = 'profile' | 'paste' | 'reelMenu' | null;
 
 export default function App() {
   const { width } = useWindowDimensions();
-  const contentWidth = Math.min(width, 430);
+  const contentWidth = Math.min(width, maxContentWidth);
   const {
     isAuthLoading,
     isSignedIn,
@@ -145,6 +145,30 @@ export default function App() {
       setSheet(null);
     }
   }, [deleteCapture, selectedCapture]);
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (sheet === 'profile') {
+        closeProfileSheet();
+        return true;
+      }
+      if (sheet === 'paste') {
+        closePasteSheet();
+        return true;
+      }
+      if (sheet === 'reelMenu') {
+        setSheet(null);
+        return true;
+      }
+      if (selectedCapture) {
+        setSelectedCaptureId(null);
+        return true;
+      }
+      return false;
+    });
+
+    return () => subscription.remove();
+  }, [sheet, selectedCapture, closeProfileSheet, closePasteSheet, setSelectedCaptureId]);
 
   if (isAuthLoading) {
     return <AuthLoadingScreen />;

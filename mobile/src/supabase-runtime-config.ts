@@ -1,17 +1,11 @@
+import { isLocalHost, isProductionBuild } from '@/utils/runtime-env';
+
 export type SupabaseMobileRuntimeConfig = {
   appEnv?: string;
   supabaseUrl: string;
   supabasePublishableKey: string;
   authRedirectUrlOverride: string;
 };
-
-function isProductionBuild(appEnv?: string): boolean {
-  return appEnv?.trim().toLowerCase() === 'production';
-}
-
-function isLocalHost(hostname: string): boolean {
-  return ['localhost', '127.0.0.1', '0.0.0.0', '::1'].includes(hostname);
-}
 
 const BASE64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
