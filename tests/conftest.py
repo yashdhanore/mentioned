@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-import os
+import src.config
 
-# Keep local .env host restrictions from blocking ASGITransport requests.
-os.environ["TRUSTED_HOSTS"] = ""
+# get_settings() loads the developer's .env into os.environ, which then leaks into every
+# later Settings() in the session; CI has no .env, so tests must not depend on one either.
+src.config.load_dotenv = lambda *args, **kwargs: False
 
 import pytest
 from httpx import ASGITransport, AsyncClient

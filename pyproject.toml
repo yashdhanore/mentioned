@@ -63,6 +63,8 @@ select = ["E", "F", "I", "B", "UP", "C4", "SIM", "RUF", "PT", "DTZ"]
 # EXTRACTION_PROMPT is literal text sent to Gemini; wrapping it would add a newline to the
 # actual prompt.
 "src/extraction/gemini.py" = ["E501"]
+# conftest disables .env loading before importing the app, which reads settings at import.
+"tests/conftest.py" = ["E402"]
 
 [build-system]
 requires = ["setuptools>=68.0"]
