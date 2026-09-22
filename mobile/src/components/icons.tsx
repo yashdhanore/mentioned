@@ -9,6 +9,8 @@ import {
   type LucideProps,
 } from 'lucide-react-native';
 
+import { colors } from '@/theme';
+
 type IconProps = {
   color?: string;
   size?: number;
@@ -27,30 +29,30 @@ function iconProps(color: string, size = 22): LucideProps {
   };
 }
 
-export function PlusIcon({ color = '#101A17', size }: IconProps) {
+export function PlusIcon({ color = colors.ink, size }: IconProps) {
   return <Plus {...iconProps(color, size)} />;
 }
 
-export function UserIcon({ color = '#101A17', size }: IconProps) {
+export function UserIcon({ color = colors.ink, size }: IconProps) {
   return <User {...iconProps(color, size)} />;
 }
 
-export function BackIcon({ color = '#101A17', size }: IconProps) {
+export function BackIcon({ color = colors.ink, size }: IconProps) {
   return <ArrowLeft {...iconProps(color, size)} />;
 }
 
-export function MoreIcon({ color = '#101A17', size }: IconProps) {
+export function MoreIcon({ color = colors.ink, size }: IconProps) {
   return <Ellipsis {...iconProps(color, size)} />;
 }
 
-export function ExternalLinkIcon({ color = '#101A17', size }: IconProps) {
+export function ExternalLinkIcon({ color = colors.ink, size }: IconProps) {
   return <ExternalLink {...iconProps(color, size)} />;
 }
 
-export function PlaceIcon({ color = '#101A17', size }: IconProps) {
+export function PlaceIcon({ color = colors.ink, size }: IconProps) {
   return <MapPin {...iconProps(color, size)} />;
 }
 
-export function ProductIcon({ color = '#101A17', size }: IconProps) {
+export function ProductIcon({ color = colors.ink, size }: IconProps) {
   return <Tag {...iconProps(color, size)} />;
 }

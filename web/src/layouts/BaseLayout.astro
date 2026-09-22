@@ -1,12 +1,19 @@
 ---
+import displayFontUrl from '@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-wght-normal.woff2?url';
+import '@fontsource-variable/plus-jakarta-sans';
+import '@fontsource-variable/geist';
 import '../styles/global.css';
 
 type Props = {
   title: string;
   description: string;
+  ogType?: 'website' | 'article';
 };
 
-const { title, description } = Astro.props;
+const { title, description, ogType = 'website' } = Astro.props;
+
+const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
+const ogImageUrl = new URL('/og-image.png', Astro.site);
 ---
 
 <!doctype html>
@@ -17,7 +24,23 @@ const { title, description } = Astro.props;
     <meta name="description" content={description} />
     <meta name="theme-color" content="#F7F5F0" />
     <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="preload" as="font" type="font/woff2" href={displayFontUrl} crossorigin />
+    <link rel="canonical" href={canonicalUrl} />
     <title>{title}</title>
+
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content={ogType} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:image" content={ogImageUrl} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:site_name" content="Mentioned" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImageUrl} />
   </head>
   <body>
     <slot />

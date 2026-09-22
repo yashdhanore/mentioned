@@ -18,10 +18,9 @@ export const colors = {
   inkMuted: '#69706A',
   border: '#DDD7CC',
   hairline: 'rgba(16, 26, 23, 0.10)',
+  scrim: 'rgba(16, 26, 23, 0.42)',
   book: '#2F4A44',
   bookSoft: '#E7ECE5',
-  sourceContext: '#405B55',
-  sourceContextSoft: '#E9EDE7',
   warning: '#8A5E00',
   warningSoft: '#FFF3D6',
   success: '#17643C',
@@ -50,6 +49,9 @@ export const radius = {
   lg: 16,
   xl: 24,
 };
+
+// Widest a single-column layout is allowed to grow on tablets/large phones.
+export const maxContentWidth = 430;
 
 export const typography = {
   display: {

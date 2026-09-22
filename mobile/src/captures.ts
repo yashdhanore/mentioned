@@ -26,7 +26,6 @@ export type Capture = {
   thumbnailUrl: string | null;
   sourceUrl: string;
   createdAt: string;
-  sourceContextSnippet: string | null;
   mentions: Mention[];
   errorMessage: string | null;
   skipReason: string | null;
@@ -133,29 +132,26 @@ export function captureFromSavedSource(savedSource: SavedSourceResponse): Captur
     thumbnailUrl: thumbnailForSavedSource(savedSource),
     sourceUrl: savedSource.source_url,
     createdAt: savedSource.created_at,
-    sourceContextSnippet: null,
     mentions,
     errorMessage: savedSource.error_message,
     skipReason: compact(savedSource.skip_reason),
   };
 }
 
-export function mergeSavedSourcesWithCaptures(
-  savedSources: SavedSourceResponse[],
-  existingCaptures: Capture[],
-): Capture[] {
-  const existingById = new Map(existingCaptures.map((capture) => [capture.id, capture]));
+export function sourceIdentityLabel(capture: Capture): string {
+  return capture.creatorHandle ? `@${capture.creatorHandle}` : capture.creator;
+}
 
-  return savedSources.map((savedSource) => {
-    const savedSourceCapture = captureFromSavedSource(savedSource);
-    const existingCapture = existingById.get(savedSource.id);
-    if (!existingCapture) {
-      return savedSourceCapture;
-    }
-
-    return {
-      ...savedSourceCapture,
-      sourceContextSnippet: existingCapture.sourceContextSnippet,
-    };
-  });
+export function captureStatusLabel(capture: Capture): string {
+  if (capture.status === 'processing') {
+    return 'Processing';
+  }
+  if (capture.status === 'failed') {
+    return 'Needs attention';
+  }
+  if (capture.status === 'no_mentions') {
+    return 'No mentions';
+  }
+  const count = capture.mentions.length;
+  return count === 1 ? '1 mention' : `${count} mentions`;
 }

@@ -74,6 +74,7 @@ export function SignedOutScreen({
               </View>
               <Pressable
                 accessibilityRole="button"
+                hitSlop={{ top: 11, bottom: 11, left: 4, right: 4 }}
                 style={({ pressed }) => [styles.authPendingAction, pressed && styles.pressed]}
                 onPress={onDiscardPendingSharedSource}
               >
@@ -99,6 +100,7 @@ export function SignedOutScreen({
           {privacyPolicyUrl ? (
             <Pressable
               accessibilityRole="link"
+              hitSlop={{ top: 11, bottom: 11, left: 4, right: 4 }}
               style={({ pressed }) => [styles.authLink, pressed && styles.pressed]}
               onPress={() => void Linking.openURL(privacyPolicyUrl)}
             >

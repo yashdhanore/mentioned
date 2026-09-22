@@ -8,11 +8,7 @@ import {
   getSavedSource,
   listSavedSources,
 } from '@/api';
-import {
-  captureFromSavedSource,
-  mergeSavedSourcesWithCaptures,
-  type Capture,
-} from '@/captures';
+import { captureFromSavedSource, type Capture } from '@/captures';
 import { isAllowedInstagramUrl } from '@/utils/source-url';
 
 type SubmitSourceOptions = {
@@ -111,7 +107,7 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
 
       try {
         const savedSources = await listSavedSources();
-        setCaptures((current) => mergeSavedSourcesWithCaptures(savedSources, current));
+        setCaptures(savedSources.map((savedSource) => captureFromSavedSource(savedSource)));
       } catch (error) {
         setLoadError(errorMessage(error, 'Could not load saved items.'));
       } finally {

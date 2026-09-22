@@ -126,7 +126,8 @@ function MentionRow({ mention, showDivider }: MentionRowProps) {
     <View>
       {mapsUrl ? (
         <Pressable
-          accessibilityRole="link"
+          accessibilityRole="button"
+          accessibilityHint="Opens this place in Maps"
           onPress={() => void Linking.openURL(mapsUrl)}
         >
           {rowContent}

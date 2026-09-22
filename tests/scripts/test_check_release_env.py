@@ -45,6 +45,30 @@ def test_release_env_accepts_valid_default_guardrails(valid_release_env: None) -
     assert check_release_env._check_release_env("1") == []
 
 
+def test_release_env_accepts_missing_web_base_url(
+    valid_release_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("WEB_BASE_URL", raising=False)
+
+    assert check_release_env._check_release_env("1") == []
+
+
+def test_release_env_accepts_https_web_base_url(
+    valid_release_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("WEB_BASE_URL", "https://mentioned-web.onrender.com")
+
+    assert check_release_env._check_release_env("1") == []
+
+
+def test_release_env_rejects_non_https_web_base_url(
+    valid_release_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("WEB_BASE_URL", "http://mentioned-web.onrender.com")
+
+    assert "WEB_BASE_URL must be an HTTPS origin" in check_release_env._check_release_env("1")
+
+
 @pytest.mark.parametrize(
     ("name", "value", "expected"),
     [
@@ -115,3 +139,22 @@ def test_release_env_rejects_file_limit_above_total_limit(
         "MAX_MEDIA_FILE_BYTES must be less than or equal to MAX_MEDIA_TOTAL_BYTES"
         in check_release_env._check_release_env("1")
     )
+
+
+@pytest.mark.parametrize(
+    "origins",
+    [
+        "http://localhost:8082",
+        "https://mentioned.example,http://localhost:8082",
+        "https://mentioned.example,http://127.0.0.1:8082",
+    ],
+)
+def test_release_env_rejects_localhost_cors_origins(
+    valid_release_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+    origins: str,
+) -> None:
+    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", origins)
+
+    errors = check_release_env._check_release_env("1")
+    assert "CORS_ALLOWED_ORIGINS must contain only HTTPS origins" in errors

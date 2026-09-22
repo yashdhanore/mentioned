@@ -30,7 +30,7 @@ export const styles = StyleSheet.create({
     top: 0,
   },
   previewScrim: {
-    backgroundColor: 'rgba(16, 26, 23, 0.42)',
+    backgroundColor: colors.scrim,
     bottom: 0,
     height: '58%',
     left: 0,

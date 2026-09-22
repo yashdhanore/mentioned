@@ -9,13 +9,6 @@ export const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
   },
-  paperSurface: {
-    backgroundColor: colors.paper,
-    borderColor: colors.paperEdge,
-  },
-  raisedSurface: {
-    backgroundColor: colors.surfaceElevated,
-  },
   appMark: {
     alignItems: 'center',
     alignSelf: 'flex-start',
@@ -32,41 +25,6 @@ export const styles = StyleSheet.create({
     height: 40,
     justifyContent: 'center',
     width: 40,
-  },
-  iconButtonFilled: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  iconButtonText: {
-    ...typography.labelLg,
-    color: colors.ink,
-    lineHeight: 18,
-  },
-  sourceQuote: {
-    backgroundColor: colors.sourceContextSoft,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: spacing.md,
-    padding: spacing.md,
-  },
-  sourceQuoteLine: {
-    backgroundColor: colors.primary,
-    borderRadius: 1,
-    width: 2,
-  },
-  sourceQuoteCopy: {
-    flex: 1,
-    gap: spacing.xs,
-  },
-  sourceQuoteText: {
-    ...typography.bodySm,
-    color: colors.ink,
-  },
-  sourceQuoteAttribution: {
-    ...typography.caption,
-    color: colors.sourceContext,
   },
   bookSpineText: {
     ...typography.labelMd,
@@ -119,18 +77,11 @@ export const styles = StyleSheet.create({
     backgroundColor: colors.errorSoft,
     borderColor: colors.error,
   },
-  inlineWarning: {
-    backgroundColor: colors.warningSoft,
-    borderColor: colors.warning,
-  },
   inlineMessageText: {
     ...typography.bodySm,
   },
   inlineErrorText: {
     color: colors.error,
-  },
-  inlineWarningText: {
-    color: colors.warning,
   },
   inlineAction: {
     alignSelf: 'flex-start',

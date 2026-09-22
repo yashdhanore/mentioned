@@ -1,11 +1,18 @@
 ---
+import { Image } from 'astro:assets';
+import readerPreview from '../assets/reader-preview-v2.jpg';
 import { heroBooks } from '../data/landing-content';
 ---
 
-<div class="hero-collage" aria-label="A Reel recommendation becoming saved books" data-reveal>
+<div
+  class="hero-collage"
+  role="img"
+  aria-label="A Reel recommendation becoming saved books"
+  data-reveal
+>
   <div class="hero-collage__reel double-bezel" data-hero-reel>
     <div class="double-bezel__core hero-collage__reel-core">
-      <img src="/assets/reader-preview-v2.jpg" alt="" width="420" height="746" loading="eager" />
+      <Image src={readerPreview} alt="" width={620} height={1102} loading="eager" />
       <div class="hero-collage__reel-scrim">
         <p>A short list of books I keep coming back to.</p>
         <span>Saved from the Reel</span>

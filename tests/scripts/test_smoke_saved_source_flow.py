@@ -6,7 +6,7 @@ import httpx
 import pytest
 import respx
 
-from scripts import smoke_job_flow
+from scripts import smoke_saved_source_flow
 
 API_BASE_URL = "https://api.example"
 
@@ -38,7 +38,7 @@ def _args(*, require_items: bool, second_token: str | None = None) -> argparse.N
 
 
 @respx.mock
-def test_smoke_job_flow_verifies_saved_source_items() -> None:
+def test_smoke_saved_source_flow_verifies_saved_source_items() -> None:
     saved_source = _saved_source()
     respx.post(f"{API_BASE_URL}/v1/saved-sources").mock(
         return_value=httpx.Response(202, json={**saved_source, "status": "processing", "items": []})
@@ -50,13 +50,13 @@ def test_smoke_job_flow_verifies_saved_source_items() -> None:
         return_value=httpx.Response(200, json=[saved_source])
     )
 
-    assert smoke_job_flow.run(_args(require_items=True)) == 0
+    assert smoke_saved_source_flow.run(_args(require_items=True)) == 0
     assert saved_sources_route.called
     assert saved_sources_route.calls.last.request.url.params["limit"] == "100"
 
 
 @respx.mock
-def test_smoke_job_flow_fails_when_saved_source_list_omits_submission() -> None:
+def test_smoke_saved_source_flow_fails_when_saved_source_list_omits_submission() -> None:
     saved_source = _saved_source()
     respx.post(f"{API_BASE_URL}/v1/saved-sources").mock(
         return_value=httpx.Response(202, json={**saved_source, "status": "processing", "items": []})
@@ -67,14 +67,14 @@ def test_smoke_job_flow_fails_when_saved_source_list_omits_submission() -> None:
     respx.get(f"{API_BASE_URL}/v1/saved-sources").mock(return_value=httpx.Response(200, json=[]))
 
     with pytest.raises(
-        smoke_job_flow.SmokeError,
+        smoke_saved_source_flow.SmokeError,
         match="Saved source list did not include submitted saved source id",
     ):
-        smoke_job_flow.run(_args(require_items=True))
+        smoke_saved_source_flow.run(_args(require_items=True))
 
 
 @respx.mock
-def test_smoke_job_flow_require_items_fails_when_saved_source_returns_no_items() -> None:
+def test_smoke_saved_source_flow_require_items_fails_when_saved_source_returns_no_items() -> None:
     saved_source = _saved_source(items=[])
     respx.post(f"{API_BASE_URL}/v1/saved-sources").mock(
         return_value=httpx.Response(202, json={**saved_source, "status": "processing"})
@@ -84,14 +84,14 @@ def test_smoke_job_flow_require_items_fails_when_saved_source_returns_no_items()
     )
 
     with pytest.raises(
-        smoke_job_flow.SmokeError,
+        smoke_saved_source_flow.SmokeError,
         match="Saved source completed but returned no extracted items",
     ):
-        smoke_job_flow.run(_args(require_items=True))
+        smoke_saved_source_flow.run(_args(require_items=True))
 
 
 @respx.mock
-def test_smoke_job_flow_failed_saved_source_returns_status_code_two() -> None:
+def test_smoke_saved_source_flow_failed_saved_source_returns_status_code_two() -> None:
     saved_source = _saved_source(items=[])
     failed_source = {**saved_source, "status": "failed", "error_message": "Extraction failed"}
     respx.post(f"{API_BASE_URL}/v1/saved-sources").mock(
@@ -101,11 +101,11 @@ def test_smoke_job_flow_failed_saved_source_returns_status_code_two() -> None:
         return_value=httpx.Response(200, json=failed_source)
     )
 
-    assert smoke_job_flow.run(_args(require_items=True)) == 2
+    assert smoke_saved_source_flow.run(_args(require_items=True)) == 2
 
 
 @respx.mock
-def test_smoke_job_flow_checks_second_user_saved_source_isolation() -> None:
+def test_smoke_saved_source_flow_checks_second_user_saved_source_isolation() -> None:
     saved_source = _saved_source()
     respx.post(f"{API_BASE_URL}/v1/saved-sources").mock(
         return_value=httpx.Response(202, json={**saved_source, "status": "processing", "items": []})
@@ -123,4 +123,4 @@ def test_smoke_job_flow_checks_second_user_saved_source_isolation() -> None:
         ]
     )
 
-    assert smoke_job_flow.run(_args(require_items=False, second_token="user-b-token")) == 0
+    assert smoke_saved_source_flow.run(_args(require_items=False, second_token="user-b-token")) == 0

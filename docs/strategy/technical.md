@@ -568,6 +568,66 @@ The work splits along two independent axes:
   commit added a code comment to `src/sources/models.py` incorrectly attributing a `heartbeat_at`
   column to `sources` - corrected in this change once the migration inventory caught it.
 
+### 2026-09-22 - Self-Hosted Variable Fonts, No Third-Party Font CDN
+
+- Status: Accepted and implemented.
+- Product constraint: Privacy consistency for the web landing page - the rest of the site already
+  avoids third-party trackers and CDNs, so typography should not quietly add a Google Fonts request
+  either.
+- Notes: `web/src/styles/global.css` declared `Clash Display`, `Geist`, `Satoshi`, and
+  `Plus Jakarta Sans` in its font stacks, but nothing ever loaded them (no `@font-face`, no `<link>`,
+  no package), so every browser silently fell back to a system font and non-standard weights like
+  `850`/`820` snapped to the nearest static weight. Standardized on two self-hosted variable fonts,
+  both OFL-licensed and shipped as npm packages: Plus Jakarta Sans Variable for display (headlines)
+  and Geist Variable for body text, via `@fontsource-variable/plus-jakarta-sans` and
+  `@fontsource-variable/geist`. Clash Display and Satoshi (Fontshare) are not OFL, so they were
+  dropped rather than self-hosted. The display font's latin `.woff2` is preloaded; both load with
+  `font-display: swap` (fontsource's default). Weights were snapped to values the chosen fonts
+  actually support (Plus Jakarta Sans's axis tops out at 800, not 900).
+
+### Web Privacy/Support Pages: API 301-Redirects To The Web App
+
+- Status: Accepted and implemented.
+- Product constraint: v1 contract safety for the App Store listing and in-app link
+  (`mobile/eas.json`'s `EXPO_PUBLIC_PRIVACY_POLICY_URL` points at the API host,
+  `https://mentioned-api.onrender.com/privacy`) - that URL must keep resolving even after the
+  content's real home moves, and the public web app should not gain an API-shaped URL as its
+  canonical privacy/support link.
+- Notes: `src/main.py` carried ~130 lines of inline HTML for `/privacy` and `/support`, including a
+  personal support email, and the web landing page's footer fell back to those same `/privacy`/
+  `/support` paths (404 on the static site, since it never had those pages). Built
+  `web/src/pages/privacy.astro` and `support.astro` as the real, styled home for that content and
+  made the site footer link to them unconditionally. The API routes stay mounted rather than being
+  deleted: a new optional `WEB_BASE_URL` setting (validated as an HTTPS origin by
+  `scripts/check_release_env.py`, set to the web origin in `render.yaml`) makes them 301-redirect to
+  the web pages when configured, so the App Store/in-app link keeps working unchanged. When
+  `WEB_BASE_URL` is unset (e.g. a fresh environment before the web app is deployed), the API still
+  serves the original inline content - now from `src/templates/*.html` instead of a Python string
+  literal - so neither URL ever 404s.
+
+### 2026-09-22 - Alembic Chain Squashed Into One Revision
+
+- Status: Accepted and implemented.
+- Product constraint: Contract safety for production's `alembic_version` (the squash must be a
+  no-op for a database already at `20260922_0018`) and onboarding - a new engineer or agent reading
+  the schema should have one file to read, not 17 with a legacy detour through `jobs`/`mentions`/
+  `job_events` that no longer exist.
+- Notes: `migrations/versions/` went from 17 files (`20260504_0003` through `20260922_0018`,
+  including the hash-named `781a3572bbaf`) to one, `20260922_0018_initial_schema.py`, containing
+  only the net live schema: `books`, `places`, `sources`, `source_items`, `saved_sources`,
+  `push_tokens`, `waitlist_signups`, and the `extract_sources`/`push_notifications` pgmq queues. The
+  revision id was kept as `20260922_0018` (the chain's old head) so production needs no
+  `alembic stamp`; the next real revision continues as `20260923_0019`. Verified with a throwaway
+  Postgres container (`supabase/postgres:17.6.1.167`): the old 17-file chain and the squashed file
+  produce identical schema-only `pg_dump` output, `pg_policies`, `information_schema.
+  role_table_grants` for `mentioned_api`/`mentioned_worker`, and `pgmq.list_queues()`; also confirmed
+  `alembic downgrade base` then `upgrade head` round-trips cleanly and
+  `tests/test_postgres_dedicated_worker_rls.py` still passes against the squashed schema. Did not
+  attempt SQLite compatibility for the squashed file - the original chain already fails immediately
+  on SQLite (raw Postgres-only RLS/pgmq/extension SQL from revision `20260504_0003` onward), and
+  local dev never runs Alembic against SQLite in practice (`AUTO_CREATE_TABLES` uses
+  `SQLModel.metadata.create_all` instead); the squash is no worse than the chain it replaces.
+
 ### Book Catalog And Reading List Support
 
 > Product intent lives in `docs/strategy/product.md`. Technical work here should support the

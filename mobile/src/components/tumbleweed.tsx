@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, View } from 'react-native';
 import Svg, { Ellipse, G, Path } from 'react-native-svg';
 
 import { colors } from '@/theme';
+import { useReduceMotion } from '@/hooks/use-reduce-motion';
 import { styles } from './tumbleweed.styles';
 
 const VIEWBOX = 100;
@@ -41,21 +42,7 @@ function GroundShadow({ size }: { size: number }) {
 
 export function Tumbleweed({ size = 96 }: { size?: number }) {
   const sway = useRef(new Animated.Value(0)).current;
-  const [reduceMotion, setReduceMotion] = useState(false);
-
-  useEffect(() => {
-    let mounted = true;
-    AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
-      if (mounted) {
-        setReduceMotion(enabled);
-      }
-    });
-    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
-    return () => {
-      mounted = false;
-      sub.remove();
-    };
-  }, []);
+  const reduceMotion = useReduceMotion();
 
   useEffect(() => {
     if (reduceMotion) {

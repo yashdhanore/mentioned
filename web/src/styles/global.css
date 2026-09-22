@@ -18,8 +18,8 @@
   --shadow-paper: 0 24px 80px rgba(16, 26, 23, 0.12);
   --shadow-float: 0 18px 60px rgba(16, 26, 23, 0.16);
   --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
-  --font-display: "Clash Display", "Geist", "Satoshi", "Plus Jakarta Sans", "SF Pro Display", system-ui, sans-serif;
-  --font-body: "Geist", "Satoshi", "Plus Jakarta Sans", "SF Pro Text", system-ui, sans-serif;
+  --font-display: "Plus Jakarta Sans Variable", system-ui, sans-serif;
+  --font-body: "Geist Variable", system-ui, sans-serif;
 }
 
 * {
@@ -120,7 +120,7 @@ a {
   border-radius: 999px;
   padding: 8px 8px 8px 22px;
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 700;
   line-height: 1;
   transition:
     transform 520ms var(--ease-spring),
@@ -189,7 +189,7 @@ a {
   padding-left: 6px;
   color: var(--color-ink);
   font-size: 18px;
-  font-weight: 820;
+  font-weight: 800;
 }
 
 .site-nav__mark {
@@ -299,7 +299,7 @@ a {
   color: var(--color-ink);
   font-family: var(--font-display);
   font-size: clamp(58px, min(7vw, 10vh), 112px);
-  font-weight: 850;
+  font-weight: 800;
   letter-spacing: 0;
   line-height: 0.92;
 }
@@ -490,7 +490,7 @@ a {
   margin: 0;
   font-family: var(--font-display);
   font-size: clamp(42px, 5.6vw, 82px);
-  font-weight: 820;
+  font-weight: 800;
   letter-spacing: 0;
   line-height: 0.98;
 }
@@ -782,7 +782,7 @@ a {
   margin: 0;
   font-family: var(--font-display);
   font-size: clamp(46px, 5.8vw, 82px);
-  font-weight: 820;
+  font-weight: 800;
   letter-spacing: 0;
   line-height: 0.98;
 }
@@ -808,7 +808,7 @@ a {
   padding-left: 20px;
   color: var(--color-ink);
   font-size: 15px;
-  font-weight: 720;
+  font-weight: 700;
 }
 
 .waitlist-section__proof li::before {
@@ -918,7 +918,7 @@ a {
 
 .waitlist-card[data-state="submitted"] .waitlist-status {
   color: var(--color-primary-pressed);
-  font-weight: 760;
+  font-weight: 700;
 }
 
 .waitlist-card[data-state="loading"] .waitlist-status {
@@ -927,7 +927,7 @@ a {
 
 .waitlist-card[data-state="error"] .waitlist-status {
   color: var(--color-error);
-  font-weight: 760;
+  font-weight: 700;
 }
 
 .final-cta-section {
@@ -1091,6 +1091,111 @@ html[data-motion="enhanced"] [data-shelf-fragment],
 html[data-motion="enhanced"] [data-shelf-phone],
 html[data-motion="enhanced"] [data-shelf-memory] {
   will-change: transform, opacity;
+}
+
+.content-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: min(760px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 28px 0 0;
+}
+
+.content-nav__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-ink);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.content-nav__mark {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 8px 20px rgba(16, 26, 23, 0.1);
+}
+
+.content-nav__mark img {
+  width: 24px;
+  height: 24px;
+}
+
+.content-nav__back {
+  color: var(--color-secondary);
+  font-size: 13px;
+  font-weight: 700;
+  transition: color 420ms var(--ease-spring);
+}
+
+.content-nav__back:hover {
+  color: var(--color-ink);
+}
+
+.content-page {
+  width: min(760px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 56px 0 120px;
+}
+
+.content-page__eyebrow {
+  margin: 0 0 14px;
+}
+
+.content-page h1 {
+  margin: 0 0 8px;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: clamp(36px, 6vw, 52px);
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1.05;
+}
+
+.content-page__meta {
+  margin: 0 0 36px;
+  color: var(--color-secondary);
+  font-size: 14px;
+}
+
+.content-page h2 {
+  margin: 40px 0 12px;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.content-page p {
+  max-width: 640px;
+  margin: 0 0 16px;
+  color: var(--color-secondary);
+  font-size: 16px;
+  line-height: 1.65;
+}
+
+.content-page a {
+  color: var(--color-primary-pressed);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+@media (max-width: 767px) {
+  .content-nav {
+    padding-top: 18px;
+  }
+
+  .content-page {
+    padding: 40px 0 88px;
+  }
 }
 
 html[data-motion="reduced"] [data-reveal],

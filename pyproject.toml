@@ -10,6 +10,7 @@ dependencies = [
     "google-genai>=1.55.0",
     "httpx>=0.27.0",
     "psycopg[binary]>=3.2.0",
+    "pydantic-settings>=2.5.0",
     "pyjwt[crypto]>=2.8.0",
     "python-dotenv>=1.0.0",
     # sqlmodel>=0.0.45 maps datetime fields to UTCDateTime: aware UTC in, aware UTC
@@ -62,8 +63,6 @@ select = ["E", "F", "I", "B", "UP", "C4", "SIM", "RUF", "PT", "DTZ"]
 # EXTRACTION_PROMPT is literal text sent to Gemini; wrapping it would add a newline to the
 # actual prompt.
 "src/extraction/gemini.py" = ["E501"]
-
-[tool.ruff.format]
 
 [build-system]
 requires = ["setuptools>=68.0"]

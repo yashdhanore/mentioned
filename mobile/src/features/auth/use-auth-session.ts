@@ -29,7 +29,7 @@ type UseAuthSessionResult = {
   setAuthError: (message: string | null) => void;
   setProfileError: (message: string | null) => void;
   handleSignIn: (provider: AuthProvider) => Promise<void>;
-  handleSignOut: (registeredPushToken: string | null) => Promise<void>;
+  handleSignOut: (registeredPushToken: string | null) => Promise<boolean>;
   handleDeleteAccount: (
     registeredPushToken: string | null,
     deleteAccount: () => Promise<{ deleted: boolean }>,
@@ -131,7 +131,7 @@ export function useAuthSession(): UseAuthSessionResult {
     setIsSigningOut(true);
     try {
       if (isDevAuthEnabled) {
-        return;
+        return true;
       }
 
       await disableRegisteredPushToken(registeredPushToken);
@@ -139,8 +139,10 @@ export function useAuthSession(): UseAuthSessionResult {
       if (error) {
         throw error;
       }
+      return true;
     } catch (error) {
       setProfileError(errorMessage(error, 'Could not sign out.'));
+      return false;
     } finally {
       setIsSigningOut(false);
     }
@@ -154,8 +156,8 @@ export function useAuthSession(): UseAuthSessionResult {
       setProfileError(null);
       setIsDeletingAccount(true);
       try {
-        await deleteAccount();
         await disableRegisteredPushToken(registeredPushToken);
+        await deleteAccount();
         if (!isDevAuthEnabled) {
           await supabase.auth.signOut();
         }

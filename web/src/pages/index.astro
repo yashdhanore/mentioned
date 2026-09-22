@@ -3,14 +3,11 @@ import BrandNav from '../components/BrandNav.astro';
 import FeedToShelf from '../components/FeedToShelf.astro';
 import HeroCollage from '../components/HeroCollage.astro';
 import MagneticButton from '../components/MagneticButton.astro';
+import SiteFooter from '../components/SiteFooter.astro';
 import WaitlistSignup from '../components/WaitlistSignup.astro';
 import WorkflowArtifacts from '../components/WorkflowArtifacts.astro';
 import { finalCta, hero } from '../data/landing-content';
 import BaseLayout from '../layouts/BaseLayout.astro';
-
-const publicApiBaseUrl = import.meta.env.PUBLIC_API_BASE_URL?.replace(/\/$/, '');
-const privacyHref = publicApiBaseUrl ? `${publicApiBaseUrl}/privacy` : '/privacy';
-const supportHref = publicApiBaseUrl ? `${publicApiBaseUrl}/support` : '/support';
 ---
 
 <BaseLayout
@@ -57,10 +54,6 @@ const supportHref = publicApiBaseUrl ? `${publicApiBaseUrl}/support` : '/support
       </section>
     </main>
 
-    <footer class="site-footer">
-      <span>Mentioned</span>
-      <a href={privacyHref}>Privacy</a>
-      <a href={supportHref}>Support</a>
-    </footer>
+    <SiteFooter />
   </div>
 </BaseLayout>

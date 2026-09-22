@@ -1,0 +1,72 @@
+---
+import ContentNav from '../components/ContentNav.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="Privacy Policy - Mentioned"
+  description="How Mentioned collects, uses, and protects the information behind your saved Reels and reading list."
+>
+  <div class="page-shell">
+    <ContentNav />
+
+    <main class="content-page">
+      <span class="eyebrow content-page__eyebrow">Legal</span>
+      <h1>Privacy Policy</h1>
+      <p class="content-page__meta">Effective date: May 14, 2026</p>
+
+      <p>
+        Mentioned helps you save public Instagram Reel and post links and identify books mentioned in that content.
+        This policy explains what information the app processes and why.
+      </p>
+
+      <h2>Information We Collect</h2>
+      <p>
+        We collect account information provided through Supabase authentication, such as your email address and user identifier.
+        We also store the Instagram URLs you submit, saved-source extraction status, extracted item results, related book metadata, and optional Expo push notification tokens if you allow notifications.
+      </p>
+
+      <h2>How We Use Information</h2>
+      <p>
+        We use this information to authenticate your account, process submitted links, save your results, show your saved Reels and books, send saved-source notifications, prevent abuse, and diagnose service issues.
+      </p>
+
+      <h2>Service Providers</h2>
+      <p>
+        Mentioned uses Supabase for authentication and database hosting, Render for backend hosting, Google Gemini for extraction, Google Books for book metadata, Expo for push notification delivery, and Instagram content access through public URLs you provide.
+        These providers process information only as needed to operate the app.
+      </p>
+
+      <h2>Data Sharing</h2>
+      <p>
+        We do not sell your personal information.
+        We do not share your saved content with other users.
+        Information is shared with service providers only to provide the app's functionality, comply with legal obligations, or protect the service from abuse.
+      </p>
+
+      <h2>Data Retention and Deletion</h2>
+      <p>
+        We keep account data, submitted URLs, saved sources, extracted items, and push tokens while your account is active or as needed to operate and protect the service.
+        You can delete saved sources in the app.
+        To request account or data deletion, contact support.
+      </p>
+
+      <h2>Security</h2>
+      <p>
+        We use authenticated API access, row-level database access controls, and separate internal worker credentials to protect user data.
+        No internet service can guarantee absolute security.
+      </p>
+
+      <h2>Children</h2>
+      <p>Mentioned is not intended for children under 13.</p>
+
+      <h2>Contact</h2>
+      <p>
+        For privacy questions or deletion requests, contact <a href="mailto:yashdhanore@gmail.com">yashdhanore@gmail.com</a>.
+      </p>
+    </main>
+
+    <SiteFooter />
+  </div>
+</BaseLayout>

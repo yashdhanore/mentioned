@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Easing, Image, Pressable, ScrollView, Text, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, Easing, Image, Pressable, ScrollView, Text, View } from 'react-native';
 
-import type { Capture } from '@/captures';
+import { sourceIdentityLabel, type Capture } from '@/captures';
 import { BackIcon, ExternalLinkIcon, MoreIcon } from '@/components/icons';
 import {
   FailedState,
@@ -9,8 +9,10 @@ import {
   NoMentions,
   ProcessingMentions,
 } from '@/components/mentions';
-import { AppMark, IconButton, InlineMessage, SecondaryButton, SourceQuote } from '@/components/ui';
+import { AppMark, IconButton, InlineMessage, SecondaryButton } from '@/components/ui';
+import { useReduceMotion } from '@/hooks/use-reduce-motion';
 import { styles as sharedStyles } from '@/styles';
+import { colors } from '@/theme';
 import { styles as localStyles } from './reel-detail-screen.styles';
 
 const styles = { ...sharedStyles, ...localStyles };
@@ -157,7 +159,7 @@ function SourceHero({
         onPress={onOpenSource}
       >
         <Text style={styles.sourceHeroActionText}>Open post</Text>
-        <ExternalLinkIcon color="#0E6F68" size={18} />
+        <ExternalLinkIcon color={colors.primary} size={18} />
       </Pressable>
 
       <View style={styles.sourceHeroMeta}>
@@ -171,9 +173,6 @@ function SourceHero({
             </Text>
           ) : null}
         </View>
-        {capture.sourceContextSnippet ? (
-          <SourceQuote quote={capture.sourceContextSnippet} attribution="From post" />
-        ) : null}
       </View>
     </View>
   );
@@ -209,29 +208,9 @@ function savedAtLabel(createdAt: string): string | null {
   })}`;
 }
 
-function sourceIdentityLabel(capture: Capture): string {
-  return capture.creatorHandle ? `@${capture.creatorHandle}` : capture.creator;
-}
-
 function ProcessingBrandMark() {
   const opacity = useRef(new Animated.Value(0.45)).current;
-  const [reduceMotion, setReduceMotion] = useState(false);
-
-  useEffect(() => {
-    let isMounted = true;
-    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
-
-    void AccessibilityInfo.isReduceMotionEnabled().then((isReduceMotionEnabled) => {
-      if (isMounted) {
-        setReduceMotion(isReduceMotionEnabled);
-      }
-    });
-
-    return () => {
-      isMounted = false;
-      subscription.remove();
-    };
-  }, []);
+  const reduceMotion = useReduceMotion();
 
   useEffect(() => {
     if (reduceMotion) {
@@ -296,9 +275,6 @@ function OriginalSourceSection({
           <Text numberOfLines={1} style={styles.sourceCreator}>
             {sourceIdentityLabel(capture)}
           </Text>
-          {capture.sourceContextSnippet ? (
-            <SourceQuote quote={capture.sourceContextSnippet} attribution="From post" />
-          ) : null}
           <View style={styles.detailSourceAction}>
             <SecondaryButton label="Open original" onPress={onOpenSource} compact />
           </View>

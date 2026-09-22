@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from typing import Annotated, Any
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
+from pydantic import AliasChoices, BeforeValidator, Field, model_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 SUPPORTED_AUTH_MODES = {"dev", "supabase"}
@@ -19,81 +21,202 @@ HARD_MAX_MEDIA_VIDEO_COUNT = 3
 HARD_MAX_GEMINI_TOTAL_ATTEMPTS = 3
 HARD_MAX_GEMINI_TIMEOUT_SECONDS = 300
 
-
-@dataclass(frozen=True)
-class DBConfig:
-    database_url: str = "sqlite:///app.db"
-    worker_database_url: str | None = None
-    auto_create_tables: bool = True
-
-
-@dataclass(frozen=True)
-class AuthConfig:
-    auth_mode: str = "dev"
-    dev_user_id: str = "00000000-0000-4000-8000-000000000001"
-    supabase_project_url: str | None = None
-    supabase_service_role_key: str | None = None
-    supabase_jwt_secret: str | None = None
-    supabase_jwt_audience: str = "authenticated"
+_TRUTHY = {"1", "true", "yes", "on"}
+_ENV_CONFIG = SettingsConfigDict(
+    env_file=None,
+    case_sensitive=False,
+    frozen=True,
+    extra="ignore",
+    populate_by_name=True,
+)
 
 
-@dataclass(frozen=True)
-class GeminiConfig:
-    gemini_api_key: str | None = None
-    gemini_model: str = "gemini-2.5-flash"
-    gemini_gate_model: str = "gemini-2.5-flash-lite"
-    gemini_total_attempts: int = 3
-    gemini_timeout_seconds: int = 120
-    use_vertexai: bool = False
+def _parse_bool(value: Any) -> Any:
+    # A present-but-blank env var is an explicit false, not "unset": matches
+    # the historical `value.strip().casefold() in _TRUTHY` behavior exactly.
+    if not isinstance(value, str):
+        return value
+    return value.strip().casefold() in _TRUTHY
+
+
+def _strip(value: Any) -> Any:
+    return value.strip() if isinstance(value, str) else value
+
+
+def _casefold(value: Any) -> Any:
+    return value.strip().casefold() if isinstance(value, str) else value
+
+
+def _blank_as_none(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+    text = value.strip()
+    return text or None
+
+
+def _blank_as_none_no_trailing_slash(value: Any) -> Any:
+    text = _blank_as_none(value)
+    return text.rstrip("/") if isinstance(text, str) else text
+
+
+def _blank_as(default: Any):
+    def _parse(value: Any) -> Any:
+        if isinstance(value, str) and not value.strip():
+            return default
+        return value
+
+    return _parse
+
+
+def _parse_csv(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+    if not value.strip():
+        return ()
+    return tuple(part.strip() for part in value.split(",") if part.strip())
+
+
+def _first_nonblank_env(*names: str) -> str | None:
+    for name in names:
+        value = os.environ.get(name)
+        if value and value.strip():
+            return value.strip()
+    return None
+
+
+EnvBool = Annotated[bool, BeforeValidator(_parse_bool)]
+StrippedStr = Annotated[str, BeforeValidator(_strip)]
+CasefoldStr = Annotated[str, BeforeValidator(_casefold)]
+OptionalEnvStr = Annotated[str | None, BeforeValidator(_blank_as_none)]
+OptionalEnvUrl = Annotated[str | None, BeforeValidator(_blank_as_none_no_trailing_slash)]
+EnvCsv = Annotated[tuple[str, ...], NoDecode, BeforeValidator(_parse_csv)]
+
+
+class DBConfig(BaseSettings):
+    model_config = _ENV_CONFIG
+
+    database_url: str = Field(default_factory=lambda: f"sqlite:///{BASE_DIR / 'app.db'}")
+    worker_database_url: OptionalEnvStr = None
+    auto_create_tables: EnvBool = True
+
+
+class AuthConfig(BaseSettings):
+    model_config = _ENV_CONFIG
+
+    auth_mode: CasefoldStr = "dev"
+    dev_user_id: StrippedStr = "00000000-0000-4000-8000-000000000001"
+    supabase_project_url: OptionalEnvStr = None
+    supabase_service_role_key: OptionalEnvStr = None
+    supabase_jwt_secret: OptionalEnvStr = None
+    supabase_jwt_audience: StrippedStr = "authenticated"
+
+
+class GeminiConfig(BaseSettings):
+    model_config = _ENV_CONFIG
+
+    gemini_api_key: OptionalEnvStr = None
+    gemini_model: StrippedStr = "gemini-2.5-flash"
+    gemini_gate_model: StrippedStr = "gemini-2.5-flash-lite"
+    gemini_total_attempts: Annotated[int, BeforeValidator(_blank_as(3))] = 3
+    gemini_timeout_seconds: Annotated[int, BeforeValidator(_blank_as(120))] = 120
+    use_vertexai: EnvBool = Field(
+        default=False,
+        validation_alias=AliasChoices("GEMINI_USE_VERTEXAI", "GOOGLE_GENAI_USE_VERTEXAI"),
+    )
     vertex_project: str | None = None
     vertex_location: str = "global"
 
+    @model_validator(mode="after")
+    def _apply_vertex_fallbacks(self) -> GeminiConfig:
+        # Unlike use_vertexai (an alias chain, first *present* var wins), the
+        # old code fell through to the GOOGLE_CLOUD_* var when the GEMINI_*
+        # one was present but blank, so this can't be expressed as a plain
+        # AliasChoices field. Skip a field a caller passed explicitly (e.g.
+        # direct construction in tests), since neither field has a matching
+        # env alias for pydantic-settings to have sourced it from otherwise.
+        if "vertex_project" not in self.model_fields_set:
+            project = _first_nonblank_env("GEMINI_VERTEX_PROJECT", "GOOGLE_CLOUD_PROJECT")
+            object.__setattr__(self, "vertex_project", project)
+        if "vertex_location" not in self.model_fields_set:
+            location = (
+                _first_nonblank_env("GEMINI_VERTEX_LOCATION", "GOOGLE_CLOUD_LOCATION") or "global"
+            )
+            object.__setattr__(self, "vertex_location", location)
+        return self
 
-@dataclass(frozen=True)
-class GoogleBooksConfig:
-    api_key: str | None = None
+
+class GoogleBooksConfig(BaseSettings):
+    model_config = _ENV_CONFIG
+
+    api_key: OptionalEnvStr = Field(default=None, validation_alias="GOOGLE_BOOKS_API_KEY")
 
 
-@dataclass(frozen=True)
-class Settings:
+class Settings(BaseSettings):
+    model_config = _ENV_CONFIG
+
     app_name: str = "Mentioned Backend"
-    app_env: str = "local"
-    docs_enabled: bool = True
-    cors_allowed_origins: tuple[str, ...] = ()
-    trusted_hosts: tuple[str, ...] = ()
-    source_require_https: bool = False
-    extraction_backend: str = "gemini"
-    relevance_gate_mode: str = "active"
+    app_env: CasefoldStr = "local"
+    web_base_url: OptionalEnvUrl = None
+    docs_enabled: EnvBool = True
+    cors_allowed_origins: EnvCsv = ()
+    trusted_hosts: EnvCsv = ()
+    source_require_https: EnvBool = False
+    extraction_backend: CasefoldStr = "gemini"
+    relevance_gate_mode: CasefoldStr = "active"
 
     # Worker
-    worker_poll_interval_seconds: float = 2.0
-    worker_stale_timeout_seconds: int = 15 * 60
-    worker_queue_visibility_timeout_seconds: int = 30 * 60
-    worker_queue_max_poll_seconds: int = 5
-    worker_queue_poll_interval_ms: int = 100
-    worker_queue_max_deliveries: int = 5
-    worker_id: str = "worker-local"
+    worker_poll_interval_seconds: Annotated[float, BeforeValidator(_blank_as(2.0))] = 2.0
+    worker_stale_timeout_seconds: Annotated[int, BeforeValidator(_blank_as(15 * 60))] = 15 * 60
+    worker_queue_visibility_timeout_seconds: Annotated[int, BeforeValidator(_blank_as(30 * 60))] = (
+        30 * 60
+    )
+    worker_queue_max_poll_seconds: Annotated[int, BeforeValidator(_blank_as(5))] = 5
+    worker_queue_poll_interval_ms: Annotated[int, BeforeValidator(_blank_as(100))] = 100
+    worker_queue_max_deliveries: Annotated[int, BeforeValidator(_blank_as(5))] = 5
+    worker_id: StrippedStr = "worker-local"
 
     # Media download limits
-    media_download_timeout_seconds: int = 120
-    media_download_format: str | None = None
-    max_media_file_bytes: int = 50 * 1024 * 1024
-    max_media_total_bytes: int = 100 * 1024 * 1024
-    max_media_duration_seconds: int = 180
-    max_media_video_count: int = 1
-    media_transcode_video_bitrate: str = "1100k"
-    media_transcode_audio_bitrate: str = "96k"
+    media_download_timeout_seconds: Annotated[int, BeforeValidator(_blank_as(120))] = 120
+    media_download_format: OptionalEnvStr = None
+    max_media_file_bytes: Annotated[int, BeforeValidator(_blank_as(50 * 1024 * 1024))] = (
+        50 * 1024 * 1024
+    )
+    max_media_total_bytes: Annotated[int, BeforeValidator(_blank_as(100 * 1024 * 1024))] = (
+        100 * 1024 * 1024
+    )
+    max_media_duration_seconds: Annotated[int, BeforeValidator(_blank_as(180))] = 180
+    max_media_video_count: Annotated[int, BeforeValidator(_blank_as(1))] = 1
+    media_transcode_video_bitrate: StrippedStr = "1100k"
+    media_transcode_audio_bitrate: StrippedStr = "96k"
 
     # Rate limits
-    max_job_create_burst_per_minute: int = 3
-    max_jobs_created_per_day: int = 25
-    max_active_jobs_per_user: int = 5
+    max_job_create_burst_per_minute: Annotated[int, BeforeValidator(_blank_as(3))] = 3
+    max_jobs_created_per_day: Annotated[int, BeforeValidator(_blank_as(25))] = 25
+    max_active_jobs_per_user: Annotated[int, BeforeValidator(_blank_as(5))] = 5
 
     # Sub-configs
-    db: DBConfig = DBConfig()
-    auth: AuthConfig = AuthConfig()
-    gemini: GeminiConfig = GeminiConfig()
-    google_books: GoogleBooksConfig = GoogleBooksConfig()
+    db: DBConfig = Field(default_factory=DBConfig)
+    auth: AuthConfig = Field(default_factory=AuthConfig)
+    gemini: GeminiConfig = Field(default_factory=GeminiConfig)
+    google_books: GoogleBooksConfig = Field(default_factory=GoogleBooksConfig)
+
+    @model_validator(mode="after")
+    def _apply_app_env_defaults(self) -> Settings:
+        # docs_enabled, source_require_https, and db.auto_create_tables all
+        # default differently depending on app_env (and, for auto_create_tables,
+        # database_url); only fix them up when nothing (env or an explicit
+        # constructor kwarg) actually set them, so an explicit value always wins.
+        if "docs_enabled" not in self.model_fields_set:
+            object.__setattr__(self, "docs_enabled", self.app_env != "production")
+        if "source_require_https" not in self.model_fields_set:
+            object.__setattr__(self, "source_require_https", self.app_env == "production")
+        if "auto_create_tables" not in self.db.model_fields_set:
+            object.__setattr__(
+                self.db,
+                "auto_create_tables",
+                self.db.database_url.startswith("sqlite") and self.app_env != "production",
+            )
+        return self
 
     @property
     def database_url(self) -> str:
@@ -106,41 +229,6 @@ class Settings:
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"
-
-
-def _env_bool(name: str, default: bool) -> bool:
-    value = os.getenv(name)
-    if value is None:
-        return default
-    return value.strip().casefold() in {"1", "true", "yes", "on"}
-
-
-def _env_int(name: str, default: int) -> int:
-    value = os.getenv(name)
-    if value is None or not value.strip():
-        return default
-    return int(value)
-
-
-def _env_float(name: str, default: float) -> float:
-    value = os.getenv(name)
-    if value is None or not value.strip():
-        return default
-    return float(value)
-
-
-def _env_optional(name: str) -> str | None:
-    value = os.getenv(name)
-    if value is None or not value.strip():
-        return None
-    return value.strip()
-
-
-def _env_csv(name: str) -> tuple[str, ...]:
-    value = os.getenv(name)
-    if value is None or not value.strip():
-        return ()
-    return tuple(part.strip() for part in value.split(",") if part.strip())
 
 
 def _is_postgres_url(database_url: str) -> bool:
@@ -243,72 +331,6 @@ def validate_settings(settings: Settings) -> None:
 @lru_cache
 def get_settings() -> Settings:
     load_dotenv(BASE_DIR / ".env")
-    database_url = os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR / 'app.db'}")
-    app_env = os.getenv("APP_ENV", "local").strip().casefold()
-    auto_create_default = database_url.startswith("sqlite") and app_env != "production"
-    settings = Settings(
-        app_name="Mentioned Backend",
-        app_env=app_env,
-        docs_enabled=_env_bool("DOCS_ENABLED", app_env != "production"),
-        cors_allowed_origins=_env_csv("CORS_ALLOWED_ORIGINS"),
-        trusted_hosts=_env_csv("TRUSTED_HOSTS"),
-        source_require_https=_env_bool("SOURCE_REQUIRE_HTTPS", app_env == "production"),
-        extraction_backend=os.getenv("EXTRACTION_BACKEND", "gemini").strip().casefold(),
-        relevance_gate_mode=os.getenv("RELEVANCE_GATE_MODE", "active").strip().casefold(),
-        worker_poll_interval_seconds=_env_float("WORKER_POLL_INTERVAL_SECONDS", 2.0),
-        worker_stale_timeout_seconds=_env_int("WORKER_STALE_TIMEOUT_SECONDS", 15 * 60),
-        worker_queue_visibility_timeout_seconds=_env_int(
-            "WORKER_QUEUE_VISIBILITY_TIMEOUT_SECONDS", 30 * 60
-        ),
-        worker_queue_max_poll_seconds=_env_int("WORKER_QUEUE_MAX_POLL_SECONDS", 5),
-        worker_queue_poll_interval_ms=_env_int("WORKER_QUEUE_POLL_INTERVAL_MS", 100),
-        worker_queue_max_deliveries=_env_int("WORKER_QUEUE_MAX_DELIVERIES", 5),
-        worker_id=os.getenv("WORKER_ID", "worker-local").strip(),
-        media_download_timeout_seconds=_env_int("MEDIA_DOWNLOAD_TIMEOUT_SECONDS", 120),
-        media_download_format=_env_optional("MEDIA_DOWNLOAD_FORMAT"),
-        max_media_file_bytes=_env_int("MAX_MEDIA_FILE_BYTES", 50 * 1024 * 1024),
-        max_media_total_bytes=_env_int("MAX_MEDIA_TOTAL_BYTES", 100 * 1024 * 1024),
-        max_media_duration_seconds=_env_int("MAX_MEDIA_DURATION_SECONDS", 180),
-        max_media_video_count=_env_int("MAX_MEDIA_VIDEO_COUNT", 1),
-        media_transcode_video_bitrate=os.getenv("MEDIA_TRANSCODE_VIDEO_BITRATE", "1100k").strip(),
-        media_transcode_audio_bitrate=os.getenv("MEDIA_TRANSCODE_AUDIO_BITRATE", "96k").strip(),
-        max_job_create_burst_per_minute=_env_int("MAX_JOB_CREATE_BURST_PER_MINUTE", 3),
-        max_jobs_created_per_day=_env_int("MAX_JOBS_CREATED_PER_DAY", 25),
-        max_active_jobs_per_user=_env_int("MAX_ACTIVE_JOBS_PER_USER", 5),
-        db=DBConfig(
-            database_url=database_url,
-            worker_database_url=_env_optional("WORKER_DATABASE_URL"),
-            auto_create_tables=_env_bool("AUTO_CREATE_TABLES", auto_create_default),
-        ),
-        auth=AuthConfig(
-            auth_mode=os.getenv("AUTH_MODE", "dev").strip().casefold(),
-            dev_user_id=os.getenv("DEV_USER_ID", "00000000-0000-4000-8000-000000000001").strip(),
-            supabase_project_url=_env_optional("SUPABASE_PROJECT_URL"),
-            supabase_service_role_key=_env_optional("SUPABASE_SERVICE_ROLE_KEY"),
-            supabase_jwt_secret=_env_optional("SUPABASE_JWT_SECRET"),
-            supabase_jwt_audience=os.getenv("SUPABASE_JWT_AUDIENCE", "authenticated").strip(),
-        ),
-        gemini=GeminiConfig(
-            gemini_api_key=_env_optional("GEMINI_API_KEY"),
-            gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip(),
-            gemini_gate_model=os.getenv("GEMINI_GATE_MODEL", "gemini-2.5-flash-lite").strip(),
-            gemini_total_attempts=_env_int("GEMINI_TOTAL_ATTEMPTS", 3),
-            gemini_timeout_seconds=_env_int("GEMINI_TIMEOUT_SECONDS", 120),
-            use_vertexai=_env_bool(
-                "GEMINI_USE_VERTEXAI",
-                _env_bool("GOOGLE_GENAI_USE_VERTEXAI", False),
-            ),
-            vertex_project=_env_optional("GEMINI_VERTEX_PROJECT")
-            or _env_optional("GOOGLE_CLOUD_PROJECT"),
-            vertex_location=(
-                os.getenv("GEMINI_VERTEX_LOCATION")
-                or os.getenv("GOOGLE_CLOUD_LOCATION")
-                or "global"
-            ).strip(),
-        ),
-        google_books=GoogleBooksConfig(
-            api_key=_env_optional("GOOGLE_BOOKS_API_KEY"),
-        ),
-    )
+    settings = Settings()
     validate_settings(settings)
     return settings

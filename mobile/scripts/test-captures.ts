@@ -2,8 +2,9 @@ import assert from 'node:assert/strict';
 
 import {
   captureFromSavedSource,
+  captureStatusLabel,
   mapsUrlForMention,
-  mergeSavedSourcesWithCaptures,
+  sourceIdentityLabel,
 } from '../src/captures';
 import type { SavedSourceResponse } from '../src/api';
 
@@ -54,14 +55,22 @@ const failedCreatedCapture = captureFromSavedSource({
 assert.equal(failedCreatedCapture.status, 'failed');
 assert.equal(failedCreatedCapture.errorMessage, 'Could not process this Reel.');
 
-assert.deepEqual(
-  mergeSavedSourcesWithCaptures([savedSource], []).map((capture) => capture.id),
-  [savedSource.id],
-);
-
 const noMentionsCapture = captureFromSavedSource(savedSource);
 assert.equal(noMentionsCapture.status, 'no_mentions');
 assert.equal(noMentionsCapture.skipReason, null);
+
+// Identity label prefers the creator handle over the generic "Instagram" fallback.
+assert.equal(sourceIdentityLabel(noMentionsCapture), '@reader');
+assert.equal(captureStatusLabel(noMentionsCapture), 'No mentions');
+
+const noHandleCapture = captureFromSavedSource({
+  ...savedSource,
+  source_creator_handle: null,
+});
+assert.equal(sourceIdentityLabel(noHandleCapture), 'Instagram');
+
+assert.equal(captureStatusLabel(processingCapture), 'Processing');
+assert.equal(captureStatusLabel(failedCapture), 'Needs attention');
 
 const skippedCapture = captureFromSavedSource({
   ...savedSource,
@@ -147,6 +156,7 @@ assert.equal(
 );
 assert.equal(mixedCapture.mentions[1].latitude, null);
 assert.equal(mixedCapture.mentions[1].mapsUrl, null);
+assert.equal(captureStatusLabel(mixedCapture), '2 mentions');
 
 // A bare (unmatched) place still renders with no address subtitle.
 const barePlaceCapture = captureFromSavedSource({
@@ -174,6 +184,7 @@ assert.equal(barePlaceCapture.status, 'ready');
 assert.equal(barePlaceCapture.mentions[0].title, 'Some Unmatched Cafe');
 assert.equal(barePlaceCapture.mentions[0].subtitle, null);
 assert.equal(barePlaceCapture.mentions[0].latitude, null);
+assert.equal(captureStatusLabel(barePlaceCapture), '1 mention');
 
 const productCapture = captureFromSavedSource({
   ...savedSource,

@@ -53,11 +53,19 @@ WORKER_DATABASE_URL=postgresql://mentioned_worker.../postgres
 MIGRATION_DATABASE_URL=postgresql://postgres.../postgres
 SUPABASE_PROJECT_URL=https://<project-ref>.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=<worker-only-service-role-key>
-CORS_ALLOWED_ORIGINS=https://<your-web-origin>,http://localhost:8082,http://127.0.0.1:8082
+CORS_ALLOWED_ORIGINS=https://<your-web-origin>
 TRUSTED_HOSTS=mentioned-api.onrender.com,<your-custom-api-domain>
+WEB_BASE_URL=https://<your-web-origin>
 GEMINI_API_KEY=<Gemini API key>
 GOOGLE_BOOKS_API_KEY=<optional Google Books API key>
 ```
+
+`WEB_BASE_URL` (API only, non-secret) is the web app's origin.
+When set, `GET /privacy` and `GET /support` on the API 301-redirect there instead of serving their
+built-in fallback page, so `web/src/pages/privacy.astro` and `support.astro` become the source of
+truth for that copy.
+Leave it unset and the API keeps serving the inline pages, so neither URL ever 404s even before the
+web app is deployed.
 
 `SUPABASE_SERVICE_ROLE_KEY` is used only by the worker to copy public Reel thumbnails into the public `job-thumbnails` Supabase Storage bucket; never set it in the mobile app or expose it to browser clients.
 The bucket path still contains a literal `jobs/` segment on purpose, so already-uploaded thumbnails are not orphaned by later renames (`src/storage/thumbnails.py`).
@@ -113,13 +121,13 @@ With the API and worker running, submit a real saved source, poll until terminal
 TOKEN='paste-supabase-access-token'
 SECOND_TOKEN='paste-second-user-supabase-access-token'
 SOURCE_URL='https://www.instagram.com/reel/SHORTCODE/'
-python scripts/smoke_job_flow.py --require-items
+python scripts/smoke_saved_source_flow.py --require-items
 ```
 
 Optional overrides:
 
 ```bash
-python scripts/smoke_job_flow.py \
+python scripts/smoke_saved_source_flow.py \
   --api-base-url http://127.0.0.1:8000 \
   --source-url "$SOURCE_URL" \
   --token "$TOKEN" \

@@ -1,17 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
-import {
-  AccessibilityInfo,
-  Animated,
-  Easing,
-  Image,
-  Text,
-  useWindowDimensions,
-  View,
-} from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, Easing, Image, Text, useWindowDimensions, View } from 'react-native';
 
+import { useReduceMotion } from '@/hooks/use-reduce-motion';
 import { styles } from './signed-out-product-preview.styles';
 
-const authOrbitReelPreview = require('../../assets/auth-orbit-reel-preview.png');
+const authOrbitReelPreview = require('../../assets/auth-orbit-reel-preview.webp');
 
 const orbitBookCovers = {
   atomicHabits: require('../../assets/book-covers/atomic-habits.jpg'),
@@ -66,27 +59,8 @@ const orbitBooks = [
 export function SignedOutProductPreview() {
   const { width } = useWindowDimensions();
   const isCompact = width < 360;
-  const [shouldReduceMotion, setShouldReduceMotion] = useState(false);
+  const shouldReduceMotion = useReduceMotion();
   const orbitValues = useRef(orbitBooks.map(() => new Animated.Value(0))).current;
-
-  useEffect(() => {
-    let isMounted = true;
-
-    AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
-      if (isMounted) {
-        setShouldReduceMotion(enabled);
-      }
-    });
-
-    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', (enabled) => {
-      setShouldReduceMotion(enabled);
-    });
-
-    return () => {
-      isMounted = false;
-      subscription.remove();
-    };
-  }, []);
 
   useEffect(() => {
     if (shouldReduceMotion) {
