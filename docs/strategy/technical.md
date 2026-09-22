@@ -1,6 +1,6 @@
 # Technical Decisions And Ideation
 
-Last updated: 2026-06-24
+Last updated: 2026-09-21
 
 This is the canonical home for Mentioned technical decisions, architecture status, technical
 ideation, and rejected approaches. Technical decisions must start from the product direction in
@@ -35,6 +35,12 @@ save -> extract -> revisit loop.
   broad platform, category, or pricing expansion.
 
 ## Architecture Status: v1 (shipped) vs v2 (in progress)
+
+> **SUPERSEDED as of 2026-09-21.** Everything below this box describes the old `/v1/jobs` /
+> `/v1/mentions` era. That compatibility surface has been deleted from the codebase (see the
+> 2026-09-21 note under "Ideas To Preserve"). It is kept here only as historical record of why the
+> `sources` / `source_items` / `saved_sources` model exists and what it replaced. Do not resurrect
+> `src/jobs` or `src/mentions`; do not treat the "frozen v1 contract" language below as still binding.
 
 > **Read this first if you are an agent working on the backend.** As of 2026-06-13 the app is submitted to the App Store. The shipped mobile binary is frozen against the **v1 HTTP contract**, so v1 **user-visible behavior and HTTP contract must not change** - but internal worker/ingestion behavior *can* (see "Frozen = contract, not internals" below). v2 is being built *alongside* v1 in the same repo and same Supabase project - not as a replacement edit.
 
@@ -75,6 +81,51 @@ The work splits along two independent axes:
 - ⛔ v2-coexistence-foundation plan - SUPERSEDED/rejected (schema-split); writeup removed in cleanup, see the rejection note above. Do NOT execute or treat as active.
 
 ## Ideas To Preserve
+
+### 2026-09-21 - Jobs/Mentions Compatibility Surface Removed
+
+- Status: Accepted and implemented. Completes the 2026-06-22 saved-source cutover decision below.
+- Product constraint: Protects the save -> extract -> revisit loop and user trust by making the
+  code that actually runs match the live `/v1/saved-sources` contract, and closes a real account
+  deletion privacy gap (see next bullet).
+- Notes: `src/jobs/`, `src/mentions/`, the legacy per-job ingestion processor, and the legacy
+  `public.jobs`/`public.mentions`/`public.job_events` tables and `extract_jobs` pgmq queue are gone.
+  Alembic revision `20260921_0017` drops those tables, their RLS policies/grants, and the
+  `extract_jobs` queue; it leaves the pgmq schema/function grants and sequence grants alone because
+  `extract_sources` and `push_notifications` still use them. `migrations/env.py` now registers every
+  live SQLModel table (books, places, push tokens, sources/source_items/saved_sources, waitlist)
+  instead of the stale `Book`/`Job`/`Mention` trio. The three duplicate error hierarchies
+  (`JobError`/`MentionError`/`SourceError`) collapsed into one `src.errors.AppError` base with one
+  FastAPI exception handler in `src/main.py`, keeping the `{"error_code", "message"}` response shape
+  unchanged. Book enrichment (`src/books/enrichment.py`) now writes directly onto `SourceItem`
+  instead of building a throwaway `Mention(owner_id=source.id, job_id=source.id, ...)` object, matching
+  how place enrichment already worked. The Supabase Storage thumbnail helper is source-keyed
+  (`store_source_thumbnail(..., source_id=...)`); the storage path still contains a literal `jobs/`
+  segment on purpose, so already-uploaded thumbnails are not orphaned.
+- Bug fix: account deletion (`src/account/service.py`) deleted `JobEvent`/`Mention`/`Job` rows and
+  never touched `SavedSource`, so a deleted user's saved sources silently survived. Deletion now
+  removes the user's `SavedSource` and `PushToken` rows. The shared `sources`/`source_items` cache
+  rows are left alone on purpose - they carry no owner id, and another user may still have their own
+  `saved_sources` row pointing at the same canonical source (matches the 2026-06-21 shared-cache
+  decision below: account deletion removes user-owned rows and can GC unreferenced cache rows later
+  under a retention policy, which this change does not add).
+- Push notifications are re-keyed onto `sources`: `complete_source_processing`/
+  `fail_source_processing` (`src/sources/service.py`) call `enqueue_push_notification` in the same
+  transaction as the status-changing `UPDATE`, mirroring the existing `enqueue_source_extraction`
+  outbox pattern. The push worker fans a single source completion/failure out to every owner in
+  `saved_sources` for that source who has an active push token (`list_push_targets_for_source` in
+  `src/push/service.py`), because a shared source can have several savers. The Expo payload's `data`
+  key changed from `job_id` to `saved_source_id`, matching what `mobile/src/notifications.ts` already
+  reads (the mobile app was ahead of the backend here). The Android notification channel id is left
+  as the literal string `"job-status"` because `mobile/src/notifications.ts` creates the channel with
+  that exact id and mobile is out of scope for this change.
+- SQLite/dev mode: the polling worker (`src/worker.py`) now claims pending `Source` rows via the
+  existing atomic `claim_source_for_processing`, instead of only claiming legacy `Job` rows (which
+  meant a saved source never processed at all under the default `DATABASE_URL=sqlite:///app.db`).
+- Rejected/deferred in this change: renaming `MAX_JOB_CREATE_BURST_PER_MINUTE` /
+  `MAX_JOBS_CREATED_PER_DAY` / `MAX_ACTIVE_JOBS_PER_USER` to source-flavored names. `scripts/`
+  (`check_release_env.py`) and `.env.example` reference these exact env var names and are owned by
+  another workstream in this change, so the names stay as-is.
 
 ### 2026-06-24 - Website Footer Animation Implementation
 
@@ -407,6 +458,21 @@ The work splits along two independent axes:
   production Lite-vs-Flash routing until labeled evals prove the routing rule; if production must
   choose one Gemini model today, prefer Flash for recall and use Lite only in offline comparison or
   a deliberately lower-quality/cost mode.
+
+### 2026-09-22 - Labeled Reel Evals Replace The Visual Manifest
+
+- Status: Accepted and implemented; labels are being filled in by hand.
+- Product constraint: Gives the useful-but-imperfect extraction bar a number, and gates the
+  Flash-vs-Lite, fps/media-resolution, evidence-grounding, and verify-pass decisions above on
+  labeled precision/recall instead of mention counts.
+- Notes: `evals/reel-labels.json` holds ground truth for the 24 Reels in `evals/reel-lists/`;
+  `scripts/score_extraction_eval.py` scores `compare_gemini_video_models.py` output with fuzzy
+  title/alias matching, reporting precision/recall with Wilson intervals, author accuracy, false
+  positives on Reels with nothing to find, confidence of correct vs wrong mentions, and cost per
+  correct mention. The old `visual_regression_manifest.json` evaluator was removed because it scored
+  OCR text artifacts that only the pre-Gemini pipeline produced; its one Reel became a label. The
+  harness pattern (golden set, confidence intervals, hallucination reported separately) follows
+  `ai-engineering-from-scratch` phase 11 lesson 10 and the phase 19 video capstone.
 
 ### Book Catalog And Reading List Support
 

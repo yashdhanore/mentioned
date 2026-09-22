@@ -7,22 +7,19 @@ from uuid import UUID
 
 from sqlmodel import Session
 
-from src.books.enrichment import BookFinder, enrich_extracted_book_mention, find_google_book_sync
+from src.books.enrichment import BookFinder, enrich_extracted_book_item, find_google_book_sync
 from src.extraction.pipeline import run_pipeline
 from src.extraction.schemas import PipelineResult
-from src.mentions.models import Mention
 from src.places.enrichment import PlaceFinder, enrich_extracted_place_item, find_google_place_sync
 from src.sources.models import Source, SourceItem
 from src.sources.service import complete_source_processing, fail_source_processing
-from src.storage.thumbnails import store_job_thumbnail
+from src.storage.thumbnails import store_source_thumbnail
 
 logger = logging.getLogger(__name__)
 
 
 class ThumbnailStore(Protocol):
-    def __call__(
-        self, thumbnail_url: str | None, *, owner_id: UUID, job_id: UUID
-    ) -> str | None: ...
+    def __call__(self, thumbnail_url: str | None, *, source_id: UUID) -> str | None: ...
 
 
 ExtractionRunner = Callable[[str], PipelineResult]
@@ -33,7 +30,7 @@ class SourceIngestion:
         self,
         *,
         extraction_runner: ExtractionRunner = run_pipeline,
-        thumbnail_store: ThumbnailStore = store_job_thumbnail,
+        thumbnail_store: ThumbnailStore = store_source_thumbnail,
         book_finder: BookFinder = find_google_book_sync,
         place_finder: PlaceFinder = find_google_place_sync,
     ) -> None:
@@ -46,11 +43,7 @@ class SourceIngestion:
         logger.info("Starting pipeline for source %s -> %s", source.id, source.canonical_url)
         result = self._extraction_runner(source.canonical_url)
         source.creator_handle = result.source_creator_handle
-        source.thumbnail_url = self._thumbnail_store(
-            result.thumbnail_url,
-            owner_id=source.id,
-            job_id=source.id,
-        )
+        source.thumbnail_url = self._thumbnail_store(result.thumbnail_url, source_id=source.id)
         if result.error:
             return fail_source_processing(session, source, result.error)
 
@@ -65,27 +58,12 @@ class SourceIngestion:
                 position=position,
             )
             if extracted.category == "book":
-                mention = Mention(
-                    owner_id=source.id,
-                    job_id=source.id,
-                    title=extracted.title,
-                    author=extracted.author,
-                    category=extracted.category,
-                    confidence=extracted.confidence,
-                    source_url=source.canonical_url,
-                )
-                enrich_extracted_book_mention(
+                enrich_extracted_book_item(
                     session,
-                    mention,
+                    item,
                     extracted,
                     book_finder=self._book_finder,
                 )
-                item.book_id = mention.book_id
-                item.title = mention.title
-                item.author = mention.author
-                item.google_books_url = mention.google_books_url
-                item.cover_image_url = mention.cover_image_url
-                item.confidence = mention.confidence
             elif extracted.category == "place":
                 enrich_extracted_place_item(
                     session,

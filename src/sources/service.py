@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from src.ids import parse_uuid
+from src.push.queue import enqueue_push_notification
 from src.sources.identity import identify_source
 from src.sources.models import SavedSource, Source, SourceItem, SourceStatus
 from src.sources.queue import enqueue_source_extraction
@@ -203,6 +204,7 @@ def complete_source_processing(
     for item in items:
         item.source_id = source_id
         session.add(item)
+    enqueue_push_notification(session, source_id)
     session.commit()
     return True
 
@@ -237,8 +239,18 @@ def fail_source_processing(session: Session, source: Source, error: str) -> bool
         return False
 
     session.expire(source)
+    enqueue_push_notification(session, source_id)
     session.commit()
     return True
+
+
+def claim_next_pending_source(session: Session) -> Source | None:
+    candidate = session.exec(
+        select(Source).where(Source.status == SourceStatus.PENDING).order_by(Source.created_at)
+    ).first()
+    if not candidate:
+        return None
+    return claim_source_for_processing(session, candidate.id)
 
 
 def recover_stale_sources(session: Session, stale_timeout_seconds: int = 900) -> int:

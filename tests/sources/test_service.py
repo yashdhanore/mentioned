@@ -182,6 +182,44 @@ def test_complete_source_processing_marks_done_and_persists_items(session: Sessi
     assert persisted_item.title == "Atomic Habits"
 
 
+def test_complete_source_processing_enqueues_push_notification_before_commit(
+    session: Session, monkeypatch
+) -> None:
+    saved = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/PUSHDONE/")
+    source = claim_source_for_processing(session, saved.source_id)
+    assert source is not None
+    enqueued: list[tuple[UUID, bool]] = []
+
+    def fake_enqueue(inner_session: Session, source_id) -> None:
+        enqueued.append((source_id, inner_session.in_transaction()))
+
+    monkeypatch.setattr("src.sources.service.enqueue_push_notification", fake_enqueue)
+
+    completed = complete_source_processing(session, source, [])
+
+    assert completed is True
+    assert enqueued == [(source.id, True)]
+
+
+def test_fail_source_processing_enqueues_push_notification_before_commit(
+    session: Session, monkeypatch
+) -> None:
+    saved = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/PUSHFAIL/")
+    source = claim_source_for_processing(session, saved.source_id)
+    assert source is not None
+    enqueued: list[tuple[UUID, bool]] = []
+
+    def fake_enqueue(inner_session: Session, source_id) -> None:
+        enqueued.append((source_id, inner_session.in_transaction()))
+
+    monkeypatch.setattr("src.sources.service.enqueue_push_notification", fake_enqueue)
+
+    failed = fail_source_processing(session, source, "network timeout")
+
+    assert failed is True
+    assert enqueued == [(source.id, True)]
+
+
 def test_complete_source_processing_persists_skip_reason(session: Session) -> None:
     saved = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/SKIPME/")
     source = claim_source_for_processing(session, saved.source_id)

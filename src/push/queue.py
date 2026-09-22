@@ -15,7 +15,7 @@ PUSH_NOTIFICATIONS_QUEUE = "push_notifications"
 @dataclass(frozen=True)
 class PushNotificationMessage:
     msg_id: int
-    job_id: UUID
+    source_id: UUID
     read_count: int
 
 
@@ -34,11 +34,11 @@ def _payload(value: object) -> dict[str, object]:
     raise ValueError("push notification queue message must be a JSON object")
 
 
-def enqueue_push_notification(session: Session, job_id: str | UUID) -> None:
+def enqueue_push_notification(session: Session, source_id: str | UUID) -> None:
     if not _is_postgres_session(session):
         return
 
-    message = json.dumps({"v": 1, "job_id": str(job_id)})
+    message = json.dumps({"v": 1, "source_id": str(source_id)})
     session.execute(
         text(
             """
@@ -92,7 +92,7 @@ def read_push_notification_messages(
         messages.append(
             PushNotificationMessage(
                 msg_id=int(row["msg_id"]),
-                job_id=parse_uuid(str(body["job_id"])),
+                source_id=parse_uuid(str(body["source_id"])),
                 read_count=int(row["read_ct"]),
             )
         )

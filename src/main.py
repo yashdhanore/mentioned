@@ -11,10 +11,8 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from src.account.router import router as account_router
 from src.config import get_settings
 from src.database import check_api_database_role, create_db_and_tables
-from src.jobs.exceptions import JobError
-from src.mentions.exceptions import MentionError
+from src.errors import AppError
 from src.push.router import router as push_router
-from src.sources.exceptions import SourceError
 from src.sources.router import router as sources_router
 from src.waitlist.router import router as waitlist_router
 
@@ -45,24 +43,8 @@ async def validation_exception_handler(_: object, __: RequestValidationError) ->
     )
 
 
-@app.exception_handler(JobError)
-async def job_error_handler(_: object, exc: JobError) -> JSONResponse:
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"error_code": exc.error_code, "message": exc.message},
-    )
-
-
-@app.exception_handler(MentionError)
-async def mention_error_handler(_: object, exc: MentionError) -> JSONResponse:
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"error_code": exc.error_code, "message": exc.message},
-    )
-
-
-@app.exception_handler(SourceError)
-async def source_error_handler(_: object, exc: SourceError) -> JSONResponse:
+@app.exception_handler(AppError)
+async def app_error_handler(_: object, exc: AppError) -> JSONResponse:
     return JSONResponse(
         status_code=exc.status_code,
         content={"error_code": exc.error_code, "message": exc.message},

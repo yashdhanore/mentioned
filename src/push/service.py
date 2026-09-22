@@ -1,12 +1,20 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from uuid import UUID
 
 from sqlmodel import Session, select
 
 from src.ids import parse_uuid
 from src.push.models import PushToken
+from src.sources.models import SavedSource
 from src.timeutils import utc_now
+
+
+@dataclass(frozen=True)
+class SourcePushTarget:
+    saved_source_id: UUID
+    expo_push_tokens: list[str] = field(default_factory=list)
 
 
 def register_push_token(
@@ -64,16 +72,19 @@ def disable_push_token(
     return True
 
 
-def list_active_push_tokens(session: Session, owner_id: UUID) -> list[str]:
+def list_push_targets_for_source(session: Session, source_id: UUID) -> list[SourcePushTarget]:
     stmt = (
-        select(PushToken.expo_push_token)
-        .where(
-            PushToken.owner_id == owner_id,
-            PushToken.disabled_at.is_(None),
-        )
-        .order_by(PushToken.created_at)
+        select(SavedSource.id, PushToken.expo_push_token)
+        .join(PushToken, PushToken.owner_id == SavedSource.owner_id)
+        .where(SavedSource.source_id == source_id, PushToken.disabled_at.is_(None))
     )
-    return list(session.exec(stmt).all())
+    tokens_by_saved_source: dict[UUID, list[str]] = {}
+    for saved_source_id, expo_push_token in session.exec(stmt).all():
+        tokens_by_saved_source.setdefault(saved_source_id, []).append(expo_push_token)
+    return [
+        SourcePushTarget(saved_source_id=saved_source_id, expo_push_tokens=tokens)
+        for saved_source_id, tokens in tokens_by_saved_source.items()
+    ]
 
 
 def disable_push_token_value(session: Session, expo_push_token: str) -> bool:

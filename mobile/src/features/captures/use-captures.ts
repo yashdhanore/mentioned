@@ -46,7 +46,6 @@ type UseCapturesResult = {
   clearSharedCaptureError: () => void;
   refreshCaptures: (options?: { silent?: boolean }) => Promise<void>;
   openCapture: (capture: Capture) => void;
-  openCaptureByJobId: (jobId: string) => Promise<void>;
   openCaptureBySavedSourceId: (savedSourceId: string) => Promise<void>;
   submitPasteUrl: () => Promise<boolean>;
   submitSharedUrl: (sourceUrl: string) => Promise<boolean>;
@@ -166,13 +165,6 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
       await refreshCaptureById(savedSourceId, { select: true });
     },
     [refreshCaptureById],
-  );
-
-  const openCaptureByJobId = useCallback(
-    async (jobId: string) => {
-      await openCaptureBySavedSourceId(jobId);
-    },
-    [openCaptureBySavedSourceId],
   );
 
   const setPasteUrl = useCallback((value: string) => {
@@ -321,7 +313,6 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
     clearSharedCaptureError,
     refreshCaptures,
     openCapture,
-    openCaptureByJobId,
     openCaptureBySavedSourceId,
     submitPasteUrl,
     submitSharedUrl,

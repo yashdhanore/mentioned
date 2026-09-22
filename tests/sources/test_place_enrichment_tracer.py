@@ -76,7 +76,7 @@ async def test_place_enrichment_flows_from_worker_to_http(client, session: Sessi
                 )
             ],
         ),
-        thumbnail_store=lambda _url, *, owner_id, job_id: None,
+        thumbnail_store=lambda _url, *, source_id: None,
         place_finder=lambda _name, _hint: _google_place(),
     ).process_source(session, source)
 
@@ -109,7 +109,7 @@ async def test_mixed_source_tracer_book_place_product_over_http(client, session:
                 ExtractedMention(title="Oura Ring", category="product", confidence=0.9),
             ],
         ),
-        thumbnail_store=lambda _url, *, owner_id, job_id: None,
+        thumbnail_store=lambda _url, *, source_id: None,
         book_finder=lambda _title, _author: _google_book(),
         place_finder=lambda _name, _hint: _google_place(),
     ).process_source(session, source)

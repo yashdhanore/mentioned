@@ -101,11 +101,6 @@ export function extractSharedSourceUrl(payload: SharedSourcePayload): string | n
   return null;
 }
 
-export function sharedUrlFromMentionedDeepLink(rawUrl: string): string | null {
-  const result = parseMentionedShareDeepLink(rawUrl);
-  return result.type === 'valid' ? result.sourceUrl : null;
-}
-
 export function parseMentionedShareDeepLink(rawUrl: string): MentionedShareDeepLinkParseResult {
   return parseMentionedShareDeepLinkWithDepth(rawUrl, 0);
 }

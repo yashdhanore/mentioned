@@ -1,15 +1,17 @@
 # Backend Agent Guide
 
-`src/` contains the FastAPI backend, worker, SQLModel data access, job queues, auth, mentions, books, push notifications, storage helpers, waitlist endpoints, and extraction integration points.
+`src/` contains the FastAPI backend, worker, SQLModel data access, saved-source queues, auth, books, places, push notifications, storage helpers, waitlist endpoints, and extraction integration points.
+The live contract is `sources` / `source_items` / `saved_sources` (`src/sources/`); the legacy `jobs`/`mentions` compatibility surface was removed on 2026-09-21 (see the dated note in `docs/strategy/technical.md`).
 Saved source ingestion behavior lives under `src/ingestion/`; keep `src/worker.py` focused on process wiring.
-Job response assembly lives in `src/jobs/read_models.py`; keep routers focused on HTTP/auth/quota adapters.
+Saved-source response assembly lives in `src/sources/read_models.py`; keep routers focused on HTTP/auth/quota adapters.
 Book enrichment behavior lives under `src/books/`; keep provider-specific fetch/parsing out of ingestion callers.
+Shared HTTP error types live in `src/errors.py` (`AppError`); domain modules subclass it and `src/main.py` registers one exception handler for the whole hierarchy.
 
 ## Commands
 
 - Run the API from the repo root with `fastapi dev`.
 - Run the worker with `mentioned-worker` or `python -m src.worker`.
-- Run backend tests with `pytest`; narrow with a path such as `pytest tests/jobs`.
+- Run backend tests with `pytest`; narrow with a path such as `pytest tests/sources`.
 
 ## Backend Patterns
 

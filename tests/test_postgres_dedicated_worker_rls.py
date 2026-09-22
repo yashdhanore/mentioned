@@ -60,21 +60,44 @@ def _role_flags(engine) -> dict[str, object]:
         )
 
 
-def _insert_job(connection, *, job_id: str, owner_id: str, source_url: str) -> None:
+def _insert_saved_source(
+    connection, *, saved_source_id: str, source_id: str, owner_id: str, canonical_url: str
+) -> None:
     connection.execute(
         text(
             """
-            insert into public.jobs (id, owner_id, source_url, status)
-            values (:job_id, :owner_id, :source_url, 'pending')
+            insert into public.sources
+              (id, source_key, platform, source_type, external_id, canonical_url)
+            values
+              (:source_id, :source_key, 'instagram', 'reel', :source_id, :canonical_url)
             """
         ),
-        {"job_id": job_id, "owner_id": owner_id, "source_url": source_url},
+        {
+            "source_id": source_id,
+            "source_key": f"instagram:reel:{source_id}",
+            "canonical_url": canonical_url,
+        },
+    )
+    connection.execute(
+        text(
+            """
+            insert into public.saved_sources (id, owner_id, source_id)
+            values (:saved_source_id, :owner_id, :source_id)
+            """
+        ),
+        {"saved_source_id": saved_source_id, "owner_id": owner_id, "source_id": source_id},
     )
 
 
-def _delete_jobs(connection, job_ids: list[str]) -> None:
-    for job_id in job_ids:
-        connection.execute(text("delete from public.jobs where id = :job_id"), {"job_id": job_id})
+def _delete_saved_sources_and_sources(connection, source_ids: list[str]) -> None:
+    for source_id in source_ids:
+        connection.execute(
+            text("delete from public.saved_sources where source_id = :source_id"),
+            {"source_id": source_id},
+        )
+        connection.execute(
+            text("delete from public.sources where id = :source_id"), {"source_id": source_id}
+        )
 
 
 def _uuid_strings(values) -> list[str]:
@@ -90,30 +113,37 @@ def test_api_and_worker_roles_do_not_bypass_rls(api_engine, worker_engine) -> No
 def test_api_role_requires_and_honors_rls_context(admin_engine, api_engine) -> None:
     user_a = str(uuid4())
     user_b = str(uuid4())
-    job_a = str(uuid4())
-    job_b = str(uuid4())
-    job_ids = [job_a, job_b]
+    source_a = str(uuid4())
+    source_b = str(uuid4())
+    saved_a = str(uuid4())
+    saved_b = str(uuid4())
+    source_ids = [source_a, source_b]
 
     with admin_engine.begin() as connection:
-        _insert_job(
+        _insert_saved_source(
             connection,
-            job_id=job_a,
+            saved_source_id=saved_a,
+            source_id=source_a,
             owner_id=user_a,
-            source_url="https://www.instagram.com/reel/APIA/",
+            canonical_url="https://www.instagram.com/reel/APIA/",
         )
-        _insert_job(
+        _insert_saved_source(
             connection,
-            job_id=job_b,
+            saved_source_id=saved_b,
+            source_id=source_b,
             owner_id=user_b,
-            source_url="https://www.instagram.com/reel/APIB/",
+            canonical_url="https://www.instagram.com/reel/APIB/",
         )
 
     try:
         with api_engine.begin() as connection:
             rows = (
                 connection.execute(
-                    text("select id from public.jobs where id in (:job_a, :job_b) order by id"),
-                    {"job_a": job_a, "job_b": job_b},
+                    text(
+                        "select id from public.saved_sources where id in (:saved_a, :saved_b) "
+                        "order by id"
+                    ),
+                    {"saved_a": saved_a, "saved_b": saved_b},
                 )
                 .scalars()
                 .all()
@@ -127,65 +157,65 @@ def test_api_role_requires_and_honors_rls_context(admin_engine, api_engine) -> N
             )
             rows = (
                 connection.execute(
-                    text("select id from public.jobs where id in (:job_a, :job_b) order by id"),
-                    {"job_a": job_a, "job_b": job_b},
+                    text(
+                        "select id from public.saved_sources where id in (:saved_a, :saved_b) "
+                        "order by id"
+                    ),
+                    {"saved_a": saved_a, "saved_b": saved_b},
                 )
                 .scalars()
                 .all()
             )
-            assert _uuid_strings(rows) == [job_a]
+            assert _uuid_strings(rows) == [saved_a]
     finally:
         with admin_engine.begin() as connection:
-            _delete_jobs(connection, job_ids)
+            _delete_saved_sources_and_sources(connection, source_ids)
 
 
 def test_worker_role_can_process_without_user_rls_context(admin_engine, worker_engine) -> None:
     owner_id = str(uuid4())
-    job_id = str(uuid4())
-    mention_id = str(uuid4())
+    source_id = str(uuid4())
+    item_id = str(uuid4())
 
     with admin_engine.begin() as connection:
-        _insert_job(
+        _insert_saved_source(
             connection,
-            job_id=job_id,
+            saved_source_id=str(uuid4()),
+            source_id=source_id,
             owner_id=owner_id,
-            source_url="https://www.instagram.com/reel/WORKER/",
+            canonical_url="https://www.instagram.com/reel/WORKER/",
         )
 
     try:
         with worker_engine.begin() as connection:
-            updated_job_id = connection.execute(
+            updated_source_id = connection.execute(
                 text(
                     """
-                    update public.jobs
-                    set locked_by = 'worker-proof', locked_at = now(), heartbeat_at = now()
-                    where id = :job_id
+                    update public.sources
+                    set status = 'processing', processing_started_at = now()
+                    where id = :source_id
                     returning id
                     """
                 ),
-                {"job_id": job_id},
+                {"source_id": source_id},
             ).scalar_one()
-            assert str(updated_job_id) == job_id
+            assert str(updated_source_id) == source_id
 
             connection.execute(
                 text(
                     """
-                    insert into public.mentions
-                      (id, owner_id, job_id, title, category, source_url)
-                    values
-                      (:mention_id, :owner_id, :job_id, 'RLS Proof', 'book',
-                       'https://www.instagram.com/reel/WORKER/')
+                    insert into public.source_items (id, source_id, category, title)
+                    values (:item_id, :source_id, 'book', 'RLS Proof')
                     """
                 ),
                 {
-                    "mention_id": mention_id,
-                    "owner_id": owner_id,
-                    "job_id": job_id,
+                    "item_id": item_id,
+                    "source_id": source_id,
                 },
             )
     finally:
         with admin_engine.begin() as connection:
-            _delete_jobs(connection, [job_id])
+            _delete_saved_sources_and_sources(connection, [source_id])
 
 
 def test_anon_and_authenticated_roles_cannot_read_tables(admin_engine) -> None:
@@ -194,7 +224,7 @@ def test_anon_and_authenticated_roles_cannot_read_tables(admin_engine) -> None:
             with admin_engine.begin() as connection:
                 connection.execute(text(f"set local role {role_name}"))
                 with pytest.raises(DBAPIError):
-                    connection.execute(text("select count(*) from public.jobs")).scalar_one()
+                    connection.execute(text("select count(*) from public.sources")).scalar_one()
         except DBAPIError as exc:
             if "permission denied to set role" in str(exc).casefold():
                 pytest.skip(f"Admin test role cannot SET ROLE {role_name}")

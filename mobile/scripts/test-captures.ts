@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict';
 
 import {
-  buildCapturesFromSavedSources,
   captureFromSavedSource,
-  captureFromSavedSourceCreated,
   mapsUrlForMention,
+  mergeSavedSourcesWithCaptures,
 } from '../src/captures';
 import type { SavedSourceResponse } from '../src/api';
 
@@ -22,7 +21,7 @@ const savedSource: SavedSourceResponse = {
   items: [],
 };
 
-const createdCapture = captureFromSavedSourceCreated({
+const createdCapture = captureFromSavedSource({
   ...savedSource,
   id: '22222222-2222-4222-8222-222222222222',
   status: 'processing',
@@ -46,7 +45,7 @@ const failedCapture = captureFromSavedSource({
 });
 assert.equal(failedCapture.status, 'failed');
 
-const failedCreatedCapture = captureFromSavedSourceCreated({
+const failedCreatedCapture = captureFromSavedSource({
   ...savedSource,
   id: '99999999-9999-4999-8999-999999999990',
   status: 'failed',
@@ -56,7 +55,7 @@ assert.equal(failedCreatedCapture.status, 'failed');
 assert.equal(failedCreatedCapture.errorMessage, 'Could not process this Reel.');
 
 assert.deepEqual(
-  buildCapturesFromSavedSources([savedSource]).map((capture) => capture.id),
+  mergeSavedSourcesWithCaptures([savedSource], []).map((capture) => capture.id),
   [savedSource.id],
 );
 

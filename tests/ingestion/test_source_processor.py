@@ -54,7 +54,7 @@ def test_source_processor_writes_canonical_source_items(session: Session) -> Non
                 )
             ],
         ),
-        thumbnail_store=lambda _url, *, owner_id, job_id: "https://cdn.example/thumb.jpg",
+        thumbnail_store=lambda _url, *, source_id: "https://cdn.example/thumb.jpg",
         book_finder=lambda _title, _author: None,
     )
 
@@ -97,7 +97,7 @@ def test_source_processor_copies_google_books_enrichment_to_source_item(session:
                 )
             ],
         ),
-        thumbnail_store=lambda _url, *, owner_id, job_id: None,
+        thumbnail_store=lambda _url, *, source_id: None,
         book_finder=lambda _title, _author: _google_book(),
     )
 

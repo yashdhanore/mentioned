@@ -7,6 +7,7 @@ import {
   createPendingSharedSourceStore,
   type PendingSharedSource,
 } from '@/features/captures/pending-shared-source';
+import { decideIncomingShareLink } from '@/features/captures/shared-source-intake-logic';
 import { parseMentionedShareDeepLink } from '@/utils/shared-source-url';
 
 type PendingSharedSourceState = PendingSharedSource & {
@@ -94,11 +95,19 @@ export function useSharedSourceIntake({
   const handleIncomingShareLink = useCallback(
     (url: string) => {
       const result = parseMentionedShareDeepLink(url);
-      if (result.type === 'non-share-link') {
+      const decision = decideIncomingShareLink(result, {
+        handledSharedSourceKeys: handledSharedSourceKeysRef.current,
+        pendingSourceKey: pendingSharedSourceRef.current?.sourceKey ?? null,
+        inFlightShareKey: inFlightShareKeyRef.current,
+        isAuthLoading: authStateRef.current.isAuthLoading,
+        isSignedIn: authStateRef.current.isSignedIn,
+      });
+
+      if (decision.type === 'non-share-link' || decision.type === 'duplicate') {
         return;
       }
 
-      if (result.type === 'invalid-share-link') {
+      if (decision.type === 'invalid-share-link') {
         setSelectedCaptureId(null);
         setShareLinkError(INVALID_SHARED_SOURCE_MESSAGE);
         setSharedCaptureError(INVALID_SHARED_SOURCE_MESSAGE);
@@ -106,22 +115,14 @@ export function useSharedSourceIntake({
         return;
       }
 
-      const sourceKey = result.sourceUrl;
-      if (
-        handledSharedSourceKeysRef.current.has(sourceKey) ||
-        pendingSharedSourceRef.current?.sourceKey === sourceKey ||
-        inFlightShareKeyRef.current === sourceKey
-      ) {
-        return;
-      }
-
+      const { sourceUrl, sourceKey, immediate } = decision;
       clearSharedCaptureError();
       setShareLinkError(null);
       inFlightShareKeyRef.current = sourceKey;
 
-      if (!authStateRef.current.isAuthLoading && authStateRef.current.isSignedIn) {
+      if (immediate) {
         setPendingSharedSource({
-          sourceUrl: result.sourceUrl,
+          sourceUrl,
           sourceKey,
           createdAtMs: Date.now(),
           shouldAutoSubmit: true,
@@ -130,7 +131,7 @@ export function useSharedSourceIntake({
       }
 
       void pendingSharedSourceStore
-        .save(result.sourceUrl)
+        .save(sourceUrl)
         .then((source) => {
           setPendingSharedSource((currentSource) => {
             if (currentSource && currentSource.createdAtMs > source.createdAtMs) {
@@ -145,7 +146,7 @@ export function useSharedSourceIntake({
           }
           setPendingSharedSource((currentSource) =>
             currentSource ?? {
-              sourceUrl: result.sourceUrl,
+              sourceUrl,
               sourceKey,
               createdAtMs: Date.now(),
               shouldAutoSubmit: authStateRef.current.isAuthLoading,

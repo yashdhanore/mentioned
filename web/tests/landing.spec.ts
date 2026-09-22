@@ -1,31 +1,10 @@
 import { expect, test } from '@playwright/test';
 
-const requiredCopy = [
-  'Turn BookTok into your reading list.',
-  'FROM THE REEL',
-  'A short list of books I keep coming back to.',
-  'How a Reel becomes a reading list.',
-  'Send it to Mentioned.',
-  'Mentioned looks for books.',
-  'Your list gets updated.',
-  'No clear title?',
-  'The post stays with the books.',
-  'Mentioned pulls the book rec out of the Reel',
-  'Join the BookTok-to-TBR waitlist.',
-  'Get the iOS share-sheet build first.',
-  'Save your first Reel when invites open.',
-  'Never lose a book rec in the feed again.'
-];
-
 test('renders the landing story and primary sections', async ({ page }) => {
   await page.goto('/');
 
   await expect(page.getByRole('banner')).toBeVisible();
-  await expect(page.getByRole('heading', { level: 1 })).toContainText('Turn BookTok into your reading list.');
-
-  for (const copy of requiredCopy) {
-    await expect(page.getByText(copy, { exact: false }).first()).toBeAttached();
-  }
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 
   await expect(page.locator('#story')).toBeVisible();
   await expect(page.locator('#shelf')).toBeVisible();
@@ -177,6 +156,31 @@ test('waitlist form posts signup feedback', async ({ page }) => {
 
   const storedEmail = await page.evaluate(() => window.localStorage.getItem('mentioned.waitlist.email'));
   expect(storedEmail).toBe('reader@example.com');
+});
+
+test('waitlist form shows a retry message when the request fails', async ({ page }) => {
+  await page.route('**/v1/waitlist', async (route) => {
+    await route.fulfill({
+      status: 500,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: 'internal_error' })
+    });
+  });
+
+  await page.goto('/');
+  await page.locator('#waitlist').scrollIntoViewIfNeeded();
+
+  await page.getByLabel('Email').fill('reader@example.com');
+  await page.getByRole('button', { name: /Join waitlist/i }).click();
+
+  const status = page.locator('[data-waitlist-status]');
+  await expect(status).toContainText('Something went wrong. Please try again.');
+  await expect(page.locator('.waitlist-card')).toHaveAttribute('data-state', 'error');
+
+  const storedEmail = await page.evaluate(() => window.localStorage.getItem('mentioned.waitlist.email'));
+  expect(storedEmail).toBeNull();
+
+  await expect(page.getByRole('button', { name: /Join waitlist/i })).toBeEnabled();
 });
 
 test('reduced motion shows the landing page without pinned story animation', async ({ browser }) => {

@@ -31,8 +31,9 @@ Mentioned is a FastAPI, Supabase, Expo, and Astro product for extracting books, 
 - Run the worker: `mentioned-worker` or `python -m src.worker`
 - Run backend tests: `pytest`
 - Lint/format the backend: `ruff check .` and `ruff format --check .`
-- Run mobile checks from `mobile/`: `npm test` (focused scripts plus `typecheck`)
-- Run web checks from `web/`: `npm test`
+- Run mobile checks from `mobile/`: `npm test` (focused scripts plus `lint` and `typecheck`); lint alone with `npm run lint`, format check with `npm run format:check`.
+- Run web checks from `web/`: `npm test` (typecheck, build, and Playwright e2e)
+- CI runs the backend, mobile, and web checks on every pull request and push to `main`; see `.github/workflows/ci.yml`.
 
 ## Shipping Expectations
 

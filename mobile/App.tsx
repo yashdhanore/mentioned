@@ -118,7 +118,7 @@ export default function App() {
     setProfileError(null);
     setConfirmingDeleteAccount(false);
     setSheet(null);
-  }, []);
+  }, [setProfileError]);
 
   const openPasteSheet = useCallback(() => {
     clearSharedCaptureError();

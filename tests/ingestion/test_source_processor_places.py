@@ -59,7 +59,7 @@ def test_place_mention_routes_through_place_enrichment(session: Session) -> None
                 )
             ],
         ),
-        thumbnail_store=lambda _url, *, owner_id, job_id: None,
+        thumbnail_store=lambda _url, *, source_id: None,
         place_finder=lambda _name, _hint: _google_place(),
     )
 
@@ -89,7 +89,7 @@ def test_mixed_source_enriches_book_and_place_leaves_product(session: Session) -
                 ExtractedMention(title="Oura Ring", category="product", confidence=0.9),
             ],
         ),
-        thumbnail_store=lambda _url, *, owner_id, job_id: None,
+        thumbnail_store=lambda _url, *, source_id: None,
         book_finder=lambda _title, _author: _google_book(),
         place_finder=lambda _name, _hint: _google_place(),
     )
@@ -123,7 +123,7 @@ def test_place_finder_miss_leaves_bare_title(session: Session) -> None:
         extraction_runner=lambda _url: PipelineResult(
             mentions=[ExtractedMention(title="Some Cafe", category="place", confidence=0.8)],
         ),
-        thumbnail_store=lambda _url, *, owner_id, job_id: None,
+        thumbnail_store=lambda _url, *, source_id: None,
         place_finder=lambda _name, _hint: None,
     )
 

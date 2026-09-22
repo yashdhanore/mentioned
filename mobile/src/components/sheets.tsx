@@ -15,10 +15,10 @@ import * as Linking from 'expo-linking';
 
 import { styles as sharedStyles } from '@/styles';
 import { styles as localStyles } from './sheets.styles';
-
-const styles = { ...sharedStyles, ...localStyles };
 import { colors } from '@/theme';
 import { InlineMessage, PrimaryButton } from '@/components/ui';
+
+const styles = { ...sharedStyles, ...localStyles };
 
 export function ProfileSheet({
   visible,

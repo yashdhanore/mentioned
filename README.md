@@ -1,12 +1,78 @@
-# Mentioned Backend
+# Mentioned
 
-Validation scaffold for a backend that turns public Instagram Reel and post URLs into readable
-text extracted from captions, media metadata, frames, and post images.
+[![CI](https://github.com/yashdhanore/mentioned/actions/workflows/ci.yml/badge.svg)](https://github.com/yashdhanore/mentioned/actions/workflows/ci.yml)
+
+Mentioned turns Instagram Reels and posts you save into a list of the books, products, and places they mention.
+Share a Reel or post from Instagram (or paste its link) and Mentioned downloads the media, asks Gemini what is being recommended, and saves the results against your account so you can find them again later.
+It currently supports public Instagram Reel and post URLs only; the backend rejects every other host and every other Instagram content type.
+
+## How it works
+
+1. You share an Instagram Reel or post from the native share sheet (`mobile/ShareExtension.tsx`), or paste the link into the app.
+2. The app calls `POST /v1/saved-sources` with the URL.
+3. The API normalizes and validates the URL as a public Instagram Reel or post (`src/extraction/url.py`), then resolves it to a canonical source identity such as `instagram:reel:<shortcode>` (`src/sources/identity.py`).
+4. If another user already saved the same canonical source, the API just links your account to the existing source and its existing extraction; nobody pays to extract the same Reel twice (`src/sources/service.py`, `save_source_for_user`).
+5. For a source nobody has saved before, the API inserts the `sources` row and sends a pgmq message on the `extract_sources` queue in the same database transaction, so a save can never be recorded without extraction work being queued (`src/sources/queue.py`).
+6. The worker claims the source with an atomic `UPDATE ... WHERE status = 'pending' ... RETURNING` so two workers can never process the same source at once (`src/sources/service.py`, `claim_source_for_processing`).
+7. A cheap relevance gate looks at the caption and thumbnail and can skip extraction when it is confident there is nothing to find; any doubt falls through to full extraction (`src/extraction/relevance.py`).
+8. `yt-dlp` downloads the Reel or post media (`src/extraction/download.py`), and Gemini reads the video/images and returns structured book, product, and place mentions (`src/extraction/gemini.py`).
+9. Book mentions are enriched against the Google Books API for cover art and metadata (`src/books/enrichment.py`).
+10. The worker writes the result back to `sources`/`source_items` and enqueues a push-notification fan-out to every user who saved that source (`src/push/service.py`, `src/push/worker.py`).
+11. The app reads `GET /v1/saved-sources` to show saved Reels/posts and their extracted items.
+
+```mermaid
+flowchart LR
+    App[Expo app or share extension] -->|POST /v1/saved-sources| API[FastAPI API]
+    API --> DB[(Postgres + pgmq)]
+    API -->|auth| Auth[Supabase Auth]
+    DB -->|extract_sources queue| Worker[Worker]
+    Worker --> Gemini[Gemini]
+    Worker --> Books[Google Books]
+    Worker --> DB
+    Worker -->|thumbnails| Storage[Supabase Storage]
+    Worker -->|push_notifications queue| Push[Expo push]
+    App -->|GET /v1/saved-sources| API
+    Push --> App
+```
+
+## Repository layout
+
+| Path | Contents |
+| --- | --- |
+| `src/` | FastAPI API, worker, extraction pipeline, auth, push, storage. See `src/AGENTS.md`. |
+| `migrations/` | Alembic revisions; the source of truth for tables, grants, and row-level security policies. See `docs/adr/0001-alembic-is-the-schema-source-of-truth.md`. |
+| `tests/` | Backend pytest suite, mirroring the `src/` layout. |
+| `mobile/` | Expo/React Native iOS app and share extension. See `mobile/README.md`. |
+| `web/` | Astro landing page and waitlist form. |
+| `supabase/` | Supabase CLI config for the local stack, plus the few Supabase-side migrations (thumbnail storage bucket, waitlist table). |
+| `scripts/` | Release checks, smoke tests, local dev scripts, eval tooling. |
+| `evals/` | Reel lists and run notes for evaluating extraction quality across Gemini models. |
+| `docs/` | Deployment runbook, architecture decision records, product/technical strategy notes. |
+| `.agents/` | Shared agent commands and skills used by coding agents working in this repo. |
+
+## Engineering notes
+
+A few decisions worth a closer look if you are reviewing this code:
+
+- **Transactional outbox for extraction.** `save_source_for_user` inserts the new `sources` row and sends the pgmq message in the same transaction, committing once, so the enqueue failing rolls back the whole save instead of leaving an unqueued row (`src/sources/service.py`; proven by `tests/sources/test_service.py::test_save_source_for_user_rolls_back_when_enqueue_fails`).
+- **Atomic source claiming with a stale-attempt guard.** `claim_source_for_processing` is a single `UPDATE ... WHERE status = 'pending' ... RETURNING`, and `complete_source_processing`/`fail_source_processing` only finalize a source if it is still in the exact `processing_started_at` attempt the worker claimed, so a slow or duplicated worker can't clobber a newer attempt (`src/sources/service.py`; race tests in `tests/sources/test_service.py`).
+- **Least-privilege, per-request database roles.** The API and worker connect as separate non-superuser, non-`BYPASSRLS` Postgres roles, with startup refusing to boot in production if either role has elevated privileges, and row-level security context is set per transaction via `set_config('app.current_user_id', ...)` in a SQLAlchemy `after_begin` hook rather than once per connection (`src/database.py`).
+- **Thumbnail fetcher hardened against SSRF.** Thumbnails are only fetched from an allowlisted Instagram CDN host suffix, redirects are followed manually and re-validated against the same allowlist, only a fixed set of image content types is accepted, and the response body is streamed with a hard byte cap instead of trusting `Content-Length` (`src/storage/thumbnails.py`).
+- **Relevance gate with a shadow mode.** Before the expensive Gemini video call, a cheap caption+thumbnail check can skip extraction, but only in `active` mode and only on a confident `irrelevant` verdict; `shadow` mode logs the verdict without skipping anything, so the gate can be evaluated before it affects users (`src/extraction/relevance.py`).
+- **A release gate script instead of a manual checklist.** `scripts/check_release_env.py` checks the production environment shape (auth mode, HTTPS enforcement, distinct database roles, CORS/host allowlists, rate-limit guardrails, worker replica count) without printing secrets, and is meant to run before every beta deploy.
+- **A strict allowlist for shared URLs on the client.** The share extension and paste-link flow both run shared text through the same parser, which only accepts `https://instagram.com` or `https://www.instagram.com` URLs with a `/reel/` or `/p/` path before it ever reaches the API (`mobile/src/utils/shared-source-url.ts`).
+
+## Known limitations
+
+- Place enrichment is wired up end to end but the actual Google Places lookup is a stub that always returns nothing (`src/places/enrichment.py`, `find_google_place_sync`); place mentions are stored without address or map data today.
+- The worker is single-process and deployed as exactly one Render instance (`render.yaml`, `numInstances: 1`); there is no bounded-concurrency or multi-worker extraction path yet.
+- `EXTRACTION_BACKEND=local` is a stub for offline development; it always returns zero mentions rather than running any real extraction (`src/extraction/local_pipeline.py`).
+- Backend dependencies are lower-bound pinned with no lockfile, and `yt-dlp` is pulled from upstream `master` because Instagram currently requires a fix that has not shipped in a stable `yt-dlp` release yet (see the comment in `pyproject.toml`).
+- Only Instagram is supported, and every other host is rejected at the URL-validation layer (`src/extraction/url.py`).
 
 ## Local development (full stack)
 
-Run the API, worker, web app, and mobile app together against a local Postgres, so the real
-queue-based extraction pipeline runs the same way it does in production:
+Run the API, worker, web app, and mobile app together against a local Postgres, so the real queue-based extraction pipeline runs the same way it does in production:
 
 ```bash
 make dev       # starts everything
@@ -14,63 +80,35 @@ make dev-logs  # tail all logs together
 make dev-down  # stops everything; local DB state is kept for next time
 ```
 
-First run bootstraps a local Postgres via the Supabase CLI (`supabase start`), creates the
-`mentioned_api`/`mentioned_worker` roles, and applies all Alembic and Supabase-managed migrations
-automatically. Requires Docker and the Supabase CLI (`brew install supabase/tap/supabase`).
+First run bootstraps a local Postgres via the Supabase CLI (`supabase start`), creates the `mentioned_api`/`mentioned_worker` roles, and applies all Alembic and Supabase-managed migrations automatically.
+Requires Docker and the Supabase CLI (`brew install supabase/tap/supabase`).
 
-For the API and worker to actually use that Postgres instead of the SQLite default, add to your
-`.env`:
+For the API and worker to actually use that Postgres instead of the SQLite default, add to your `.env`:
 
 ```
 DATABASE_URL=postgresql://mentioned_api:local-dev-api-pw@127.0.0.1:54322/postgres
 WORKER_DATABASE_URL=postgresql://mentioned_worker:local-dev-worker-pw@127.0.0.1:54322/postgres
 ```
 
-Without this, the API still boots fine on SQLite, but saved sources will get stuck at `pending`
-forever: the source-extraction queue only works on Postgres (`pgmq`), so on SQLite
-`enqueue_source_extraction` (`src/sources/queue.py`) is a silent no-op.
+Without this, the API still boots fine on SQLite.
+On SQLite there is no pgmq, so `enqueue_source_extraction` is a silent no-op and the worker instead runs a polling loop that claims pending `Source` rows directly with the same atomic claim used in production (`src/worker.py`, `claim_next_pending_source`); saved sources still get processed, just serially and on a poll interval instead of through a queue.
 
-You'll also need a `GEMINI_API_KEY` (extraction fails without one — `EXTRACTION_BACKEND=local` is
-a stub that always returns zero mentions, not a working offline alternative), and `ffmpeg`
-installed for video transcoding. A `GOOGLE_BOOKS_API_KEY` is optional but recommended: without it,
-book cover/metadata lookups are unauthenticated and get rate-limited almost immediately.
+Real extraction needs `EXTRACTION_BACKEND=gemini` and a `GEMINI_API_KEY`, plus `ffmpeg` installed for video transcoding.
+`.env.example` ships `EXTRACTION_BACKEND=local`, which is a stub that always returns zero mentions, not a working offline alternative.
+A `GOOGLE_BOOKS_API_KEY` is optional but recommended: without it, book cover/metadata lookups are unauthenticated and get rate-limited almost immediately.
 
-## Run the API
+## Tests and checks
 
-```bash
-fastapi dev
-```
-
-Production schemas are managed with Alembic migrations:
+Backend:
 
 ```bash
-alembic upgrade head
+ruff check .
+ruff format --check .
+pytest
 ```
 
-Local SQLite auto-creates tables only when `AUTO_CREATE_TABLES=true`; production should use
-Postgres/Supabase with migrations applied before startup.
-
-## Run the worker
-
-```bash
-mentioned-worker
-```
-
-or equivalently `python -m src.worker`.
-
-In production, the API and worker must use separate, non-superuser, non-`BYPASSRLS` database
-roles (`DATABASE_URL` for the API, `WORKER_DATABASE_URL` for `mentioned-worker`); see
-[role setup](#create-supabase-roles) below. For v1 beta, frontend clients may use Supabase Auth
-only; direct Supabase table reads are forbidden.
-
-## Run tests
-
-```bash
-python -m pytest
-```
-
-The Postgres dedicated-role RLS proof is skipped unless admin/setup, API-role, and worker-role URLs
-are provided:
+`pytest` runs the FastAPI/worker/extraction test suite under `tests/`.
+An additional Postgres role/RLS proof is opt-in and skipped unless three admin-level connection strings are provided:
 
 ```bash
 POSTGRES_TEST_DATABASE_URL=postgresql://admin-or-owner-url \
@@ -79,191 +117,44 @@ POSTGRES_TEST_WORKER_DATABASE_URL=postgresql://mentioned_worker-url \
 python -m pytest tests/test_postgres_dedicated_worker_rls.py
 ```
 
-## Production release check
-
-Before a beta deploy, validate the production environment shape without printing secrets:
+Mobile, from `mobile/`:
 
 ```bash
-python scripts/check_release_env.py --env-file .env --worker-replicas 1
+npm test
 ```
 
-The same env check, role checks, and smoke test below are the App Store/TestFlight backend release
-gate.
+This runs five focused scripts (capture flow, shared-source intake, share URL parsing, pending shared source, Supabase config), then ESLint, then `tsc --noEmit`.
 
-Deploy exactly one worker replica for beta until worker claiming uses atomic `SKIP LOCKED`.
-
-## Deploy to Render + Supabase
-
-This repo includes a Dockerfile and `render.yaml` Blueprint for two Render services backed by one
-Supabase project:
-
-- `mentioned-api`: public FastAPI web service on Render Free.
-- `mentioned-worker`: private background worker on Render Starter that processes queued jobs.
-- Supabase: Postgres, Supabase Auth, and the production user database.
-
-Keep the worker at exactly one instance until worker claiming uses atomic `SKIP LOCKED`; this keeps
-Render compute to the worker cost only (about $7/month).
-
-### Create Supabase roles
-
-Run role setup and verification from a secure local shell with a database admin connection (not
-the application/migration role), keeping any role-password SQL out of the repository:
-
-```sql
-create role mentioned_api login password 'replace-with-strong-api-password' nosuperuser nobypassrls;
-create role mentioned_worker login password 'replace-with-strong-worker-password' nosuperuser nobypassrls;
-```
-
-Create these roles before running `alembic upgrade head`; Alembic manages the table grants and RLS
-policies for `jobs` and `mentions`. Verify each role with the exact connection string planned for
-that service:
-
-```sql
-select current_user, rolsuper, rolbypassrls from pg_roles where rolname = current_user;
-```
-
-Both `rolsuper` and `rolbypassrls` must be `false`. The API startup check rejects `DATABASE_URL` if
-the connected role is a superuser or has `BYPASSRLS`; the worker refuses to start in production
-unless `WORKER_DATABASE_URL` is set to an equally restricted role. Use three separate connection
-strings:
-
-- `DATABASE_URL`: connects as `mentioned_api` (used by the API).
-- `WORKER_DATABASE_URL`: connects as `mentioned_worker` (used by `mentioned-worker`).
-- `MIGRATION_DATABASE_URL`: connects as a Supabase owner/admin role, used only by the Render worker
-  predeploy command to run Alembic migrations.
-
-Use the Supabase Direct connection if your host supports IPv6, otherwise the Session Pooler; avoid
-the Transaction Pooler because SQLAlchemy keeps pooled connections and transaction pooling does not
-support all session behavior. For pooler URLs the username usually includes the project ref suffix,
-e.g. `mentioned_api.<project-ref>`.
-
-### Render Blueprint
-
-The root `render.yaml` defines one Docker web service (`mentioned-api`, Render Free), one Docker
-background worker (`mentioned-worker`, Render Starter), region `frankfurt` for both, `/health` as
-the API health check, `alembic upgrade head` as the worker predeploy migration command, and one
-worker instance.
-
-Render prompts for `sync: false` environment variables. Set runtime variables on both services, and
-set `MIGRATION_DATABASE_URL` plus `SUPABASE_SERVICE_ROLE_KEY` on the worker only:
-
-```text
-DATABASE_URL=postgresql://mentioned_api.../postgres
-WORKER_DATABASE_URL=postgresql://mentioned_worker.../postgres
-MIGRATION_DATABASE_URL=postgresql://postgres.../postgres
-SUPABASE_PROJECT_URL=https://<project-ref>.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=<worker-only-service-role-key>
-CORS_ALLOWED_ORIGINS=https://<your-web-origin>,http://localhost:8082,http://127.0.0.1:8082
-TRUSTED_HOSTS=mentioned-api.onrender.com,<your-custom-api-domain>
-GEMINI_API_KEY=<Gemini API key>
-GOOGLE_BOOKS_API_KEY=<optional Google Books API key>
-```
-
-`SUPABASE_SERVICE_ROLE_KEY` is used only by the worker to copy public Reel thumbnails into the
-public `job-thumbnails` Supabase Storage bucket; never set it in the mobile app or expose it to
-browser clients. The blueprint sets the required non-secret production flags (`APP_ENV=production`,
-`AUTH_MODE=supabase`, `AUTO_CREATE_TABLES=false`, `DOCS_ENABLED=false`,
-`SOURCE_REQUIRE_HTTPS=true`, `WORKER_REPLICAS=1`, `SUPABASE_JWT_AUDIENCE=authenticated`). For
-Supabase projects using JWT Signing Keys, no `SUPABASE_JWT_SECRET` is needed; the API verifies
-RS256/ES256 access tokens against Supabase's JWKS endpoint. If you rename the Render API service,
-update `TRUSTED_HOSTS` to match the actual Render hostname.
-
-Apply Supabase migrations (`supabase db push --dry-run` then `supabase db push`) before deploying
-the worker so the public thumbnail bucket exists.
-
-### Verify release shape
+Web, from `web/`:
 
 ```bash
-python scripts/check_release_env.py --env-file .env.production --worker-replicas 1
-POSTGRES_TEST_DATABASE_URL=postgresql://admin-or-owner-url \
-POSTGRES_TEST_API_DATABASE_URL=postgresql://mentioned_api-url \
-POSTGRES_TEST_WORKER_DATABASE_URL=postgresql://mentioned_worker-url \
-python -m pytest tests/test_postgres_dedicated_worker_rls.py
+npm test
 ```
 
-Then, after Render deploys, run the smoke test flow below against the deployed API. In Render,
-inspect deploy status, runtime logs, health checks, and recent deploy/error events to confirm both
-services deployed from the intended commit, the health check passed, the worker has one instance,
-migrations ran through the worker predeploy, and worker logs show queue claim, retry/failure, and
-archive paths clearly.
+This runs `astro check`, an `astro build`, and the Playwright end-to-end suite.
 
-### Mobile app configuration
-
-Native iOS and Android apps can use this backend; CORS is a browser concern, not a native mobile
-HTTP concern, but the API still enforces Supabase bearer tokens in production. Set the mobile build
-environment to:
-
-```text
-EXPO_PUBLIC_APP_ENV=production
-EXPO_PUBLIC_API_BASE_URL=https://mentioned-api.onrender.com
-EXPO_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
-EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<publishable-or-anon-key>
-```
-
-Production mobile builds intentionally reject local or non-HTTPS API URLs.
-
-## Smoke test the saved-source flow
-
-With the API and worker running, submit a real saved source, poll until terminal, verify extracted
-items, and prove another user cannot read the saved source:
-
-```bash
-TOKEN='paste-supabase-access-token'
-SECOND_TOKEN='paste-second-user-supabase-access-token'
-SOURCE_URL='https://www.instagram.com/reel/SHORTCODE/'
-python scripts/smoke_job_flow.py --require-items
-```
-
-Optional overrides:
-
-```bash
-python scripts/smoke_job_flow.py \
-  --api-base-url http://127.0.0.1:8000 \
-  --source-url "$SOURCE_URL" \
-  --token "$TOKEN" \
-  --timeout-seconds 600 \
-  --require-items
-```
+CI (`.github/workflows/ci.yml`) runs all three - backend, mobile, web - on every pull request and on every push to `main`.
 
 ## API
 
-- `POST /v1/saved-sources` saves an Instagram Reel/post URL and queues canonical extraction when needed.
-- `GET /v1/saved-sources` lists the authenticated user's saved sources.
-- `GET /v1/saved-sources/{saved_source_id}` returns source extraction status and extracted items.
-- `DELETE /v1/saved-sources/{saved_source_id}` unlinks that saved source for the authenticated user.
+Auth: `AUTH_MODE=supabase` in production, verifying the caller's Supabase access token as a bearer token; local development defaults to `AUTH_MODE=dev`, which either uses `DEV_USER_ID` or accepts `Authorization: Bearer dev:<uuid>` to simulate a different user.
 
-Current saved-source status values are `processing`, `done`, and `failed`.
+- `POST /v1/saved-sources` - save an Instagram Reel/post URL and queue extraction if it hasn't been saved by anyone yet.
+- `GET /v1/saved-sources` - list the authenticated user's saved sources.
+- `GET /v1/saved-sources/{saved_source_id}` - get one saved source's status and extracted items.
+- `DELETE /v1/saved-sources/{saved_source_id}` - unlink that saved source for the authenticated user.
+- `DELETE /v1/account` - delete the caller's owned data (saved sources, push tokens) and their Supabase auth user.
+- `POST /v1/push-tokens` / `POST /v1/push-tokens/disable` - register or disable an Expo push token.
+- `POST /v1/waitlist` - record a waitlist signup from the landing page.
 
-Public endpoints use Supabase Auth in production (`AUTH_MODE=supabase`). Local development defaults
-to `AUTH_MODE=dev`; omit `Authorization` to use `DEV_USER_ID`, or pass
-`Authorization: Bearer dev:<uuid>` to simulate a different user.
+## Deployment
 
-Extraction uses `yt-dlp` to download Instagram media and Gemini to identify mentioned books,
-products, and places. Configure `GEMINI_API_KEY` or Vertex AI settings before running the worker.
+Mentioned deploys as three Render services (a static web build, the API, and the worker) against one Supabase project, with Alembic migrations applied by the worker's pre-deploy step.
+See [`docs/deployment.md`](docs/deployment.md) for Supabase role setup, the full Render environment variable list, the release verification steps, mobile build configuration, and the saved-source smoke test.
 
-## Run the Landing Page
+## Working with AI agents
 
-The consumer landing page lives in `web/` as a static Astro app. It is separate from the FastAPI API and the Expo mobile app.
-
-```bash
-cd web
-npm install
-npm run dev
-```
-
-Useful checks:
-
-```bash
-cd web
-npm run verify:content
-npm run typecheck
-npm run build
-npm run test:e2e
-```
-
-To capture local review screenshots, start the dev server in one terminal and run:
-
-```bash
-cd web
-npm run capture:screens
-```
+This repo is set up to be worked on by coding agents as well as people.
+`AGENTS.md` at the root and in nested directories are the instructions coding agents are expected to follow for that part of the codebase; `CLAUDE.md` at the root is a symlink to the same file.
+`.agents/` holds commands and skills shared across agent tools, with `.claude/` and `.cursor/` symlinked into it so different tools see the same instructions.
+`docs/strategy/product.md` and `docs/strategy/technical.md` are the running decision log for product and technical choices, including approaches that were considered and rejected; `docs/adr/` holds shorter, single-decision architecture records.
