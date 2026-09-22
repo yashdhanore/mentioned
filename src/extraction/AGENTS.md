@@ -16,5 +16,7 @@
 - Run targeted extraction tests with `pytest tests/extraction`.
 - Score a comparison run against labels with `python scripts/score_extraction_eval.py --results outputs/<run>/result.json`; run it without `--results` to validate labels and see coverage.
 - Compare Gemini video extraction models on one or more sources with `python scripts/compare_gemini_video_models.py <instagram-url> [...]`.
+- When iterating on `EXTRACTION_PROMPT`, pass `--media-dir <dir> --reuse-media` so reruns use the saved media instead of downloading from Instagram again, then score before and after on the same media.
+- A model appearing in `client.models.list()` does not mean it is callable; Google retires models per key (`gemini-2.5-flash-lite` lists but returns 404). Confirm a new `GEMINI_MODEL`/`GEMINI_GATE_MODEL` with a real `generate_content` call.
 - Media extraction paths may require local `ffmpeg` and `yt-dlp`.
 - Update this guide when extraction commands, artifact shape, provider behavior, or required local tools change.
