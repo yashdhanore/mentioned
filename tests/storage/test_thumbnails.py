@@ -3,6 +3,7 @@ from __future__ import annotations
 from uuid import UUID
 
 import httpx
+import pytest
 import respx
 
 from src.config import AuthConfig, Settings
@@ -26,16 +27,24 @@ class FakeBucket:
 class FakeStorage:
     def __init__(self, bucket: FakeBucket) -> None:
         self.bucket = bucket
-        self.bucket_name: str | None = None
 
-    def from_(self, bucket_name: str) -> FakeBucket:
-        self.bucket_name = bucket_name
+    def from_(self, _bucket_name: str) -> FakeBucket:
         return self.bucket
 
 
 class FakeSupabaseClient:
     def __init__(self, bucket: FakeBucket) -> None:
         self.storage = FakeStorage(bucket)
+
+
+@pytest.fixture
+def bucket(monkeypatch) -> FakeBucket:
+    bucket = FakeBucket()
+    monkeypatch.setattr(
+        "src.storage.thumbnails.create_client",
+        lambda _url, _key: FakeSupabaseClient(bucket),
+    )
+    return bucket
 
 
 def settings_with_storage_key() -> Settings:
@@ -48,12 +57,7 @@ def settings_with_storage_key() -> Settings:
 
 
 @respx.mock
-def test_store_source_thumbnail_uploads_valid_cdn_image(monkeypatch):
-    bucket = FakeBucket()
-    monkeypatch.setattr(
-        "src.storage.thumbnails.create_client",
-        lambda _url, _key: FakeSupabaseClient(bucket),
-    )
+def test_store_source_thumbnail_uploads_valid_cdn_image(bucket):
     respx.get(RAW_URL).mock(
         return_value=httpx.Response(200, headers={"content-type": "image/jpeg"}, content=b"jpeg")
     )
@@ -75,19 +79,14 @@ def test_store_source_thumbnail_uploads_valid_cdn_image(monkeypatch):
             {
                 "cache-control": "31536000",
                 "content-type": "image/jpeg",
-                "upsert": "false",
+                "upsert": "true",
             },
         )
     ]
 
 
 @respx.mock
-def test_store_source_thumbnail_skips_invalid_host(monkeypatch):
-    bucket = FakeBucket()
-    monkeypatch.setattr(
-        "src.storage.thumbnails.create_client",
-        lambda _url, _key: FakeSupabaseClient(bucket),
-    )
+def test_store_source_thumbnail_skips_invalid_host(bucket):
 
     public_url = store_source_thumbnail(
         "https://example.com/thumb.jpg",
@@ -100,12 +99,7 @@ def test_store_source_thumbnail_skips_invalid_host(monkeypatch):
 
 
 @respx.mock
-def test_store_source_thumbnail_skips_redirect_to_invalid_host(monkeypatch):
-    bucket = FakeBucket()
-    monkeypatch.setattr(
-        "src.storage.thumbnails.create_client",
-        lambda _url, _key: FakeSupabaseClient(bucket),
-    )
+def test_store_source_thumbnail_skips_redirect_to_invalid_host(bucket):
     respx.get(RAW_URL).mock(
         return_value=httpx.Response(
             302,
@@ -124,12 +118,7 @@ def test_store_source_thumbnail_skips_redirect_to_invalid_host(monkeypatch):
 
 
 @respx.mock
-def test_store_source_thumbnail_skips_non_image_content(monkeypatch):
-    bucket = FakeBucket()
-    monkeypatch.setattr(
-        "src.storage.thumbnails.create_client",
-        lambda _url, _key: FakeSupabaseClient(bucket),
-    )
+def test_store_source_thumbnail_skips_non_image_content(bucket):
     respx.get(RAW_URL).mock(
         return_value=httpx.Response(200, headers={"content-type": "text/html"}, content=b"nope")
     )
@@ -145,12 +134,7 @@ def test_store_source_thumbnail_skips_non_image_content(monkeypatch):
 
 
 @respx.mock
-def test_store_source_thumbnail_skips_oversized_image(monkeypatch):
-    bucket = FakeBucket()
-    monkeypatch.setattr(
-        "src.storage.thumbnails.create_client",
-        lambda _url, _key: FakeSupabaseClient(bucket),
-    )
+def test_store_source_thumbnail_skips_oversized_image(bucket):
     respx.get(RAW_URL).mock(
         return_value=httpx.Response(
             200,
@@ -170,12 +154,7 @@ def test_store_source_thumbnail_skips_oversized_image(monkeypatch):
 
 
 @respx.mock
-def test_store_source_thumbnail_skips_when_service_role_key_missing(monkeypatch):
-    bucket = FakeBucket()
-    monkeypatch.setattr(
-        "src.storage.thumbnails.create_client",
-        lambda _url, _key: FakeSupabaseClient(bucket),
-    )
+def test_store_source_thumbnail_skips_when_service_role_key_missing(bucket):
 
     public_url = store_source_thumbnail(
         RAW_URL,

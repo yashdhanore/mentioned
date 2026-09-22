@@ -105,7 +105,10 @@ export function parseMentionedShareDeepLink(rawUrl: string): MentionedShareDeepL
   return parseMentionedShareDeepLinkWithDepth(rawUrl, 0);
 }
 
-function parseMentionedShareDeepLinkWithDepth(rawUrl: string, depth: number): MentionedShareDeepLinkParseResult {
+function parseMentionedShareDeepLinkWithDepth(
+  rawUrl: string,
+  depth: number,
+): MentionedShareDeepLinkParseResult {
   try {
     const deepLink = new URL(rawUrl);
     const wrappedUrl = wrappedShareDeepLink(deepLink);

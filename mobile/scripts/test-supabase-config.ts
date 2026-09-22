@@ -6,7 +6,9 @@ import {
 } from '../src/supabase-runtime-config';
 
 const anonPayload = Buffer.from(JSON.stringify({ role: 'anon' })).toString('base64url');
-const serviceRolePayload = Buffer.from(JSON.stringify({ role: 'service_role' })).toString('base64url');
+const serviceRolePayload = Buffer.from(JSON.stringify({ role: 'service_role' })).toString(
+  'base64url',
+);
 const legacyAnonJwt = `header.${anonPayload}.signature`;
 const legacyServiceRoleJwt = `header.${serviceRolePayload}.signature`;
 

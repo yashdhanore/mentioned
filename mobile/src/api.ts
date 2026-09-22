@@ -4,16 +4,16 @@ const DEFAULT_API_BASE_URL = 'http://127.0.0.1:8000';
 const DEFAULT_DEV_USER_ID = '00000000-0000-4000-8000-000000000001';
 const publicAuthMode = process.env.EXPO_PUBLIC_AUTH_MODE?.trim().toLowerCase() || '';
 
-export const API_BASE_URL = (
-  process.env.EXPO_PUBLIC_API_BASE_URL?.trim() || DEFAULT_API_BASE_URL
-).replace(/\/+$/, '');
+const API_BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL?.trim() || DEFAULT_API_BASE_URL).replace(
+  /\/+$/,
+  '',
+);
 
 export const PRIVACY_POLICY_URL =
   process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL?.trim().replace(/\/+$/, '') || null;
 
 export const isDevAuthEnabled = publicAuthMode === 'dev';
-export const DEV_USER_ID =
-  process.env.EXPO_PUBLIC_DEV_USER_ID?.trim() || DEFAULT_DEV_USER_ID;
+const DEV_USER_ID = process.env.EXPO_PUBLIC_DEV_USER_ID?.trim() || DEFAULT_DEV_USER_ID;
 
 type AccessTokenProvider = () => Promise<string | null> | string | null;
 
@@ -141,7 +141,11 @@ function parseApiError(status: number, payload: ApiErrorPayload | null): ApiErro
   }
   // New backend format: {error_code, message}
   if (payload.error_code || payload.message) {
-    return new ApiError(status, payload.message || 'The request failed.', payload.error_code || null);
+    return new ApiError(
+      status,
+      payload.message || 'The request failed.',
+      payload.error_code || null,
+    );
   }
   // Legacy format: {detail: string | {error_code, message}}
   const detail = payload.detail;
@@ -159,7 +163,6 @@ function parseApiError(status: number, payload: ApiErrorPayload | null): ApiErro
 // requests only we retry once so a single cold-start blip is invisible to the
 // user. POST/DELETE are never retried - repeating them could duplicate a job
 // or delete the wrong thing.
-
 const REQUEST_TIMEOUT_MS = 30_000;
 const RETRY_DELAY_MS = 1_500;
 
@@ -220,7 +223,7 @@ async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> 
         response.status >= 500
           ? 'The server had a problem. Please try again.'
           : 'The request failed. Please try again.';
-      throw new ApiError(response.status, msg, null);
+      throw new ApiError(response.status, msg);
     }
     throw parseApiError(response.status, payload as ApiErrorPayload | null);
   }
@@ -229,16 +232,11 @@ async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> 
 }
 
 export function errorMessage(error: unknown, fallback = 'Something went wrong. Please try again.') {
-  if (error instanceof ApiError) {
-    return error.message;
-  }
   if (error instanceof Error) {
     return error.message;
   }
   return fallback;
 }
-
-// --- Saved sources ---
 
 export async function createSavedSource(url: string): Promise<SavedSourceResponse> {
   return requestJson<SavedSourceResponse>('/v1/saved-sources', {
@@ -264,15 +262,11 @@ export async function deleteSavedSource(
   });
 }
 
-// --- Account ---
-
 export async function deleteAccount(): Promise<{ deleted: boolean }> {
   return requestJson<{ deleted: boolean }>('/v1/account', {
     method: 'DELETE',
   });
 }
-
-// --- Push notifications ---
 
 export async function registerPushToken(
   expoPushToken: string,

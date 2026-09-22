@@ -117,7 +117,11 @@ export function SignedOutProductPreview() {
       />
 
       <View style={[styles.authPreviewReelShell, isCompact && styles.authPreviewReelShellCompact]}>
-        <Image source={authOrbitReelPreview} resizeMode="cover" style={styles.authPreviewReelImage} />
+        <Image
+          source={authOrbitReelPreview}
+          resizeMode="cover"
+          style={styles.authPreviewReelImage}
+        />
         <View style={styles.authPreviewReelMeta}>
           <Text style={styles.authPreviewReelPlay}>{'\u25B6'}</Text>
           <Text style={styles.authPreviewReelCount}>1.2M</Text>

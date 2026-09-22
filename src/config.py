@@ -32,8 +32,7 @@ _ENV_CONFIG = SettingsConfigDict(
 
 
 def _parse_bool(value: Any) -> Any:
-    # A present-but-blank env var is an explicit false, not "unset": matches
-    # the historical `value.strip().casefold() in _TRUTHY` behavior exactly.
+    # A present-but-blank env var is an explicit false, not "unset".
     if not isinstance(value, str):
         return value
     return value.strip().casefold() in _TRUTHY
@@ -91,6 +90,9 @@ OptionalEnvStr = Annotated[str | None, BeforeValidator(_blank_as_none)]
 OptionalEnvUrl = Annotated[str | None, BeforeValidator(_blank_as_none_no_trailing_slash)]
 EnvCsv = Annotated[tuple[str, ...], NoDecode, BeforeValidator(_parse_csv)]
 
+DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite"
+GeminiModelName = Annotated[StrippedStr, BeforeValidator(_blank_as(DEFAULT_GEMINI_MODEL))]
+
 
 class DBConfig(BaseSettings):
     model_config = _ENV_CONFIG
@@ -115,8 +117,8 @@ class GeminiConfig(BaseSettings):
     model_config = _ENV_CONFIG
 
     gemini_api_key: OptionalEnvStr = None
-    gemini_model: StrippedStr = "gemini-3.1-flash-lite"
-    gemini_gate_model: StrippedStr = "gemini-3.1-flash-lite"
+    gemini_model: GeminiModelName = DEFAULT_GEMINI_MODEL
+    gemini_gate_model: GeminiModelName = DEFAULT_GEMINI_MODEL
     gemini_total_attempts: Annotated[int, BeforeValidator(_blank_as(3))] = 3
     gemini_timeout_seconds: Annotated[int, BeforeValidator(_blank_as(120))] = 120
     use_vertexai: EnvBool = Field(
@@ -128,12 +130,9 @@ class GeminiConfig(BaseSettings):
 
     @model_validator(mode="after")
     def _apply_vertex_fallbacks(self) -> GeminiConfig:
-        # Unlike use_vertexai (an alias chain, first *present* var wins), the
-        # old code fell through to the GOOGLE_CLOUD_* var when the GEMINI_*
-        # one was present but blank, so this can't be expressed as a plain
-        # AliasChoices field. Skip a field a caller passed explicitly (e.g.
-        # direct construction in tests), since neither field has a matching
-        # env alias for pydantic-settings to have sourced it from otherwise.
+        # A blank GEMINI_* var falls through to its GOOGLE_CLOUD_* counterpart.
+        # AliasChoices stops at the first *present* var, so it cannot express
+        # this. A value passed to the constructor is left alone.
         if "vertex_project" not in self.model_fields_set:
             project = _first_nonblank_env("GEMINI_VERTEX_PROJECT", "GOOGLE_CLOUD_PROJECT")
             object.__setattr__(self, "vertex_project", project)

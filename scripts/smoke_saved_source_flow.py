@@ -29,14 +29,18 @@ def _print_json(label: str, payload: Any) -> None:
     print(json.dumps(payload, indent=2, sort_keys=True, default=str))
 
 
-def _request_json_value(client: httpx.Client, method: str, path: str, **kwargs: Any) -> Any:
-    response = client.request(method, path, **kwargs)
+def _response_json(response: httpx.Response, method: str, path: str) -> Any:
     try:
-        payload = response.json()
+        return response.json()
     except json.JSONDecodeError as exc:
         raise SmokeError(
             f"{method} {path} returned non-JSON {response.status_code}: {response.text[:500]}"
         ) from exc
+
+
+def _request_json_value(client: httpx.Client, method: str, path: str, **kwargs: Any) -> Any:
+    response = client.request(method, path, **kwargs)
+    payload = _response_json(response, method, path)
     if response.status_code >= 400:
         raise SmokeError(
             f"{method} {path} returned {response.status_code}: {json.dumps(payload, default=str)}"
@@ -51,31 +55,16 @@ def _request_json(client: httpx.Client, method: str, path: str, **kwargs: Any) -
     return payload
 
 
-def _request_json_any_status(
-    client: httpx.Client, method: str, path: str, **kwargs: Any
-) -> tuple[int, dict[str, Any]]:
-    response = client.request(method, path, **kwargs)
-    try:
-        payload = response.json()
-    except json.JSONDecodeError as exc:
-        raise SmokeError(
-            f"{method} {path} returned non-JSON {response.status_code}: {response.text[:500]}"
-        ) from exc
-    if not isinstance(payload, dict):
-        raise SmokeError(f"{method} {path} returned JSON that was not an object")
-    return response.status_code, payload
-
-
 def _assert_status(
     client: httpx.Client, method: str, path: str, expected_status: int, **kwargs: Any
-) -> dict[str, Any]:
-    status_code, payload = _request_json_any_status(client, method, path, **kwargs)
-    if status_code != expected_status:
+) -> None:
+    response = client.request(method, path, **kwargs)
+    payload = _response_json(response, method, path)
+    if response.status_code != expected_status:
         raise SmokeError(
-            f"{method} {path} returned {status_code}, expected {expected_status}: "
+            f"{method} {path} returned {response.status_code}, expected {expected_status}: "
             f"{json.dumps(payload, default=str)}"
         )
-    return payload
 
 
 def _saved_sources_for_smoke(client: httpx.Client) -> list[dict[str, Any]]:
@@ -112,8 +101,7 @@ def run(args: argparse.Namespace) -> int:
         print(f"API: {args.api_base_url.rstrip('/')}")
         print(f"Source URL: {source_url}")
 
-        create_payload = {"url": source_url}
-        created = _request_json(client, "POST", "/v1/saved-sources", json=create_payload)
+        created = _request_json(client, "POST", "/v1/saved-sources", json={"url": source_url})
         _print_json("submitted saved source", created)
 
         saved_source_id = created.get("id")
@@ -155,12 +143,7 @@ def run(args: argparse.Namespace) -> int:
         saved_sources = _saved_sources_for_smoke(client)
         _print_json("saved sources", {"count": len(saved_sources), "items": saved_sources})
 
-        saved_source_ids = {
-            item.get("id")
-            for item in saved_sources
-            if isinstance(item, dict) and isinstance(item.get("id"), str)
-        }
-        if saved_source_id not in saved_source_ids:
+        if saved_source_id not in {item.get("id") for item in saved_sources}:
             raise SmokeError(
                 f"Saved source list did not include submitted saved source id: {saved_source_id}"
             )
@@ -217,7 +200,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument(
         "--require-items",
-        dest="require_items",
         action="store_true",
         help="Fail if the completed saved source returns no extracted items. Use for Release 1 "
         "real-source smoke tests.",

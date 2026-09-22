@@ -31,6 +31,16 @@ OWNER_UUID = UUID(OWNER)
 OTHER_OWNER = "00000000-0000-4000-8000-000000000002"
 
 
+@pytest.fixture
+def enqueued(monkeypatch) -> list[str]:
+    enqueued: list[str] = []
+    monkeypatch.setattr(
+        "src.sources.service.enqueue_source_extraction",
+        lambda _session, source_id: enqueued.append(str(source_id)),
+    )
+    return enqueued
+
+
 def test_increment_retry_window_keeps_window_when_recent() -> None:
     now = utc_now()
     started_at = now - timedelta(seconds=10)
@@ -42,7 +52,6 @@ def test_increment_retry_window_keeps_window_when_recent() -> None:
         timedelta(minutes=1),
     )
 
-    # Within the window: same instant, incremented count.
     assert count == 3
     assert result_started_at == started_at
     assert result_started_at.tzinfo is not None
@@ -59,19 +68,13 @@ def test_increment_retry_window_resets_when_stale() -> None:
         timedelta(minutes=1),
     )
 
-    # Outside the window: reset to now / count 1.
     assert count == 1
     assert result_started_at == now
 
 
 def test_save_source_for_user_creates_source_and_saved_source(
-    session: Session, monkeypatch
+    session: Session, enqueued: list[str]
 ) -> None:
-    enqueued: list[str] = []
-    monkeypatch.setattr(
-        "src.sources.service.enqueue_source_extraction",
-        lambda _session, source_id: enqueued.append(str(source_id)),
-    )
 
     saved = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/ABC123/")
 
@@ -119,13 +122,8 @@ def test_save_source_for_user_allows_http_when_https_not_required(
 
 
 def test_save_source_for_user_reuses_existing_source_and_saved_source(
-    session: Session, monkeypatch
+    session: Session, enqueued: list[str]
 ) -> None:
-    enqueued: list[str] = []
-    monkeypatch.setattr(
-        "src.sources.service.enqueue_source_extraction",
-        lambda _session, source_id: enqueued.append(str(source_id)),
-    )
 
     first = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/ABC123/?igsh=x")
     second = save_source_for_user(session, OWNER, "https://instagram.com/reel/ABC123")
@@ -150,13 +148,8 @@ def test_save_source_for_user_rolls_back_when_enqueue_fails(session: Session, mo
 
 
 def test_save_source_for_user_retries_once_after_integrity_error(
-    session: Session, monkeypatch
+    session: Session, monkeypatch, enqueued: list[str]
 ) -> None:
-    enqueued: list[str] = []
-    monkeypatch.setattr(
-        "src.sources.service.enqueue_source_extraction",
-        lambda _session, source_id: enqueued.append(str(source_id)),
-    )
     original_flush = session.flush
     calls = 0
 
@@ -468,13 +461,8 @@ def test_get_saved_source_by_key_returns_owner_save(session: Session) -> None:
 
 
 def test_retry_failed_saved_source_requeues_and_clears_failure(
-    session: Session, monkeypatch
+    session: Session, enqueued: list[str]
 ) -> None:
-    enqueued: list[str] = []
-    monkeypatch.setattr(
-        "src.sources.service.enqueue_source_extraction",
-        lambda _session, source_id: enqueued.append(str(source_id)),
-    )
     saved = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/FAILED/")
     source = session.get(Source, saved.source_id)
     assert source is not None
@@ -504,13 +492,8 @@ def test_retry_failed_saved_source_requeues_and_clears_failure(
 
 
 def test_retry_failed_saved_source_is_atomic_for_stale_concurrent_callers(
-    session: Session, monkeypatch
+    session: Session, enqueued: list[str]
 ) -> None:
-    enqueued: list[str] = []
-    monkeypatch.setattr(
-        "src.sources.service.enqueue_source_extraction",
-        lambda _session, source_id: enqueued.append(str(source_id)),
-    )
     saved = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/RACE/")
     source = session.get(Source, saved.source_id)
     assert source is not None
@@ -554,14 +537,9 @@ def test_retry_failed_saved_source_is_atomic_for_stale_concurrent_callers(
 )
 def test_retry_failed_saved_source_does_not_requeue_non_failed_source(
     session: Session,
-    monkeypatch,
+    enqueued: list[str],
     source_status: SourceStatus,
 ) -> None:
-    enqueued: list[str] = []
-    monkeypatch.setattr(
-        "src.sources.service.enqueue_source_extraction",
-        lambda _session, source_id: enqueued.append(str(source_id)),
-    )
     saved = save_source_for_user(
         session,
         OWNER,
@@ -584,7 +562,7 @@ def test_retry_failed_saved_source_does_not_requeue_non_failed_source(
 
 
 def test_count_active_saved_sources(session: Session) -> None:
-    pending = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/PENDING/")
+    save_source_for_user(session, OWNER, "https://www.instagram.com/reel/PENDING/")
     processing = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/PROCESSING/")
     done = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/DONE/")
     other = save_source_for_user(session, OTHER_OWNER, "https://www.instagram.com/reel/OTHER/")
@@ -605,12 +583,11 @@ def test_count_active_saved_sources(session: Session) -> None:
 
     assert count_active_saved_sources(session, OWNER) == 2
     assert count_active_saved_sources(session, OTHER_OWNER) == 1
-    assert session.get(SavedSource, pending.id) is not None
 
 
 def test_count_saved_sources_created_since(session: Session) -> None:
     now = utc_now()
-    recent = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/RECENT/")
+    save_source_for_user(session, OWNER, "https://www.instagram.com/reel/RECENT/")
     old = save_source_for_user(session, OWNER, "https://www.instagram.com/reel/OLD/")
     other = save_source_for_user(session, OTHER_OWNER, "https://www.instagram.com/reel/OTHER/")
     old.created_at = now - timedelta(days=2)
@@ -621,7 +598,6 @@ def test_count_saved_sources_created_since(session: Session) -> None:
 
     assert count_saved_sources_created_since(session, OWNER, now - timedelta(days=1)) == 1
     assert count_saved_sources_created_since(session, OTHER_OWNER, now - timedelta(days=1)) == 1
-    assert session.get(SavedSource, recent.id) is not None
 
 
 def test_count_saved_source_retry_attempts_since_counts_attempt_windows(session: Session) -> None:

@@ -18,10 +18,22 @@ OWNER = UUID("00000000-0000-4000-8000-000000000001")
 OTHER_OWNER = UUID("00000000-0000-4000-8000-000000000002")
 
 
-def _engine():
+@pytest.fixture
+def engine():
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
     SQLModel.metadata.create_all(engine)
-    return engine
+    yield engine
+    SQLModel.metadata.drop_all(engine)
+
+
+@pytest.fixture
+def archived(monkeypatch) -> list[int]:
+    archived: list[int] = []
+    monkeypatch.setattr(
+        "src.push.worker.archive_push_notification_message",
+        lambda _session, msg_id: archived.append(msg_id),
+    )
+    return archived
 
 
 def _source(session: Session, *, status: SourceStatus, external_id: str = "PUSH") -> Source:
@@ -40,53 +52,32 @@ def _source(session: Session, *, status: SourceStatus, external_id: str = "PUSH"
     return source
 
 
-def test_push_worker_archives_missing_source(monkeypatch):
-    engine = _engine()
-    archived = []
-
-    def fake_archive(_session: Session, msg_id: int) -> None:
-        archived.append(msg_id)
-
-    monkeypatch.setattr("src.push.worker.archive_push_notification_message", fake_archive)
-
-    try:
-        process_push_notification_message(
-            PushNotificationMessage(msg_id=20, source_id=uuid4(), read_count=1),
-            engine,
-            Settings(),
-        )
-    finally:
-        SQLModel.metadata.drop_all(engine)
+def test_push_worker_archives_missing_source(engine, archived):
+    process_push_notification_message(
+        PushNotificationMessage(msg_id=20, source_id=uuid4(), read_count=1),
+        engine,
+        Settings(),
+    )
 
     assert archived == [20]
 
 
-def test_push_worker_leaves_pending_source_unarchived(monkeypatch):
-    engine = _engine()
-    archived = []
+def test_push_worker_leaves_pending_source_unarchived(engine, archived):
     sent = []
-
-    def fake_archive(_session: Session, msg_id: int) -> None:
-        archived.append(msg_id)
 
     def fake_send(_source: Source, targets: list[SourcePushTarget]) -> PushDeliveryResult:
         sent.append(targets)
         return PushDeliveryResult(disabled_tokens=set())
 
-    monkeypatch.setattr("src.push.worker.archive_push_notification_message", fake_archive)
+    with Session(engine) as session:
+        source = _source(session, status=SourceStatus.PENDING)
 
-    try:
-        with Session(engine) as session:
-            source = _source(session, status=SourceStatus.PENDING)
-
-        process_push_notification_message(
-            PushNotificationMessage(msg_id=21, source_id=source.id, read_count=1),
-            engine,
-            Settings(),
-            send_notifications=fake_send,
-        )
-    finally:
-        SQLModel.metadata.drop_all(engine)
+    process_push_notification_message(
+        PushNotificationMessage(msg_id=21, source_id=source.id, read_count=1),
+        engine,
+        Settings(),
+        send_notifications=fake_send,
+    )
 
     assert archived == []
     assert sent == []
@@ -94,69 +85,55 @@ def test_push_worker_leaves_pending_source_unarchived(monkeypatch):
 
 @pytest.mark.parametrize("status", [SourceStatus.DONE, SourceStatus.FAILED])
 def test_push_worker_sends_to_every_owner_with_active_tokens_and_disables_invalid(
-    monkeypatch, status: SourceStatus
+    engine, archived, status: SourceStatus
 ):
-    engine = _engine()
-    archived = []
     sent = []
-
-    def fake_archive(_session: Session, msg_id: int) -> None:
-        archived.append(msg_id)
 
     def fake_send(source: Source, targets: list[SourcePushTarget]) -> PushDeliveryResult:
         sent.append((source.id, sorted(targets, key=lambda t: t.saved_source_id)))
         return PushDeliveryResult(disabled_tokens={"ExpoPushToken[invalid]"})
 
-    monkeypatch.setattr("src.push.worker.archive_push_notification_message", fake_archive)
-
-    try:
-        with Session(engine) as session:
-            source = _source(session, status=status)
-            source_id = source.id
-            saved_owner = SavedSource(owner_id=OWNER, source_id=source_id)
-            saved_other = SavedSource(owner_id=OTHER_OWNER, source_id=source_id)
-            session.add(saved_owner)
-            session.add(saved_other)
-            session.add(
-                PushToken(owner_id=OWNER, expo_push_token="ExpoPushToken[valid]", platform="ios")
-            )
-            session.add(
-                PushToken(
-                    owner_id=OWNER, expo_push_token="ExpoPushToken[invalid]", platform="android"
-                )
-            )
-            session.add(
-                PushToken(
-                    owner_id=OWNER,
-                    expo_push_token="ExpoPushToken[disabled]",
-                    platform="ios",
-                    disabled_at=utc_now(),
-                )
-            )
-            session.add(
-                PushToken(
-                    owner_id=OTHER_OWNER, expo_push_token="ExpoPushToken[other]", platform="ios"
-                )
-            )
-            session.commit()
-            session.refresh(saved_owner)
-            session.refresh(saved_other)
-            saved_owner_id = saved_owner.id
-            saved_other_id = saved_other.id
-
-        process_push_notification_message(
-            PushNotificationMessage(msg_id=22, source_id=source_id, read_count=1),
-            engine,
-            Settings(),
-            send_notifications=fake_send,
+    with Session(engine) as session:
+        source = _source(session, status=status)
+        source_id = source.id
+        saved_owner = SavedSource(owner_id=OWNER, source_id=source_id)
+        saved_other = SavedSource(owner_id=OTHER_OWNER, source_id=source_id)
+        session.add(saved_owner)
+        session.add(saved_other)
+        session.add(
+            PushToken(owner_id=OWNER, expo_push_token="ExpoPushToken[valid]", platform="ios")
         )
+        session.add(
+            PushToken(owner_id=OWNER, expo_push_token="ExpoPushToken[invalid]", platform="android")
+        )
+        session.add(
+            PushToken(
+                owner_id=OWNER,
+                expo_push_token="ExpoPushToken[disabled]",
+                platform="ios",
+                disabled_at=utc_now(),
+            )
+        )
+        session.add(
+            PushToken(owner_id=OTHER_OWNER, expo_push_token="ExpoPushToken[other]", platform="ios")
+        )
+        session.commit()
+        session.refresh(saved_owner)
+        session.refresh(saved_other)
+        saved_owner_id = saved_owner.id
+        saved_other_id = saved_other.id
 
-        with Session(engine) as session:
-            invalid = session.exec(
-                select(PushToken).where(PushToken.expo_push_token == "ExpoPushToken[invalid]")
-            ).one()
-    finally:
-        SQLModel.metadata.drop_all(engine)
+    process_push_notification_message(
+        PushNotificationMessage(msg_id=22, source_id=source_id, read_count=1),
+        engine,
+        Settings(),
+        send_notifications=fake_send,
+    )
+
+    with Session(engine) as session:
+        invalid = session.exec(
+            select(PushToken).where(PushToken.expo_push_token == "ExpoPushToken[invalid]")
+        ).one()
 
     assert archived == [22]
     assert len(sent) == 1
@@ -172,66 +149,45 @@ def test_push_worker_sends_to_every_owner_with_active_tokens_and_disables_invali
     assert invalid.disabled_at is not None
 
 
-def test_push_worker_retries_request_level_delivery_failure(monkeypatch):
-    engine = _engine()
-    archived = []
-
-    def fake_archive(_session: Session, msg_id: int) -> None:
-        archived.append(msg_id)
-
+def test_push_worker_retries_request_level_delivery_failure(engine, archived):
     def fake_send(_source: Source, _targets: list[SourcePushTarget]) -> PushDeliveryResult:
         raise PushDeliveryRetryableError("network down")
 
-    monkeypatch.setattr("src.push.worker.archive_push_notification_message", fake_archive)
-
-    try:
-        with Session(engine) as session:
-            source = _source(session, status=SourceStatus.DONE)
-            source_id = source.id
-            session.add(SavedSource(owner_id=OWNER, source_id=source_id))
-            session.add(
-                PushToken(owner_id=OWNER, expo_push_token="ExpoPushToken[valid]", platform="ios")
-            )
-            session.commit()
-
-        process_push_notification_message(
-            PushNotificationMessage(msg_id=23, source_id=source_id, read_count=1),
-            engine,
-            Settings(),
-            send_notifications=fake_send,
+    with Session(engine) as session:
+        source = _source(session, status=SourceStatus.DONE)
+        source_id = source.id
+        session.add(SavedSource(owner_id=OWNER, source_id=source_id))
+        session.add(
+            PushToken(owner_id=OWNER, expo_push_token="ExpoPushToken[valid]", platform="ios")
         )
-    finally:
-        SQLModel.metadata.drop_all(engine)
+        session.commit()
+
+    process_push_notification_message(
+        PushNotificationMessage(msg_id=23, source_id=source_id, read_count=1),
+        engine,
+        Settings(),
+        send_notifications=fake_send,
+    )
 
     assert archived == []
 
 
-def test_push_worker_archives_poison_message_past_max_deliveries(monkeypatch):
-    engine = _engine()
-    archived = []
+def test_push_worker_archives_poison_message_past_max_deliveries(engine, archived):
     sent = []
-
-    def fake_archive(_session: Session, msg_id: int) -> None:
-        archived.append(msg_id)
 
     def fake_send(_source: Source, targets: list[SourcePushTarget]) -> PushDeliveryResult:
         sent.append(targets)
         return PushDeliveryResult(disabled_tokens=set())
 
-    monkeypatch.setattr("src.push.worker.archive_push_notification_message", fake_archive)
+    with Session(engine) as session:
+        source = _source(session, status=SourceStatus.DONE)
 
-    try:
-        with Session(engine) as session:
-            source = _source(session, status=SourceStatus.DONE)
-
-        process_push_notification_message(
-            PushNotificationMessage(msg_id=24, source_id=source.id, read_count=11),
-            engine,
-            Settings(worker_queue_max_deliveries=5),
-            send_notifications=fake_send,
-        )
-    finally:
-        SQLModel.metadata.drop_all(engine)
+    process_push_notification_message(
+        PushNotificationMessage(msg_id=24, source_id=source.id, read_count=11),
+        engine,
+        Settings(worker_queue_max_deliveries=5),
+        send_notifications=fake_send,
+    )
 
     assert archived == [24]
     assert sent == []

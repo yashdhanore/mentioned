@@ -21,6 +21,11 @@ def download_limit_env(monkeypatch):
     get_settings.cache_clear()
 
 
+@pytest.fixture(autouse=True)
+def yt_dlp_available(monkeypatch):
+    monkeypatch.setattr("src.extraction.download.is_available", lambda: True)
+
+
 def _completed(stdout: str = "", *, returncode: int = 0, stderr: str = "") -> SimpleNamespace:
     return SimpleNamespace(stdout=stdout, returncode=returncode, stderr=stderr, args=[])
 
@@ -36,7 +41,6 @@ def test_download_assets_uses_timeout(monkeypatch, tmp_path):
         media_file.write_bytes(b"12345")
         return _completed(str(media_file))
 
-    monkeypatch.setattr("src.extraction.download.is_available", lambda: True)
     monkeypatch.setattr("src.extraction.download.subprocess.run", fake_run)
 
     paths = download_assets("https://instagram.com/reel/ABC123/", tmp_path)
@@ -78,7 +82,6 @@ def test_download_assets_with_metadata_returns_largest_thumbnail(monkeypatch, tm
         media_file.write_bytes(b"12345")
         return _completed(str(media_file))
 
-    monkeypatch.setattr("src.extraction.download.is_available", lambda: True)
     monkeypatch.setattr("src.extraction.download.subprocess.run", fake_run)
 
     assets = download_assets_with_metadata("https://instagram.com/reel/ABC123/", tmp_path)
@@ -105,7 +108,6 @@ def test_download_assets_with_metadata_captures_caption_from_description(monkeyp
         media_file.write_bytes(b"12345")
         return _completed(str(media_file))
 
-    monkeypatch.setattr("src.extraction.download.is_available", lambda: True)
     monkeypatch.setattr("src.extraction.download.subprocess.run", fake_run)
 
     assets = download_assets_with_metadata("https://instagram.com/reel/ABC123/", tmp_path)
@@ -122,7 +124,6 @@ def test_download_assets_with_metadata_falls_back_to_title_for_caption(monkeypat
         media_file.write_bytes(b"12345")
         return _completed(str(media_file))
 
-    monkeypatch.setattr("src.extraction.download.is_available", lambda: True)
     monkeypatch.setattr("src.extraction.download.subprocess.run", fake_run)
 
     assets = download_assets_with_metadata("https://instagram.com/reel/ABC123/", tmp_path)
@@ -139,7 +140,6 @@ def test_download_assets_with_metadata_caption_none_when_absent(monkeypatch, tmp
         media_file.write_bytes(b"12345")
         return _completed(str(media_file))
 
-    monkeypatch.setattr("src.extraction.download.is_available", lambda: True)
     monkeypatch.setattr("src.extraction.download.subprocess.run", fake_run)
 
     assets = download_assets_with_metadata("https://instagram.com/reel/ABC123/", tmp_path)
@@ -167,7 +167,6 @@ def test_download_assets_with_metadata_prefers_channel_over_numeric_uploader_id(
         media_file.write_bytes(b"12345")
         return _completed(str(media_file))
 
-    monkeypatch.setattr("src.extraction.download.is_available", lambda: True)
     monkeypatch.setattr("src.extraction.download.subprocess.run", fake_run)
 
     assets = download_assets_with_metadata("https://instagram.com/reel/DW9GWYTjOqx/", tmp_path)
@@ -186,7 +185,6 @@ def test_download_assets_with_metadata_does_not_infer_handle_from_display_name(
         media_file.write_bytes(b"12345")
         return _completed(str(media_file))
 
-    monkeypatch.setattr("src.extraction.download.is_available", lambda: True)
     monkeypatch.setattr("src.extraction.download.subprocess.run", fake_run)
 
     assets = download_assets_with_metadata("https://instagram.com/reel/ABC123/", tmp_path)
@@ -201,7 +199,6 @@ def test_download_assets_rejects_duration_over_limit(monkeypatch, tmp_path):
         calls.append(args)
         return _completed(json.dumps({"duration": 12}))
 
-    monkeypatch.setattr("src.extraction.download.is_available", lambda: True)
     monkeypatch.setattr("src.extraction.download.subprocess.run", fake_run)
 
     with pytest.raises(RuntimeError, match="duration"):
@@ -219,7 +216,6 @@ def test_download_assets_rejects_single_file_over_limit(monkeypatch, tmp_path):
         media_file.write_bytes(b"123456")
         return _completed(str(media_file))
 
-    monkeypatch.setattr("src.extraction.download.is_available", lambda: True)
     monkeypatch.setattr("src.extraction.download.subprocess.run", fake_run)
 
     with pytest.raises(RuntimeError, match="file exceeds limit"):
@@ -237,7 +233,6 @@ def test_download_assets_rejects_total_size_over_limit(monkeypatch, tmp_path):
         second_file.write_bytes(b"5678")
         return _completed(f"{first_file}\n{second_file}")
 
-    monkeypatch.setattr("src.extraction.download.is_available", lambda: True)
     monkeypatch.setattr("src.extraction.download.subprocess.run", fake_run)
 
     with pytest.raises(RuntimeError, match="total exceeds limit"):
@@ -255,7 +250,6 @@ def test_download_assets_rejects_video_count_over_limit(monkeypatch, tmp_path):
         second_file.write_bytes(b"2")
         return _completed(f"{first_file}\n{second_file}")
 
-    monkeypatch.setattr("src.extraction.download.is_available", lambda: True)
     monkeypatch.setattr("src.extraction.download.subprocess.run", fake_run)
 
     with pytest.raises(RuntimeError, match="video count"):
@@ -274,7 +268,6 @@ def test_download_assets_compresses_oversized_video(monkeypatch, tmp_path):
         media_file.write_bytes(b"123456")
         return _completed(str(media_file))
 
-    monkeypatch.setattr("src.extraction.download.is_available", lambda: True)
     monkeypatch.setattr(
         "src.extraction.download.shutil.which",
         lambda name: f"/usr/bin/{name}" if name == "ffmpeg" else None,
@@ -298,7 +291,6 @@ def test_download_surfaces_yt_dlp_stderr_on_failure(monkeypatch, tmp_path):
     def fake_run(args, **kwargs):
         return _completed(returncode=1, stderr=stderr)
 
-    monkeypatch.setattr("src.extraction.download.is_available", lambda: True)
     monkeypatch.setattr("src.extraction.download.subprocess.run", fake_run)
 
     with pytest.raises(RuntimeError, match="rate-limit reached or login required"):
@@ -314,7 +306,6 @@ def test_download_error_redacts_signed_url_tokens(monkeypatch, tmp_path):
     def fake_run(args, **kwargs):
         return _completed(returncode=1, stderr=stderr)
 
-    monkeypatch.setattr("src.extraction.download.is_available", lambda: True)
     monkeypatch.setattr("src.extraction.download.subprocess.run", fake_run)
 
     with pytest.raises(RuntimeError) as excinfo:
@@ -329,7 +320,6 @@ def test_download_error_falls_back_to_exit_code_when_stderr_empty(monkeypatch, t
     def fake_run(args, **kwargs):
         return _completed(returncode=137, stderr="")
 
-    monkeypatch.setattr("src.extraction.download.is_available", lambda: True)
     monkeypatch.setattr("src.extraction.download.subprocess.run", fake_run)
 
     with pytest.raises(RuntimeError, match="exited 137"):

@@ -1,10 +1,4 @@
-import {
-  close,
-  openHostApp,
-  type InitialProps,
-  Text,
-  View,
-} from 'expo-share-extension';
+import { close, openHostApp, type InitialProps, Text, View } from 'expo-share-extension';
 import { useEffect, useRef } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 
@@ -38,7 +32,9 @@ export default function ShareExtension(props: InitialProps) {
     <View style={styles.container}>
       <Text style={styles.title}>{sourceUrl ? 'Opening Mentioned…' : 'Unsupported source'}</Text>
       <Text style={styles.body}>
-        {sourceUrl ? 'Saving this source. Tap below if it doesn’t open.' : 'Share an Instagram Reel or post link.'}
+        {sourceUrl
+          ? 'Saving this source. Tap below if it doesn’t open.'
+          : 'Share an Instagram Reel or post link.'}
       </Text>
       {sourceUrl ? (
         <Text ellipsizeMode="middle" numberOfLines={2} style={styles.url}>
@@ -47,7 +43,11 @@ export default function ShareExtension(props: InitialProps) {
       ) : null}
       <View style={styles.actions}>
         {sourceUrl ? (
-          <Pressable accessibilityRole="button" onPress={openMentioned} style={styles.primaryButton}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={openMentioned}
+            style={styles.primaryButton}
+          >
             <Text style={styles.primaryButtonText}>Open Mentioned</Text>
           </Pressable>
         ) : null}

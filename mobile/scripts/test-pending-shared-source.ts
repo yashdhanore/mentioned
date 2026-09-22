@@ -45,7 +45,12 @@ assert.equal(serialized.toLowerCase().includes('authorization'), false);
 assert.deepEqual(parsePendingSharedSource(serialized), record);
 assert.equal(parsePendingSharedSource(null), null);
 assert.equal(parsePendingSharedSource('{bad json'), null);
-assert.equal(parsePendingSharedSource(JSON.stringify({ sourceUrl: 'https://example.com/reel/PENDING/', createdAtMs: 1 })), null);
+assert.equal(
+  parsePendingSharedSource(
+    JSON.stringify({ sourceUrl: 'https://example.com/reel/PENDING/', createdAtMs: 1 }),
+  ),
+  null,
+);
 assert.equal(parsePendingSharedSource(JSON.stringify({ sourceUrl, createdAtMs: 'now' })), null);
 
 async function main() {

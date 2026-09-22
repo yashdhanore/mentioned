@@ -8,25 +8,25 @@ from sqlmodel import Session, SQLModel, create_engine
 
 from src.config import Settings
 from src.sources.models import Source, SourceStatus
-from src.worker import ShutdownFlag, install_signal_handlers
+from src.worker import (
+    ShutdownFlag,
+    _run_polling_worker,
+    _run_polling_worker_iteration,
+    _run_queue_worker,
+    _run_queue_worker_iteration,
+    install_signal_handlers,
+)
 
 
-def test_worker_entrypoint_exports_main():
-    import src.worker
-
-    assert src.worker.main.__name__ == "main"
-
-
-def _engine():
+@pytest.fixture
+def engine():
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
     SQLModel.metadata.create_all(engine)
-    return engine
+    yield engine
+    SQLModel.metadata.drop_all(engine)
 
 
-def test_run_queue_worker_iteration_processes_sources_and_drains_push(monkeypatch):
-    from src.worker import _run_queue_worker_iteration
-
-    engine = _engine()
+def test_run_queue_worker_iteration_processes_sources_and_drains_push(monkeypatch, engine):
     calls: list[str] = []
     source_id = uuid4()
 
@@ -44,18 +44,12 @@ def test_run_queue_worker_iteration_processes_sources_and_drains_push(monkeypatc
     monkeypatch.setattr("src.worker.process_source_extraction_message", fake_process_source)
     monkeypatch.setattr("src.worker._drain_push_notifications", fake_drain_push)
 
-    try:
-        _run_queue_worker_iteration(Settings(worker_id="worker-queue"), engine)
-    finally:
-        SQLModel.metadata.drop_all(engine)
+    _run_queue_worker_iteration(Settings(worker_id="worker-queue"), engine)
 
     assert calls == ["read_sources", f"process_source:{source_id}", "drain_push"]
 
 
-def test_run_polling_worker_iteration_claims_and_processes_pending_source(monkeypatch):
-    from src.worker import _run_polling_worker_iteration
-
-    engine = _engine()
+def test_run_polling_worker_iteration_claims_and_processes_pending_source(monkeypatch, engine):
     with Session(engine) as session:
         source = Source(
             source_key="instagram:reel:POLL1",
@@ -80,24 +74,14 @@ def test_run_polling_worker_iteration_claims_and_processes_pending_source(monkey
 
     monkeypatch.setattr("src.worker.default_source_ingestion.process_source", fake_process_source)
 
-    try:
-        did_process = _run_polling_worker_iteration(Settings(worker_id="worker-poll"), engine)
-    finally:
-        SQLModel.metadata.drop_all(engine)
+    did_process = _run_polling_worker_iteration(Settings(worker_id="worker-poll"), engine)
 
     assert did_process is True
     assert processed == [str(source.id)]
 
 
-def test_run_polling_worker_iteration_returns_false_when_no_pending_source():
-    from src.worker import _run_polling_worker_iteration
-
-    engine = _engine()
-
-    try:
-        did_process = _run_polling_worker_iteration(Settings(worker_id="worker-poll"), engine)
-    finally:
-        SQLModel.metadata.drop_all(engine)
+def test_run_polling_worker_iteration_returns_false_when_no_pending_source(engine):
+    did_process = _run_polling_worker_iteration(Settings(worker_id="worker-poll"), engine)
 
     assert did_process is False
 
@@ -121,7 +105,6 @@ def test_install_signal_handlers_registers_sigterm_and_sigint(monkeypatch):
 
 
 def test_run_polling_worker_stops_between_iterations_on_shutdown_flag(monkeypatch):
-    from src.worker import _run_polling_worker
 
     calls: list[int] = []
     flag = ShutdownFlag()
@@ -141,7 +124,6 @@ def test_run_polling_worker_stops_between_iterations_on_shutdown_flag(monkeypatc
 
 
 def test_run_polling_worker_recovers_from_iteration_exception_and_backs_off(monkeypatch):
-    from src.worker import _run_polling_worker
 
     calls: list[int] = []
     slept: list[float] = []
@@ -164,7 +146,6 @@ def test_run_polling_worker_recovers_from_iteration_exception_and_backs_off(monk
 
 
 def test_run_polling_worker_reraises_keyboard_interrupt(monkeypatch):
-    from src.worker import _run_polling_worker
 
     def fake_iteration(_settings, _engine) -> bool:
         raise KeyboardInterrupt
@@ -176,7 +157,6 @@ def test_run_polling_worker_reraises_keyboard_interrupt(monkeypatch):
 
 
 def test_run_queue_worker_stops_between_iterations_on_shutdown_flag(monkeypatch):
-    from src.worker import _run_queue_worker
 
     calls: list[int] = []
     flag = ShutdownFlag()
@@ -194,7 +174,6 @@ def test_run_queue_worker_stops_between_iterations_on_shutdown_flag(monkeypatch)
 
 
 def test_run_queue_worker_recovers_from_iteration_exception_and_backs_off(monkeypatch):
-    from src.worker import _run_queue_worker
 
     calls: list[int] = []
     slept: list[float] = []
@@ -216,7 +195,6 @@ def test_run_queue_worker_recovers_from_iteration_exception_and_backs_off(monkey
 
 
 def test_run_queue_worker_reraises_system_exit(monkeypatch):
-    from src.worker import _run_queue_worker
 
     def fake_iteration(_settings, _engine) -> None:
         raise SystemExit

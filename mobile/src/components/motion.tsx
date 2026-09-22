@@ -1,6 +1,5 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { Animated } from 'react-native';
-import { useEffect, useRef } from 'react';
 
 import { useReduceMotion } from '@/hooks/use-reduce-motion';
 
@@ -42,9 +41,5 @@ export function FadeInView({ children, delay = 0 }: FadeInViewProps) {
     };
   }, [delay, opacity, translateY, reduceMotion]);
 
-  return (
-    <Animated.View style={{ opacity, transform: [{ translateY }] }}>
-      {children}
-    </Animated.View>
-  );
+  return <Animated.View style={{ opacity, transform: [{ translateY }] }}>{children}</Animated.View>;
 }

@@ -65,7 +65,10 @@ export function SignedOutScreen({
           </View>
 
           {pendingSharedSourceUrl ? (
-            <GlassSurface style={styles.authPendingRow} fallbackStyle={styles.authPendingRowFallback}>
+            <GlassSurface
+              style={styles.authPendingRow}
+              fallbackStyle={styles.authPendingRowFallback}
+            >
               <View style={styles.authPendingCopy}>
                 <Text style={styles.authPendingTitle}>Sign in to save this shared post.</Text>
                 <Text ellipsizeMode="middle" numberOfLines={1} style={styles.authPendingUrl}>
@@ -83,7 +86,7 @@ export function SignedOutScreen({
             </GlassSurface>
           ) : null}
 
-          {error ? <InlineMessage tone="error" message={error} /> : null}
+          {error ? <InlineMessage message={error} /> : null}
           <AuthButtons
             isAppleLoading={isAppleLoading}
             isDisabled={isDisabled}

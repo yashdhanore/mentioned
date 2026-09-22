@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 
@@ -12,4 +12,4 @@ class GooglePlace:
     latitude: float | None = None
     longitude: float | None = None
     maps_url: str | None = None
-    raw_provider_payload: dict[str, Any] | None = field(default=None)
+    raw_provider_payload: dict[str, Any] | None = None

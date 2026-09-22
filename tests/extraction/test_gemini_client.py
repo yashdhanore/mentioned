@@ -4,15 +4,8 @@ from unittest.mock import patch
 
 import pytest
 
-from src.config import GeminiConfig, Settings, get_settings
+from src.config import GeminiConfig, Settings
 from src.extraction.gemini_client import get_gemini_client
-
-
-@pytest.fixture(autouse=True)
-def clear_settings_cache():
-    get_settings.cache_clear()
-    yield
-    get_settings.cache_clear()
 
 
 def _settings(**gemini_overrides) -> Settings:

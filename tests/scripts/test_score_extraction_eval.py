@@ -7,6 +7,7 @@ import pytest
 
 from scripts import score_extraction_eval
 from scripts.score_extraction_eval import LabelsError, load_labels, score_results
+from src.books.titles import TITLE_MATCH_THRESHOLD
 
 REEL_A = "https://www.instagram.com/reel/AAA111/"
 REEL_B = "https://www.instagram.com/reel/BBB222/?igsh=tracking"
@@ -207,7 +208,7 @@ def test_unrelated_titles_do_not_match():
     label = score_extraction_eval.ExpectedMention(
         category="book", title="The Trial", author=None, aliases=(), optional=False
     )
-    assert score_extraction_eval.title_similarity("The Castle", label) < 0.88
+    assert score_extraction_eval.title_similarity("The Castle", label) < TITLE_MATCH_THRESHOLD
 
 
 @pytest.mark.parametrize(
@@ -290,4 +291,4 @@ def test_repo_labels_file_is_valid():
         for url in Path("evals/reel-lists", name).read_text().split()
     ]
 
-    assert {score_extraction_eval._source_key(url) for url in reel_list_urls} == set(labels)
+    assert {score_extraction_eval.source_key_for(url) for url in reel_list_urls} == set(labels)

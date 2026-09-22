@@ -15,7 +15,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format:check": "prettier --check \"**/*.{ts,tsx}\"",
-    "test": "npm run test:captures && npm run test:shared-source-intake && npm run test:share-url && npm run test:pending-shared-source && npm run test:supabase-config && npm run lint && npm run typecheck"
+    "test": "npm run test:captures && npm run test:shared-source-intake && npm run test:share-url && npm run test:pending-shared-source && npm run test:supabase-config && npm run lint && npm run format:check && npm run typecheck"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",

@@ -62,10 +62,14 @@ export function validateSupabaseMobileConfig(config: SupabaseMobileRuntimeConfig
     return;
   }
   if (!config.supabaseUrl || !config.supabasePublishableKey) {
-    throw new Error('Production mobile builds require EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY.');
+    throw new Error(
+      'Production mobile builds require EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY.',
+    );
   }
   if (isUnsafeSupabasePublicKey(config.supabasePublishableKey)) {
-    throw new Error('Production mobile builds must not expose a Supabase secret or service-role key.');
+    throw new Error(
+      'Production mobile builds must not expose a Supabase secret or service-role key.',
+    );
   }
   if (config.authRedirectUrlOverride.trim()) {
     throw new Error('Production mobile builds must not set EXPO_PUBLIC_AUTH_REDIRECT_URL.');

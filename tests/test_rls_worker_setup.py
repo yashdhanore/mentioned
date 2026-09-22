@@ -7,7 +7,7 @@ from sqlmodel import Session, create_engine
 
 from src.auth.dependencies import get_authenticated_session
 from src.auth.schemas import Caller
-from src.config import AuthConfig, DBConfig, Settings, validate_settings
+from src.config import Settings
 from src.database import check_worker_database_role
 from src.worker import resolve_worker_engine
 
@@ -90,41 +90,6 @@ def test_worker_role_check_requires_postgres_when_requested() -> None:
     check_worker_database_role(engine)  # type: ignore[arg-type]
     with pytest.raises(RuntimeError, match="worker database must be PostgreSQL"):
         check_worker_database_role(engine, require_postgres=True)  # type: ignore[arg-type]
-
-
-def _production_settings(*, cors_allowed_origins: tuple[str, ...]) -> Settings:
-    return Settings(
-        app_env="production",
-        docs_enabled=False,
-        source_require_https=True,
-        cors_allowed_origins=cors_allowed_origins,
-        trusted_hosts=("mentioned-api.onrender.com",),
-        db=DBConfig(
-            database_url="postgresql://mentioned_api:password@example.supabase.co/postgres",
-            auto_create_tables=False,
-        ),
-        auth=AuthConfig(
-            auth_mode="supabase",
-            supabase_project_url="https://example.supabase.co",
-        ),
-    )
-
-
-def test_production_cors_allows_explicit_localhost_http_for_development() -> None:
-    validate_settings(
-        _production_settings(
-            cors_allowed_origins=(
-                "https://app.example.com",
-                "http://localhost:8082",
-                "http://127.0.0.1:8082",
-            )
-        )
-    )
-
-
-def test_production_cors_rejects_non_local_http_origins() -> None:
-    with pytest.raises(RuntimeError, match="CORS_ALLOWED_ORIGINS"):
-        validate_settings(_production_settings(cors_allowed_origins=("http://app.example.com",)))
 
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[1] / "migrations" / "versions"

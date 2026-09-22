@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from uuid import UUID, uuid4
 
+import pytest
 from sqlmodel import Session, SQLModel, create_engine
 
 from src.config import Settings
@@ -11,7 +12,7 @@ from src.sources.models import Source, SourceStatus
 from src.sources.queue import SourceExtractionMessage
 from src.timeutils import utc_now
 
-OWNER = UUID("00000000-0000-4000-8000-000000000001")
+ARCHIVE_TARGET = "src.ingestion.queue_worker.archive_source_extraction_message"
 
 
 class FakeSourceIngestion:
@@ -27,10 +28,19 @@ class FakeSourceIngestion:
         return True
 
 
-def _engine():
+@pytest.fixture
+def engine():
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
     SQLModel.metadata.create_all(engine)
-    return engine
+    yield engine
+    SQLModel.metadata.drop_all(engine)
+
+
+@pytest.fixture
+def archived(monkeypatch) -> list[int]:
+    archived: list[int] = []
+    monkeypatch.setattr(ARCHIVE_TARGET, lambda _session, msg_id: archived.append(msg_id))
+    return archived
 
 
 def _source(engine, *, status: SourceStatus = SourceStatus.PENDING) -> Source:
@@ -49,84 +59,46 @@ def _source(engine, *, status: SourceStatus = SourceStatus.PENDING) -> Source:
         return source
 
 
-def test_queue_worker_archives_missing_source(monkeypatch):
-    engine = _engine()
-    archived = []
+def test_queue_worker_archives_missing_source(engine, archived):
     ingestion = FakeSourceIngestion()
 
-    def fake_archive(_session: Session, msg_id: int) -> None:
-        archived.append(msg_id)
-
-    monkeypatch.setattr(
-        "src.ingestion.queue_worker.archive_source_extraction_message", fake_archive
+    process_source_extraction_message(
+        SourceExtractionMessage(msg_id=20, source_id=uuid4(), read_count=1),
+        engine,
+        Settings(worker_id="worker-queue"),
+        ingestion=ingestion,
     )
-
-    try:
-        process_source_extraction_message(
-            SourceExtractionMessage(msg_id=20, source_id=uuid4(), read_count=1),
-            engine,
-            Settings(worker_id="worker-queue"),
-            ingestion=ingestion,
-        )
-    finally:
-        SQLModel.metadata.drop_all(engine)
 
     assert archived == [20]
     assert ingestion.processed == []
 
 
-def test_queue_worker_archives_non_pending_source(monkeypatch):
-    engine = _engine()
-    archived = []
+def test_queue_worker_archives_non_pending_source(engine, archived):
     ingestion = FakeSourceIngestion()
+    source = _source(engine, status=SourceStatus.DONE)
 
-    def fake_archive(_session: Session, msg_id: int) -> None:
-        archived.append(msg_id)
-
-    monkeypatch.setattr(
-        "src.ingestion.queue_worker.archive_source_extraction_message", fake_archive
+    process_source_extraction_message(
+        SourceExtractionMessage(msg_id=21, source_id=source.id, read_count=1),
+        engine,
+        Settings(worker_id="worker-queue"),
+        ingestion=ingestion,
     )
-
-    try:
-        source = _source(engine, status=SourceStatus.DONE)
-
-        process_source_extraction_message(
-            SourceExtractionMessage(msg_id=21, source_id=source.id, read_count=1),
-            engine,
-            Settings(worker_id="worker-queue"),
-            ingestion=ingestion,
-        )
-    finally:
-        SQLModel.metadata.drop_all(engine)
 
     assert archived == [21]
     assert ingestion.processed == []
 
 
-def test_queue_worker_leaves_processing_source_unarchived(monkeypatch, caplog):
-    engine = _engine()
-    archived = []
+def test_queue_worker_leaves_processing_source_unarchived(engine, archived, caplog):
     ingestion = FakeSourceIngestion()
     caplog.set_level(logging.INFO, logger="src.ingestion.queue_worker")
+    source = _source(engine, status=SourceStatus.PROCESSING)
 
-    def fake_archive(_session: Session, msg_id: int) -> None:
-        archived.append(msg_id)
-
-    monkeypatch.setattr(
-        "src.ingestion.queue_worker.archive_source_extraction_message", fake_archive
+    process_source_extraction_message(
+        SourceExtractionMessage(msg_id=24, source_id=source.id, read_count=2),
+        engine,
+        Settings(worker_id="worker-queue"),
+        ingestion=ingestion,
     )
-
-    try:
-        source = _source(engine, status=SourceStatus.PROCESSING)
-
-        process_source_extraction_message(
-            SourceExtractionMessage(msg_id=24, source_id=source.id, read_count=2),
-            engine,
-            Settings(worker_id="worker-queue"),
-            ingestion=ingestion,
-        )
-    finally:
-        SQLModel.metadata.drop_all(engine)
 
     assert archived == []
     assert ingestion.processed == []
@@ -135,39 +107,27 @@ def test_queue_worker_leaves_processing_source_unarchived(monkeypatch, caplog):
     assert "stale source recovery" in caplog.text
 
 
-def test_queue_worker_leaves_failed_source_claim_race_unarchived(monkeypatch):
-    engine = _engine()
-    archived = []
+def test_queue_worker_leaves_failed_source_claim_race_unarchived(engine, archived, monkeypatch):
     ingestion = FakeSourceIngestion()
-
-    def fake_archive(_session: Session, msg_id: int) -> None:
-        archived.append(msg_id)
-
-    monkeypatch.setattr(
-        "src.ingestion.queue_worker.archive_source_extraction_message", fake_archive
-    )
     monkeypatch.setattr(
         "src.ingestion.queue_worker.claim_source_for_processing", lambda *args: None
     )
+    source = _source(engine)
 
-    try:
-        source = _source(engine)
-
-        process_source_extraction_message(
-            SourceExtractionMessage(msg_id=22, source_id=source.id, read_count=3),
-            engine,
-            Settings(worker_id="worker-queue"),
-            ingestion=ingestion,
-        )
-    finally:
-        SQLModel.metadata.drop_all(engine)
+    process_source_extraction_message(
+        SourceExtractionMessage(msg_id=22, source_id=source.id, read_count=3),
+        engine,
+        Settings(worker_id="worker-queue"),
+        ingestion=ingestion,
+    )
 
     assert archived == []
     assert ingestion.processed == []
 
 
-def test_queue_worker_marks_source_failed_and_archives_when_processor_raises(monkeypatch, caplog):
-    engine = _engine()
+def test_queue_worker_marks_source_failed_and_archives_when_processor_raises(
+    engine, monkeypatch, caplog
+):
     archived = []
     order = []
 
@@ -181,69 +141,48 @@ def test_queue_worker_marks_source_failed_and_archives_when_processor_raises(mon
         order.append(("archive", refreshed.status if refreshed else None))
         archived.append(msg_id)
 
-    monkeypatch.setattr(
-        "src.ingestion.queue_worker.archive_source_extraction_message", fake_archive
-    )
+    monkeypatch.setattr(ARCHIVE_TARGET, fake_archive)
+    source = _source(engine)
 
-    try:
-        source = _source(engine)
+    with caplog.at_level("ERROR", logger="src.ingestion.queue_worker"):
+        process_source_extraction_message(
+            SourceExtractionMessage(msg_id=25, source_id=source.id, read_count=1),
+            engine,
+            Settings(worker_id="worker-queue"),
+            ingestion=FailingSourceIngestion(),
+        )
 
-        with caplog.at_level("ERROR", logger="src.ingestion.queue_worker"):
-            process_source_extraction_message(
-                SourceExtractionMessage(msg_id=25, source_id=source.id, read_count=1),
-                engine,
-                Settings(worker_id="worker-queue"),
-                ingestion=FailingSourceIngestion(),
-            )
-
-        with Session(engine) as session:
-            refreshed = session.get(Source, source.id)
-            assert refreshed is not None
-            assert refreshed.status == SourceStatus.FAILED
-            # The raw exception text must never reach the user-facing error_message.
-            assert refreshed.error_message == "Something went wrong while processing this post."
-    finally:
-        SQLModel.metadata.drop_all(engine)
-
+    with Session(engine) as session:
+        refreshed = session.get(Source, source.id)
+    assert refreshed is not None
+    assert refreshed.status == SourceStatus.FAILED
+    # The raw exception text must never reach the user-facing error_message.
+    assert refreshed.error_message == "Something went wrong while processing this post."
     assert archived == [25]
     assert order == [("process", SourceStatus.PROCESSING), ("archive", SourceStatus.FAILED)]
     # The raw exception detail is preserved server-side in logs instead.
     assert "thumbnail store unavailable" in caplog.text
 
 
-def test_queue_worker_leaves_source_message_unarchived_when_attempt_not_finalized(monkeypatch):
-    engine = _engine()
-    archived = []
-
+def test_queue_worker_leaves_source_message_unarchived_when_attempt_not_finalized(engine, archived):
     class StaleSourceIngestion:
         def process_source(self, _session: Session, source: Source) -> bool:
             source.status = SourceStatus.PROCESSING
             return False
 
-    def fake_archive(_session: Session, msg_id: int) -> None:
-        archived.append(msg_id)
+    source = _source(engine)
 
-    monkeypatch.setattr(
-        "src.ingestion.queue_worker.archive_source_extraction_message", fake_archive
+    process_source_extraction_message(
+        SourceExtractionMessage(msg_id=26, source_id=source.id, read_count=1),
+        engine,
+        Settings(worker_id="worker-queue"),
+        ingestion=StaleSourceIngestion(),
     )
-
-    try:
-        source = _source(engine)
-
-        process_source_extraction_message(
-            SourceExtractionMessage(msg_id=26, source_id=source.id, read_count=1),
-            engine,
-            Settings(worker_id="worker-queue"),
-            ingestion=StaleSourceIngestion(),
-        )
-    finally:
-        SQLModel.metadata.drop_all(engine)
 
     assert archived == []
 
 
-def test_queue_worker_archives_message_after_source_status_is_saved(monkeypatch, caplog):
-    engine = _engine()
+def test_queue_worker_archives_message_after_source_status_is_saved(engine, monkeypatch, caplog):
     archived = []
     order = []
     ingestion = FakeSourceIngestion()
@@ -260,21 +199,15 @@ def test_queue_worker_archives_message_after_source_status_is_saved(monkeypatch,
         archived.append(msg_id)
 
     ingestion.process_source = fake_process  # type: ignore[method-assign]
-    monkeypatch.setattr(
-        "src.ingestion.queue_worker.archive_source_extraction_message", fake_archive
+    monkeypatch.setattr(ARCHIVE_TARGET, fake_archive)
+    source = _source(engine)
+
+    process_source_extraction_message(
+        SourceExtractionMessage(msg_id=23, source_id=source.id, read_count=1),
+        engine,
+        Settings(worker_id="worker-queue"),
+        ingestion=ingestion,
     )
-
-    try:
-        source = _source(engine)
-
-        process_source_extraction_message(
-            SourceExtractionMessage(msg_id=23, source_id=source.id, read_count=1),
-            engine,
-            Settings(worker_id="worker-queue"),
-            ingestion=ingestion,
-        )
-    finally:
-        SQLModel.metadata.drop_all(engine)
 
     assert archived == [23]
     assert order == [("process", SourceStatus.PROCESSING), ("archive", SourceStatus.DONE)]
@@ -282,69 +215,40 @@ def test_queue_worker_archives_message_after_source_status_is_saved(monkeypatch,
     assert str(source.id) in caplog.text
 
 
-def test_queue_worker_fails_and_archives_poison_message_past_max_deliveries(monkeypatch, caplog):
-    engine = _engine()
-    archived = []
+def test_queue_worker_fails_and_archives_poison_message_past_max_deliveries(
+    engine, archived, caplog
+):
     ingestion = FakeSourceIngestion()
     caplog.set_level(logging.ERROR, logger="src.ingestion.queue_worker")
+    source = _source(engine, status=SourceStatus.PENDING)
 
-    def fake_archive(session: Session, msg_id: int) -> None:
-        archived.append(msg_id)
-
-    monkeypatch.setattr(
-        "src.ingestion.queue_worker.archive_source_extraction_message", fake_archive
+    process_source_extraction_message(
+        SourceExtractionMessage(msg_id=99, source_id=source.id, read_count=6),
+        engine,
+        Settings(worker_id="worker-queue", worker_queue_max_deliveries=5),
+        ingestion=ingestion,
     )
 
-    try:
-        source = _source(engine, status=SourceStatus.PENDING)
-        settings = Settings(worker_id="worker-queue", worker_queue_max_deliveries=5)
-
-        process_source_extraction_message(
-            SourceExtractionMessage(msg_id=99, source_id=source.id, read_count=6),
-            engine,
-            settings,
-            ingestion=ingestion,
-        )
-
-        with Session(engine) as session:
-            refreshed = session.get(Source, source.id)
-            assert refreshed is not None
-            assert refreshed.status == SourceStatus.FAILED
-            assert refreshed.error_message == (
-                "This post could not be processed after repeated attempts."
-            )
-    finally:
-        SQLModel.metadata.drop_all(engine)
-
+    with Session(engine) as session:
+        refreshed = session.get(Source, source.id)
+    assert refreshed is not None
+    assert refreshed.status == SourceStatus.FAILED
+    assert refreshed.error_message == "This post could not be processed after repeated attempts."
     assert archived == [99]
     assert ingestion.processed == []
     assert "exceeded max deliveries" in caplog.text
 
 
-def test_queue_worker_processes_message_at_max_deliveries(monkeypatch):
-    engine = _engine()
-    archived = []
+def test_queue_worker_processes_message_at_max_deliveries(engine, archived):
     ingestion = FakeSourceIngestion()
+    source = _source(engine, status=SourceStatus.PENDING)
 
-    def fake_archive(session: Session, msg_id: int) -> None:
-        archived.append(msg_id)
-
-    monkeypatch.setattr(
-        "src.ingestion.queue_worker.archive_source_extraction_message", fake_archive
+    process_source_extraction_message(
+        SourceExtractionMessage(msg_id=100, source_id=source.id, read_count=5),
+        engine,
+        Settings(worker_id="worker-queue", worker_queue_max_deliveries=5),
+        ingestion=ingestion,
     )
-
-    try:
-        source = _source(engine, status=SourceStatus.PENDING)
-        settings = Settings(worker_id="worker-queue", worker_queue_max_deliveries=5)
-
-        process_source_extraction_message(
-            SourceExtractionMessage(msg_id=100, source_id=source.id, read_count=5),
-            engine,
-            settings,
-            ingestion=ingestion,
-        )
-    finally:
-        SQLModel.metadata.drop_all(engine)
 
     assert archived == [100]
     assert ingestion.processed == [source.id]

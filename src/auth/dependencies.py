@@ -44,10 +44,6 @@ def get_current_caller(authorization: str | None = Header(default=None)) -> Call
     return verify_supabase_token(_bearer_token(authorization), auth)
 
 
-def worker_caller(worker_id: str = "worker") -> Caller:
-    return Caller(subject_id=worker_id, role="worker")
-
-
 CallerDep = Annotated[Caller, Depends(get_current_caller)]
 RawSessionDep = Annotated[Session, Depends(get_session)]
 
