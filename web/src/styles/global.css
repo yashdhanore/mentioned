@@ -18,8 +18,8 @@
   --shadow-paper: 0 24px 80px rgba(16, 26, 23, 0.12);
   --shadow-float: 0 18px 60px rgba(16, 26, 23, 0.16);
   --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
-  --font-display: "Clash Display", "Geist", "Satoshi", "Plus Jakarta Sans", "SF Pro Display", system-ui, sans-serif;
-  --font-body: "Geist", "Satoshi", "Plus Jakarta Sans", "SF Pro Text", system-ui, sans-serif;
+  --font-display: "Plus Jakarta Sans Variable", system-ui, sans-serif;
+  --font-body: "Geist Variable", system-ui, sans-serif;
 }
 
 * {
@@ -120,7 +120,7 @@ a {
   border-radius: 999px;
   padding: 8px 8px 8px 22px;
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 700;
   line-height: 1;
   transition:
     transform 520ms var(--ease-spring),
@@ -189,7 +189,7 @@ a {
   padding-left: 6px;
   color: var(--color-ink);
   font-size: 18px;
-  font-weight: 820;
+  font-weight: 800;
 }
 
 .site-nav__mark {
@@ -299,7 +299,7 @@ a {
   color: var(--color-ink);
   font-family: var(--font-display);
   font-size: clamp(58px, min(7vw, 10vh), 112px);
-  font-weight: 850;
+  font-weight: 800;
   letter-spacing: 0;
   line-height: 0.92;
 }
@@ -490,7 +490,7 @@ a {
   margin: 0;
   font-family: var(--font-display);
   font-size: clamp(42px, 5.6vw, 82px);
-  font-weight: 820;
+  font-weight: 800;
   letter-spacing: 0;
   line-height: 0.98;
 }
@@ -782,7 +782,7 @@ a {
   margin: 0;
   font-family: var(--font-display);
   font-size: clamp(46px, 5.8vw, 82px);
-  font-weight: 820;
+  font-weight: 800;
   letter-spacing: 0;
   line-height: 0.98;
 }
@@ -808,7 +808,7 @@ a {
   padding-left: 20px;
   color: var(--color-ink);
   font-size: 15px;
-  font-weight: 720;
+  font-weight: 700;
 }
 
 .waitlist-section__proof li::before {
@@ -918,7 +918,7 @@ a {
 
 .waitlist-card[data-state="submitted"] .waitlist-status {
   color: var(--color-primary-pressed);
-  font-weight: 760;
+  font-weight: 700;
 }
 
 .waitlist-card[data-state="loading"] .waitlist-status {
@@ -927,7 +927,7 @@ a {
 
 .waitlist-card[data-state="error"] .waitlist-status {
   color: var(--color-error);
-  font-weight: 760;
+  font-weight: 700;
 }
 
 .final-cta-section {
@@ -1109,7 +1109,7 @@ html[data-motion="enhanced"] [data-shelf-memory] {
   gap: 10px;
   color: var(--color-ink);
   font-size: 16px;
-  font-weight: 820;
+  font-weight: 800;
 }
 
 .content-nav__mark {
@@ -1169,7 +1169,7 @@ html[data-motion="enhanced"] [data-shelf-memory] {
   color: var(--color-ink);
   font-family: var(--font-display);
   font-size: 22px;
-  font-weight: 750;
+  font-weight: 700;
   line-height: 1.2;
 }
 

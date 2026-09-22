@@ -1,4 +1,7 @@
 ---
+import displayFontUrl from '@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-wght-normal.woff2?url';
+import '@fontsource-variable/plus-jakarta-sans';
+import '@fontsource-variable/geist';
 import '../styles/global.css';
 
 type Props = {
@@ -17,6 +20,7 @@ const { title, description } = Astro.props;
     <meta name="description" content={description} />
     <meta name="theme-color" content="#F7F5F0" />
     <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="preload" as="font" type="font/woff2" href={displayFontUrl} crossorigin />
     <title>{title}</title>
   </head>
   <body>
