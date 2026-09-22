@@ -20,6 +20,18 @@ docker info >/dev/null 2>&1 || {
   exit 1
 }
 
+# npm writes node_modules/.package-lock.json on install, so a lockfile newer than it
+# means a fresh clone or dependencies that changed since the last install.
+for app in web mobile; do
+  if [ ! -f "$app/node_modules/.package-lock.json" ] || [ "$app/package-lock.json" -nt "$app/node_modules/.package-lock.json" ]; then
+    echo "Installing $app dependencies (npm ci)..."
+    (cd "$app" && npm ci) > "$LOG_DIR/$app-install.log" 2>&1 || {
+      echo "npm ci in $app failed, see $LOG_DIR/$app-install.log" >&2
+      exit 1
+    }
+  fi
+done
+
 wait_for() {
   local url=$1 name=$2 tries=30
   until curl -s -o /dev/null "$url"; do
@@ -45,6 +57,11 @@ supabase start > "$LOG_DIR/supabase.log" 2>&1 || {
 # does not override already-set env vars, so this takes precedence over any .env value.
 export DATABASE_URL="postgresql://mentioned_api:local-dev-api-pw@127.0.0.1:54322/postgres"
 export WORKER_DATABASE_URL="postgresql://mentioned_worker:local-dev-worker-pw@127.0.0.1:54322/postgres"
+
+# Thumbnails go to the local Supabase Storage, using the local stack's own keys.
+eval "$(supabase status -o env 2>/dev/null | grep -E '^(API_URL|SERVICE_ROLE_KEY)=')"
+export SUPABASE_PROJECT_URL="$API_URL"
+export SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
 
 echo "Ensuring local dev database roles exist..."
 docker exec -i supabase_db_mentioned psql -U postgres -d postgres -v ON_ERROR_STOP=1 >> "$LOG_DIR/supabase.log" 2>&1 <<'SQL'
@@ -98,7 +115,11 @@ echo $! > "$LOG_DIR/web.pid"
 disown
 
 echo "Starting mobile app (Expo web)..."
-(cd mobile && npx expo start --web) > "$LOG_DIR/mobile.log" 2>&1 &
+# Points the app at the local API with dev sign-in. Expo's web bundle prefers values
+# from mobile/.env*, so a mobile/.env with production settings needs a mobile/.env.local
+# that sets these three (the app refuses dev sign-in in a production build).
+(cd mobile && EXPO_PUBLIC_APP_ENV=development EXPO_PUBLIC_AUTH_MODE=dev \
+  EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:8000 npx expo start --web) > "$LOG_DIR/mobile.log" 2>&1 &
 echo $! > "$LOG_DIR/mobile.pid"
 disown
 
