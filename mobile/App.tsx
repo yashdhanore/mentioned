@@ -99,7 +99,10 @@ export default function App() {
   });
 
   const signOutAndClose = useCallback(async () => {
-    await handleSignOut(registeredPushToken);
+    const didSignOut = await handleSignOut(registeredPushToken);
+    if (!didSignOut) {
+      return;
+    }
     clearRegisteredPushToken();
     setSheet(null);
   }, [clearRegisteredPushToken, handleSignOut, registeredPushToken]);
