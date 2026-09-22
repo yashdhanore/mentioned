@@ -605,6 +605,29 @@ The work splits along two independent axes:
   serves the original inline content - now from `src/templates/*.html` instead of a Python string
   literal - so neither URL ever 404s.
 
+### 2026-09-22 - Alembic Chain Squashed Into One Revision
+
+- Status: Accepted and implemented.
+- Product constraint: Contract safety for production's `alembic_version` (the squash must be a
+  no-op for a database already at `20260922_0018`) and onboarding - a new engineer or agent reading
+  the schema should have one file to read, not 17 with a legacy detour through `jobs`/`mentions`/
+  `job_events` that no longer exist.
+- Notes: `migrations/versions/` went from 17 files (`20260504_0003` through `20260922_0018`,
+  including the hash-named `781a3572bbaf`) to one, `20260922_0018_initial_schema.py`, containing
+  only the net live schema: `books`, `places`, `sources`, `source_items`, `saved_sources`,
+  `push_tokens`, `waitlist_signups`, and the `extract_sources`/`push_notifications` pgmq queues. The
+  revision id was kept as `20260922_0018` (the chain's old head) so production needs no
+  `alembic stamp`; the next real revision continues as `20260923_0019`. Verified with a throwaway
+  Postgres container (`supabase/postgres:17.6.1.167`): the old 17-file chain and the squashed file
+  produce identical schema-only `pg_dump` output, `pg_policies`, `information_schema.
+  role_table_grants` for `mentioned_api`/`mentioned_worker`, and `pgmq.list_queues()`; also confirmed
+  `alembic downgrade base` then `upgrade head` round-trips cleanly and
+  `tests/test_postgres_dedicated_worker_rls.py` still passes against the squashed schema. Did not
+  attempt SQLite compatibility for the squashed file - the original chain already fails immediately
+  on SQLite (raw Postgres-only RLS/pgmq/extension SQL from revision `20260504_0003` onward), and
+  local dev never runs Alembic against SQLite in practice (`AUTO_CREATE_TABLES` uses
+  `SQLModel.metadata.create_all` instead); the squash is no worse than the chain it replaces.
+
 ### Book Catalog And Reading List Support
 
 > Product intent lives in `docs/strategy/product.md`. Technical work here should support the

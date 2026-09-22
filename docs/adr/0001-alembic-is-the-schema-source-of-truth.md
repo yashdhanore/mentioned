@@ -15,13 +15,26 @@ this ADR originally claimed. `20260523223851_job_thumbnails_bucket.sql` is load-
 `supabase db push` before each deploy (see `docs/deployment.md`). The other two files
 (`20260606110146_add_job_source_creator_handle.sql`,
 `20260608214109_create_waitlist_signups.sql`) predate this ADR and duplicated schema
-that Alembic now also owns (`waitlist_signups` got an Alembic revision,
-`20260922_0018_waitlist_signups.py`, since a database built from `alembic upgrade head`
-alone had no table behind `POST /v1/waitlist`). Those two files are kept only because
-the Supabase CLI tracks applied migrations by version, not checksum, and deleting a
-version already recorded as applied in production risks `supabase db push` reporting
-missing remote versions; their bodies were rewritten to be idempotent, order-independent
-no-ops so they can never diverge from what Alembic does.
+that Alembic now also owns (`waitlist_signups` got an Alembic revision, since a
+database built from `alembic upgrade head` alone had no table behind
+`POST /v1/waitlist`). Those two files are kept only because the Supabase CLI tracks
+applied migrations by version, not checksum, and deleting a version already recorded
+as applied in production risks `supabase db push` reporting missing remote versions;
+their bodies were rewritten to be idempotent, order-independent no-ops so they can
+never diverge from what Alembic does.
+
+**2026-09-22 squash:** the chain (17 files, `20260504_0003` through `20260922_0018`,
+including the hash-named `781a3572bbaf`) was squashed into one file,
+`migrations/versions/20260922_0018_initial_schema.py`, containing only the net live
+schema (the legacy `jobs`/`mentions`/`job_events` tables and `extract_jobs` pgmq queue
+were created and dropped within that chain, so the squash never recreates them). The
+revision id was kept as `20260922_0018` - the old chain's head - specifically so
+production's `alembic_version` row needs no `alembic stamp`; `alembic upgrade head`
+against it is a no-op there. Verified against a throwaway Postgres container that the
+squashed file produces schema/grants/RLS/pgmq state identical to the old 17-file chain
+(schema-only `pg_dump`, `pg_policies`, `information_schema.role_table_grants`, and
+`pgmq.list_queues()`, diffed). The next real revision continues as `20260923_0019`,
+with `down_revision = "20260922_0018"`.
 
 ## Consequences
 
