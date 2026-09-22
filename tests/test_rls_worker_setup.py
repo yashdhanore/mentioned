@@ -145,30 +145,42 @@ def test_squashed_migration_creates_books_table_with_role_scoped_grants() -> Non
     assert 'sa.Column("book_id", UUID, sa.ForeignKey("books.id", ondelete="SET NULL")' in migration
 
 
-def test_waitlist_supabase_migration_has_rls_and_role_scoped_permissions() -> None:
+def test_squashed_migration_creates_waitlist_with_rls_and_role_scoped_policy() -> None:
+    migration = _initial_schema_migration()
+
+    assert "CREATE TABLE public.waitlist_signups" in migration
+    assert "CREATE UNIQUE INDEX waitlist_signups_email_lower_idx" in migration
+    assert "ALTER TABLE public.waitlist_signups ENABLE ROW LEVEL SECURITY" in migration
+    assert "REVOKE ALL ON TABLE public.waitlist_signups FROM anon, authenticated" in migration
+    assert (
+        "GRANT SELECT, INSERT, UPDATE ON TABLE public.waitlist_signups TO mentioned_api"
+        in migration
+    )
+    # The policy must be scoped to a role, not left unscoped: `FOR ALL USING (true)` with no
+    # `TO <role>` applies to every role, including anon/authenticated as soon as anything
+    # grants them table privileges.
+    assert (
+        "CREATE POLICY waitlist_signups_api_manage ON public.waitlist_signups\n"
+        "          FOR ALL\n"
+        "          TO mentioned_api" in migration
+    )
+
+
+def test_waitlist_supabase_migration_is_a_no_op() -> None:
+    # Supabase applies its migrations before Alembic on a fresh database, so any DDL here
+    # collides with the squashed Alembic revision that owns public.waitlist_signups.
     migration_path = next(
         (Path(__file__).resolve().parents[1] / "supabase" / "migrations").glob(
             "*_create_waitlist_signups.sql"
         )
     )
-    migration = migration_path.read_text()
+    statements = [
+        line.strip()
+        for line in migration_path.read_text().splitlines()
+        if line.strip() and not line.strip().startswith("--")
+    ]
 
-    assert "create table if not exists public.waitlist_signups" in migration
-    assert "create unique index if not exists waitlist_signups_email_lower_idx" in migration
-    assert "alter table public.waitlist_signups enable row level security" in migration
-    assert "revoke all on table public.waitlist_signups from anon, authenticated" in migration
-    assert (
-        "grant select, insert, update on table public.waitlist_signups to mentioned_api"
-        in migration
-    )
-    # The policy must be scoped to a role (`to mentioned_api`), not left unscoped
-    # (`for all using (true)` with no `to <role>` applies to every role, including
-    # anon/authenticated as soon as anything grants them table privileges). The old
-    # unscoped policy is dropped, not recreated.
-    assert "create policy waitlist_signups_api_manage" in migration
-    assert "to mentioned_api" in migration
-    assert "drop policy if exists waitlist_signups_app_manage" in migration
-    assert "create policy waitlist_signups_app_manage" not in migration
+    assert statements == ["select 1;"]
 
 
 def test_squashed_migration_creates_push_tokens_with_owner_scoped_rls_and_queue() -> None:

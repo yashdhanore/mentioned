@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import httpx
 import pytest
 from google.genai import errors as genai_errors
 
@@ -171,4 +172,41 @@ def test_generate_with_retry_raises_after_exhausting_attempts(monkeypatch):
         gemini._generate_with_retry(client, model="m", contents=[], config=None, total_attempts=3)
 
     assert excinfo.value.code == 503
+    assert calls["count"] == 3
+
+
+def test_generate_with_retry_retries_timeouts_and_dropped_connections(monkeypatch):
+    monkeypatch.setattr(gemini.time, "sleep", lambda _seconds: None)
+    failures = [httpx.ReadTimeout("The read operation timed out"), httpx.ConnectError("reset")]
+
+    class Models:
+        def generate_content(self, **kwargs):
+            if failures:
+                raise failures.pop(0)
+            return SimpleNamespace(text='{"mentions": []}')
+
+    client = SimpleNamespace(models=Models())
+
+    response = gemini._generate_with_retry(
+        client, model="m", contents=[], config=None, total_attempts=3
+    )
+
+    assert response.text == '{"mentions": []}'
+    assert failures == []
+
+
+def test_generate_with_retry_gives_up_after_repeated_timeouts(monkeypatch):
+    monkeypatch.setattr(gemini.time, "sleep", lambda _seconds: None)
+    calls = {"count": 0}
+
+    class Models:
+        def generate_content(self, **kwargs):
+            calls["count"] += 1
+            raise httpx.ReadTimeout("The read operation timed out")
+
+    client = SimpleNamespace(models=Models())
+
+    with pytest.raises(httpx.ReadTimeout):
+        gemini._generate_with_retry(client, model="m", contents=[], config=None, total_attempts=3)
+
     assert calls["count"] == 3

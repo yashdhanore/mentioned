@@ -78,6 +78,10 @@ supabase migration up --local >> "$LOG_DIR/supabase.log" 2>&1 || {
   exit 1
 }
 
+# The worker shells out to yt-dlp (found with shutil.which), which uv installs into
+# .venv/bin; without this, downloads fail with "yt-dlp is not installed".
+export PATH="$PWD/.venv/bin:$PATH"
+
 echo "Starting backend API..."
 .venv/bin/fastapi dev --port 8000 > "$LOG_DIR/backend.log" 2>&1 &
 echo $! > "$LOG_DIR/backend.pid"

@@ -6,6 +6,7 @@ import time
 from collections.abc import Sequence
 from pathlib import Path
 
+import httpx
 from google import genai
 from google.genai import errors as genai_errors
 from google.genai.types import GenerateContentConfig, Part
@@ -19,15 +20,15 @@ EXTRACTION_PROMPT = """\
 Analyze this Instagram content (video with audio, or images).
 Identify all books, products, and places that are explicitly mentioned, shown, or recommended.
 
-Return JSON: {"mentions": [{"title": "...", "author": "...", "category": "book|product|place", "confidence": 0.0-1.0}]}
-
 Rules:
 - Only include items clearly and intentionally featured or recommended
 - For books: include author if visible or spoken
-- Confidence reflects how certain you are (visible cover = high, just mentioned in passing = lower)
+- Confidence is between 0.0 and 1.0 and reflects how certain you are (visible cover = high, just mentioned in passing = lower)
 - Do NOT include incidental background items, UI elements, or generic references
 - A place is a specific location the creator recommends going to, such as a restaurant, shop, hotel, beach, landmark, or a destination pitched as a trip
 - Do NOT list a place that only describes another item, such as the country or city a book is set in, where an author is from, or an on-screen label like "Turkey" next to a book
+- For places: set location_hint to the city, region, or country the place is in, if the content shows or says it
+- For each item you include under the rules above, give evidence of where it is featured: the timestamp (MM:SS) where it is first clearly shown or said, whether that is speech, on_screen_text, or visual (such as a book cover), and a short quote of the words spoken or shown. Evidence does not make an item qualify: a book that only flashes past is still incidental
 """
 
 MENTION_SCHEMA = {
@@ -42,6 +43,19 @@ MENTION_SCHEMA = {
                     "author": {"type": "string"},
                     "category": {"type": "string", "enum": ["book", "product", "place"]},
                     "confidence": {"type": "number"},
+                    "location_hint": {"type": "string"},
+                    "evidence": {
+                        "type": "object",
+                        "properties": {
+                            "timestamp": {"type": "string"},
+                            "source": {
+                                "type": "string",
+                                "enum": ["speech", "on_screen_text", "visual"],
+                            },
+                            "quote": {"type": "string"},
+                        },
+                        "required": ["source"],
+                    },
                 },
                 "required": ["title", "category", "confidence"],
             },
@@ -130,7 +144,10 @@ def upload_to_gemini(client: genai.Client, media_path: Path, *, use_vertexai: bo
 
 
 RETRY_DELAYS = [2, 5, 10]  # seconds between retries
-RETRYABLE_STATUS_CODES = {429, 500, 503}
+RETRYABLE_STATUS_CODES = {408, 429, 500, 502, 503, 504}
+# The SDK lets httpx timeouts and dropped connections through unwrapped. A slow Gemini
+# period shows up as a read timeout, and one of those used to fail the whole save.
+RETRYABLE_TRANSPORT_ERRORS = (httpx.TimeoutException, httpx.NetworkError)
 
 
 def _media_path_list(media_paths: Path | Sequence[Path]) -> list[Path]:
@@ -166,15 +183,16 @@ def _generate_with_retry(
     for attempt in range(total_attempts - 1):
         try:
             return client.models.generate_content(model=model, contents=contents, config=config)
-        except genai_errors.APIError as exc:
-            if exc.code not in RETRYABLE_STATUS_CODES:
+        except (genai_errors.APIError, *RETRYABLE_TRANSPORT_ERRORS) as exc:
+            if isinstance(exc, genai_errors.APIError) and exc.code not in RETRYABLE_STATUS_CODES:
                 raise
             delay = RETRY_DELAYS[attempt]
             logger.warning(
-                "Gemini request failed (attempt %d/%d), retrying in %ds: %s",
+                "Gemini request failed (attempt %d/%d), retrying in %ds: %s: %s",
                 attempt + 1,
                 total_attempts,
                 delay,
+                type(exc).__name__,
                 exc,
             )
             time.sleep(delay)

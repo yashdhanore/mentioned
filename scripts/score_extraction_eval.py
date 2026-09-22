@@ -12,23 +12,18 @@ import json
 import math
 import re
 import sys
-import unicodedata
 from dataclasses import dataclass, field
-from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
+from src.books.titles import TITLE_MATCH_THRESHOLD, authors_match, best_title_similarity
 from src.sources.identity import identify_source
 
 LABELS_SCHEMA_VERSION = "reel_labels.v1"
 DEFAULT_LABELS_PATH = Path("evals/reel-labels.json")
 LABEL_STATUSES = {"todo", "labeled", "excluded"}
 CATEGORIES = {"book", "product", "place"}
-TITLE_MATCH_THRESHOLD = 0.88
-AUTHOR_MATCH_THRESHOLD = 0.85
-LEADING_ARTICLE_RE = re.compile(r"^(the|a|an) ")
-NON_WORD_RE = re.compile(r"[^\w\s]")
-WHITESPACE_RE = re.compile(r"\s+")
+TIMESTAMP_RE = re.compile(r"^\d{1,2}:\d{2}$")
 
 
 class LabelsError(ValueError):
@@ -60,55 +55,8 @@ class SourceScore:
     optional_hits: list[dict[str, Any]] = field(default_factory=list)
 
 
-def _normalize_text(value: str) -> str:
-    decomposed = unicodedata.normalize("NFKD", value)
-    without_accents = "".join(char for char in decomposed if not unicodedata.combining(char))
-    lowered = without_accents.casefold().replace("&", " and ")
-    no_punctuation = NON_WORD_RE.sub(" ", lowered)
-    return WHITESPACE_RE.sub(" ", no_punctuation).strip()
-
-
-def normalize_title(value: str) -> str:
-    """Normalize a title for comparison, dropping subtitles and leading articles."""
-    main_title = re.split(r":| - | \u2013 | \u2014 ", value, maxsplit=1)[0]
-    return LEADING_ARTICLE_RE.sub("", _normalize_text(main_title))
-
-
-def title_forms(value: str) -> set[str]:
-    """Comparable forms of a title: with and without subtitle, and each side of a
-    bilingual "Original / Translation" title."""
-    parts = [value, *value.split(" / ")] if " / " in value else [value]
-    forms = set()
-    for part in parts:
-        forms.add(LEADING_ARTICLE_RE.sub("", _normalize_text(part)))
-        forms.add(normalize_title(part))
-    forms.discard("")
-    return forms
-
-
 def title_similarity(predicted: str, expected: ExpectedMention) -> float:
-    predicted_forms = title_forms(predicted)
-    best = 0.0
-    for candidate in (expected.title, *expected.aliases):
-        for candidate_form in title_forms(candidate):
-            if candidate_form in predicted_forms:
-                return 1.0
-            for predicted_form in predicted_forms:
-                ratio = SequenceMatcher(None, predicted_form, candidate_form).ratio()
-                best = max(best, ratio)
-    return best
-
-
-def authors_match(predicted: str, expected: str) -> bool:
-    predicted_norm = _normalize_text(predicted)
-    expected_norm = _normalize_text(expected)
-    if not predicted_norm or not expected_norm:
-        return False
-    if predicted_norm == expected_norm:
-        return True
-    if predicted_norm.split()[-1] == expected_norm.split()[-1]:
-        return True
-    return SequenceMatcher(None, predicted_norm, expected_norm).ratio() >= AUTHOR_MATCH_THRESHOLD
+    return best_title_similarity(predicted, (expected.title, *expected.aliases))
 
 
 def _source_key(source_url: str) -> str:
@@ -264,6 +212,16 @@ def score_source(
     return score
 
 
+def _count_evidence(totals: dict[str, Any], predicted: list[dict[str, Any]]) -> None:
+    for mention in predicted:
+        totals["predicted_mentions"] += 1
+        evidence = mention.get("evidence")
+        if isinstance(evidence, dict) and evidence.get("source"):
+            totals["with_evidence"] += 1
+            if TIMESTAMP_RE.match(str(evidence.get("timestamp") or "")):
+                totals["with_timestamp"] += 1
+
+
 def _author_correct(predicted: Any, expected: str | None) -> bool | None:
     if not expected:
         return None
@@ -326,6 +284,9 @@ def _empty_model_totals() -> dict[str, Any]:
         "fp_confidences": [],
         "cost_usd": 0.0,
         "duration_seconds": [],
+        "predicted_mentions": 0,
+        "with_evidence": 0,
+        "with_timestamp": 0,
     }
 
 
@@ -375,7 +336,9 @@ def score_results(labels: dict[str, LabeledReel], results: dict[str, Any]) -> di
                 }
                 continue
 
-            score = score_source(_predicted_mentions(result), reel.expected)
+            predicted = _predicted_mentions(result)
+            score = score_source(predicted, reel.expected)
+            _count_evidence(totals, predicted)
             totals["tp"] += len(score.true_positives)
             totals["fp"] += len(score.false_positives)
             totals["fn"] += len(score.false_negatives)
@@ -432,6 +395,8 @@ def _summarize_model(model: str, totals: dict[str, Any]) -> dict[str, Any]:
         "estimated_cost_usd": cost_usd,
         "cost_per_true_positive_usd": round(cost_usd / tp, 6) if tp else None,
         "mean_duration_seconds": _mean(totals["duration_seconds"]),
+        "evidence_coverage": _ratio(totals["with_evidence"], totals["predicted_mentions"]),
+        "timestamp_coverage": _ratio(totals["with_timestamp"], totals["predicted_mentions"]),
     }
 
 
@@ -485,6 +450,8 @@ def format_report(coverage: dict[str, Any], report: dict[str, Any] | None) -> st
         ("cost USD", "estimated_cost_usd"),
         ("USD per TP", "cost_per_true_positive_usd"),
         ("mean seconds", "mean_duration_seconds"),
+        ("with evidence", "evidence_coverage"),
+        ("with timestamp", "timestamp_coverage"),
     ]
     models = report["models"]
     if models:

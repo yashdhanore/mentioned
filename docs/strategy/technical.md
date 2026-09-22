@@ -520,6 +520,45 @@ The work splits along two independent axes:
 - Next: add place, product, and nothing-to-find Reels before trusting the places fix on place Reels,
   and measure the gate before tuning or replacing it.
 
+### 2026-09-22 - Checked Catalog Resolution, A Tool-Using Agent For Misses, And Evidence
+
+- Status: Accepted and implemented. The worker attaches a Google Books entry only when it passes a
+  title and author check (`src/books/resolution.py`); the agent (`src/books/resolution_agent.py`)
+  runs only in the resolution eval; evidence and `location_hint` are in the shared
+  `MENTION_SCHEMA`.
+- Product constraint: The revisit half of save -> extract -> revisit. A saved book shown with the
+  wrong cover breaks trust more than a book shown with no cover, and the book-first wedge depends
+  on book metadata being right. Serves cost control (the agent is text-only) and fail-open
+  extraction (an unconfirmed book is kept, never dropped).
+- Why: the first Google Books hit, which production attached unchecked, was a different work for 6
+  of 126 labeled books (a summary, a sequel, a theatre adaptation, a critical casebook, a different
+  book by the same author) and a collection for 6 more. Checking the top five removed all 12 with
+  no book lost; the agent then recovered three of the four books the check could not confirm, for
+  about half a cent over the whole run. Numbers and limits are in `evals/README.md`.
+- Rejected: giving the video extraction call `search_books` / `search_places` tools. Each tool round
+  would resend the video, whose tokens dominate the cost, and every book is looked up anyway, so
+  the model has no search decision to make there. The agent is scoped to the misses and never sees
+  the video. It must pick a volume that appeared in its own search results, and forced function
+  calling (`mode=ANY`) with `allowed_function_names` gives it a hard budget of three searches.
+- Verified: `gemini-3.1-flash-lite` accepts function declarations together with `response_schema`
+  in one call (live call, 2026-09-22), although the docs list only larger Gemini 3 models for it.
+- Finding: catalog confirmation is not a hallucination detector on this set. It flagged 1 of 5
+  false positives; every false positive is a real book that flashes past, or a place. The title
+  earlier recorded as invented, "The theory of symbolic transformations", is a real book by Louis
+  Carini; the 2026-09-22 model comparison note above calls it invented, and that is superseded.
+  The extraction errors left are relevance errors, which a catalog cannot see.
+- Evidence: every mention now carries a timestamp, a source (speech, on-screen text, visual) and a
+  quote, at about 27% more extraction cost. Asking for evidence "for every item" made the model
+  list books that flash past, with real timestamps, and precision fell from 0.992 to 0.970; saying
+  evidence only applies to items that already qualify restored 0.992. Removing the `Return JSON`
+  example from the prompt (the google-genai README advises not repeating the schema) gave 0.977
+  precision and 0.992 recall in one run, with the extra errors on the two Reels known to vary.
+  Timestamp accuracy is not measured.
+- Next: wire the agent into the worker only if production shows unconfirmed books often enough to
+  matter; store resolution status and evidence on `source_items` once there is a UI for them; build
+  the real Places provider behind the existing `place_finder` seam, now that `location_hint` is
+  produced.
+
 ### 2026-09-22 - Dead Paths In Place Enrichment
 
 - Status: Recorded, not yet fixed.

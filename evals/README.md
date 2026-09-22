@@ -66,7 +66,7 @@ uv run python scripts/score_extraction_eval.py \
 When iterating on the prompt, add `--reuse-media` to rerun the models on that media instead of downloading from Instagram again; a folder is only reused for the exact source URL its manifest names.
 
 The scorer only counts `labeled` Reels and lists the rest as skipped.
-It reports, per model: precision and recall with 95% Wilson intervals, F1, author accuracy, false positives on Reels with nothing to find, mean confidence of correct versus wrong mentions, failed extractions, cost, and cost per correct mention.
+It reports, per model: precision and recall with 95% Wilson intervals, F1, author accuracy, false positives on Reels with nothing to find, mean confidence of correct versus wrong mentions, failed extractions, cost, cost per correct mention, and how many predicted mentions carry evidence and a timestamp.
 `score.json` has the per-Reel true positives, false positives, and misses for error analysis.
 
 ## Results
@@ -94,7 +94,8 @@ The first run scored `gemini-2.5-flash` at 0.776 precision and 0.954 recall.
 Reading every false positive and miss showed about half of them (20 of 42) were labeling problems: one Reel labeled with the wrong books (now excluded), books mentioned only in passing that should be `optional`, and title variants such as "Monstress" for "Monstress Stories" that needed `aliases`.
 Fixing labels, not the model, moved that run from 0.776 precision and 0.954 recall to 0.884 and 0.992, without touching the model or the prompt.
 Deciding what counts as a label rather than an error needs care: on one Reel several books flash past in the first second without being recommended, so they are marked `optional`, but only the titles at least two models found independently.
-A title only one model produced stays a false positive, because one of them ("The theory of symbolic transformations") is invented.
+A title only one model produced stays a false positive, because copying one model's output into the labels would bless its mistakes.
+The motivating example, "The theory of symbolic transformations", later turned out to be a real book (Louis Carini) that likely flashes past, not a hallucination.
 2. **Places leaking into book Reels.**
 The largest remaining error was places: 12 of `gemini-2.5-flash`'s 21 false positives.
 A "books around the world" Reel captions each book with its country, and the model returned "Turkey", "Tehran", and "Japan" as recommended places.
@@ -109,6 +110,71 @@ The next run returned the same wrong books at 1.0, so self-reported confidence i
 - Every labeled Reel recommends books; there are no place or product Reels and no Reels with nothing to find.
 The places fix is proven to remove false places, not proven harmless for Reels that really recommend a place.
 - One run per configuration; the same model and media vary between runs (for example `gemini-3.5-flash-lite` invented 15 garbled titles on one dense list in one run and none in the next).
-- What is left is small enough to read one by one: `gemini-2.5-flash`'s 5 false positives are "Boracay" on a Filipino literature Reel, three books that flash past on `DYERlNXPsAU` and one invented title; `gemini-3.1-flash-lite`'s single error is the same Boracay.
+- What is left is small enough to read one by one: `gemini-2.5-flash`'s 5 false positives are "Boracay" on a Filipino literature Reel and four books that flash past on `DYERlNXPsAU` (one of them the Carini book above); `gemini-3.1-flash-lite`'s single error is the same Boracay.
 At this size, the next real signal has to come from more Reels, not more tuning.
 
+## Book resolution
+
+Grades the step after extraction: does each book end up attached to the right Google Books entry?
+
+```bash
+uv run python -m scripts.score_resolution_eval \
+  --results outputs/eval-models/result-places-prompt.json \
+  --agent-model gemini-3.1-flash-lite \
+  --output outputs/resolution/score-agent.json
+```
+
+Run it as a module (`-m`).
+Books responses are cached under `outputs/books-cache/`, so reruns make no API calls.
+
+- **First hit**: the first catalog result, unchecked (production until 2026-09-22).
+- **Top 5 + check** (`src/books/resolution.py`, production): the top five results are checked on title and author and summaries are rejected; a book nothing passes keeps its extracted title and gets no cover.
+- **+ agent** (`src/books/resolution_agent.py`, eval only): for books the check could not confirm, a text-only Gemini agent searches up to three more times and may only pick a volume it has seen.
+
+### Results
+
+Run on 2026-09-22 over the 126 unique labeled books, checked by hand (the automated grader shares the resolver's title matching and missed four wrong first-hit books).
+
+| Strategy | Same work | Collection or bundle | Wrong book | Unresolved |
+| --- | --- | --- | --- | --- |
+| First hit (previous production) | 110 | 6 | 6 | 4 |
+| Top 5 + check (production) | 122 | 0 | 0 | 4 |
+| Top 5 + check + agent | 124 | 1 | 0 | 1 |
+
+The first hit attached 6 books to a different work (a summary, a sequel, a theatre adaptation, a critical casebook, and two other books) and 6 to collections; the check removed all 12 without losing a book.
+The agent resolved three of the four books the check left, for about half a cent in total.
+It gave up on "Lying Without Him"; the author's only catalog book is *Living Without Him*, which suggests a label typo.
+
+On the 520 correct mentions the four models predicted, graded automatically:
+
+| Strategy | Same work | Collection or wrong book | Unresolved |
+| --- | --- | --- | --- |
+| First hit | 459 | 50 | 11 |
+| Top 5 + check | 509 | 2 | 9 |
+| Top 5 + check + agent | 517 | 2 | 1 |
+
+The 2 remaining "wrong" grades are grader errors (the catalog lists the author as "Fyodor Fyodor Dostoyevsky").
+
+### Limits
+
+- "Not in the catalog" is not a hallucination detector here: it flagged 1 of 5 false positives, because they are real books that flash past, or a place.
+- Books only; the place lookup is still a stub.
+- Fuzzy title matching lets a sequel that adds one word ("More Days at...") pass the check.
+- The agent's picks were checked by hand on this run only.
+
+## Evidence per mention
+
+The prompt and `MENTION_SCHEMA` ask for evidence with each mention (MM:SS timestamp; speech, on-screen text, or visual; a short quote) and a `location_hint` for places.
+
+Run on 2026-09-22 with `gemini-3.1-flash-lite` on the same saved media, one run per prompt:
+
+| Prompt | Precision | Recall | FP / FN | With evidence | Cost per 1,000 correct mentions |
+| --- | --- | --- | --- | --- | --- |
+| No evidence | 0.992 | 0.992 | 1 / 1 | - | $0.27 |
+| Evidence "for every item" | 0.970 | 0.992 | 4 / 1 | 100% | $0.35 |
+| Evidence only for items that qualify | 0.992 | 0.985 | 1 / 2 | 100% | $0.35 |
+| Same, without the JSON example in the prompt (current) | 0.977 | 0.992 | 3 / 1 | 100% | $0.35 |
+
+Asking for evidence "for every item" made the model add books that flash past, so the wording now limits evidence to items that already qualify.
+The differences between the last two rows are on the two Reels that already vary between runs.
+Evidence costs about 27% more per extraction; timestamp accuracy is not measured.

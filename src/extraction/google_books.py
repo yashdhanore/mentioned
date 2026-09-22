@@ -1,50 +1,68 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from dataclasses import dataclass, field
+from typing import Any, Literal
 from urllib.parse import urlparse, urlunparse
 
 import httpx
 
-from src.books.schemas import BookEnrichment, GoogleBook
+from src.books.schemas import GoogleBook
 from src.config import get_settings
 
 logger = logging.getLogger(__name__)
 
 GOOGLE_BOOKS_API = "https://www.googleapis.com/books/v1/volumes"
+DEFAULT_MAX_RESULTS = 5
+
+BooksSearchStatus = Literal["found", "not_found", "error"]
 
 
-def _search_query(title: str, author: str | None) -> str:
+@dataclass(frozen=True)
+class BooksSearchResult:
+    """Outcome of one catalog query. `not_found` and `error` stay distinct: a
+    not-found book is a signal about the mention, an error is not."""
+
+    status: BooksSearchStatus
+    books: list[GoogleBook] = field(default_factory=list)
+
+
+def book_search_query(title: str, author: str | None) -> str:
     query = f"intitle:{title}"
     if author:
         query += f"+inauthor:{author}"
     return query
 
 
-async def _fetch_first_volume(title: str, author: str | None) -> tuple[dict[str, Any] | None, str]:
-    query = _search_query(title, author)
-    params: dict[str, str | int] = {"q": query, "maxResults": 1}
+def search_volumes(query: str, *, max_results: int = DEFAULT_MAX_RESULTS) -> BooksSearchResult:
+    params: dict[str, str | int] = {"q": query, "maxResults": max_results}
     api_key = get_settings().google_books.api_key
     if api_key:
         params["key"] = api_key
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(GOOGLE_BOOKS_API, params=params)
+        with httpx.Client(timeout=10.0) as client:
+            resp = client.get(GOOGLE_BOOKS_API, params=params)
             resp.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        # Never log the exception itself: its message includes the request URL and the key.
+        logger.warning("Google Books API returned %s for query %r", exc.response.status_code, query)
+        return BooksSearchResult(status="error")
     except httpx.HTTPError as exc:
-        logger.warning("Google Books API error: %s", exc)
-        return None, "error"
+        logger.warning(
+            "Google Books API request failed for query %r: %s", query, type(exc).__name__
+        )
+        return BooksSearchResult(status="error")
 
     data = resp.json()
-    if not data.get("totalItems"):
-        return None, "not_found"
-
-    items = data.get("items") or []
-    if not items:
-        return None, "not_found"
-
-    return items[0], "found"
+    books = [
+        book
+        for book in (_parse_google_book(item) for item in data.get("items") or [])
+        if book is not None
+    ]
+    if not books:
+        return BooksSearchResult(status="not_found")
+    return BooksSearchResult(status="found", books=books)
 
 
 def _image_links(volume_info: dict[str, Any]) -> dict[str, str]:
@@ -130,31 +148,4 @@ def _parse_google_book(volume: dict[str, Any]) -> GoogleBook | None:
         sale_info=_dict_or_none(volume.get("saleInfo")),
         access_info=_dict_or_none(volume.get("accessInfo")),
         raw_provider_payload=volume,
-    )
-
-
-async def find_google_book(title: str, author: str | None) -> GoogleBook | None:
-    volume, _status = await _fetch_first_volume(title, author)
-    if volume is None:
-        return None
-    return _parse_google_book(volume)
-
-
-async def enrich_book(title: str, author: str | None) -> BookEnrichment:
-    volume, status = await _fetch_first_volume(title, author)
-    if status == "error":
-        return BookEnrichment(confidence_boost=0.0)
-    if volume is None:
-        return BookEnrichment(confidence_boost=-0.1)
-
-    google_book = _parse_google_book(volume)
-    if google_book is None:
-        return BookEnrichment(confidence_boost=0.0)
-
-    return BookEnrichment(
-        canonical_title=google_book.title,
-        canonical_author=", ".join(google_book.authors) or None,
-        google_books_url=google_book.info_link,
-        cover_image_url=google_book.cover_image_url,
-        confidence_boost=0.05,
     )

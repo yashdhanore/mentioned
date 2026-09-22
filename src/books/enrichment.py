@@ -1,18 +1,14 @@
 from __future__ import annotations
 
-import asyncio
-import logging
 from collections.abc import Callable
 
 from sqlmodel import Session
 
+from src.books.resolution import find_resolved_book
 from src.books.schemas import GoogleBook
 from src.books.service import upsert_google_book
-from src.extraction.google_books import find_google_book
 from src.extraction.schemas import ExtractedMention
 from src.sources.models import SourceItem
-
-logger = logging.getLogger(__name__)
 
 BookFinder = Callable[[str, str | None], GoogleBook | None]
 
@@ -21,20 +17,12 @@ def clamp_confidence(value: float, low: float = 0.0, high: float = 1.0) -> float
     return max(low, min(high, value))
 
 
-def find_google_book_sync(title: str, author: str | None) -> GoogleBook | None:
-    try:
-        return asyncio.run(find_google_book(title, author))
-    except Exception as exc:
-        logger.warning("Google Books enrichment failed: %s", exc)
-        return None
-
-
 def enrich_extracted_book_item(
     session: Session,
     item: SourceItem,
     extracted: ExtractedMention,
     *,
-    book_finder: BookFinder = find_google_book_sync,
+    book_finder: BookFinder = find_resolved_book,
 ) -> None:
     item.title = extracted.title
     item.author = extracted.author

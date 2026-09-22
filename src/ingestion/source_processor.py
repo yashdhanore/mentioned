@@ -7,7 +7,8 @@ from uuid import UUID
 
 from sqlmodel import Session
 
-from src.books.enrichment import BookFinder, enrich_extracted_book_item, find_google_book_sync
+from src.books.enrichment import BookFinder, enrich_extracted_book_item
+from src.books.resolution import find_resolved_book
 from src.extraction.pipeline import run_pipeline
 from src.extraction.schemas import PipelineResult
 from src.places.enrichment import PlaceFinder, enrich_extracted_place_item, find_google_place_sync
@@ -31,7 +32,7 @@ class SourceIngestion:
         *,
         extraction_runner: ExtractionRunner = run_pipeline,
         thumbnail_store: ThumbnailStore = store_source_thumbnail,
-        book_finder: BookFinder = find_google_book_sync,
+        book_finder: BookFinder = find_resolved_book,
         place_finder: PlaceFinder = find_google_place_sync,
     ) -> None:
         self._extraction_runner = extraction_runner
