@@ -36,7 +36,15 @@ squashed file produces schema/grants/RLS/pgmq state identical to the old 17-file
 `pgmq.list_queues()`, diffed). The next real revision continues as `20260923_0019`,
 with `down_revision = "20260922_0018"`.
 
-## Consequences
+**2026-09-23 fix:** `20260608214109_create_waitlist_signups.sql` was idempotent but not a
+no-op: it still created `public.waitlist_signups`. The squashed revision creates the table
+with a plain `CREATE TABLE`, and `supabase start`/`supabase db reset` apply Supabase
+migrations before `make dev` runs Alembic, so every fresh database failed with "relation
+waitlist_signups already exists". Its body is now `select 1;`, which production (where the
+version is already recorded as applied) never reruns. Verified with `supabase db reset
+--local` followed by `make dev`: `public` is empty after the reset, Alembic builds the whole
+schema, and `POST /v1/waitlist` works.
+
 
 - Table/column/grant/RLS changes go in a new Alembic revision under `migrations/versions/`,
   not Supabase SQL. The Supabase CLI owns storage buckets, auth, and local stack config

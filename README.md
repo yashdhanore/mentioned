@@ -110,6 +110,7 @@ make dev-down  # stops everything; local DB state is kept for next time
 ```
 
 First run bootstraps a local Postgres via the Supabase CLI (`supabase start`), creates the `mentioned_api`/`mentioned_worker` roles, and applies all Alembic and Supabase-managed migrations automatically.
+If `make dev` stops with `Can't locate revision identified by '20260628_0016'` (or another old revision), your local database predates the 2026-09-22 migration squash; if it holds nothing you need, run `supabase db reset --local` and then `make dev` again.
 Requires Docker and the Supabase CLI (`brew install supabase/tap/supabase`).
 
 `scripts/dev-up.sh` exports `DATABASE_URL`/`WORKER_DATABASE_URL` for the API and worker processes it starts, pointing at that local Postgres, so `make dev` uses Postgres (queue-backed worker, real RLS) with no `.env` edits needed:
