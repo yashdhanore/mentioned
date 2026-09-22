@@ -1,0 +1,867 @@
+{
+  "schema_version": "reel_labels.v1",
+  "reels": [
+    {
+      "source_url": "https://www.instagram.com/reel/DVvk5NzjJj6/",
+      "list": "smoke-4",
+      "status": "labeled",
+      "expected_mentions": [
+        {
+          "category": "book",
+          "title": "Nausea",
+          "author": "Jean-Paul Sartre"
+        },
+        {
+          "category": "book",
+          "title": "The Plague",
+          "author": "Albert Camus"
+        },
+        {
+          "category": "book",
+          "title": "The Trial",
+          "author": "Franz Kafka"
+        },
+        {
+          "category": "book",
+          "title": "Steppenwolf",
+          "author": "Hermann Hesse"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "source_url": "https://www.instagram.com/reel/DR5nms0gXZ1/",
+      "list": "smoke-4",
+      "status": "labeled",
+      "expected_mentions": [
+        {
+          "category": "book",
+          "title": "The Glass Bead Game",
+          "author": "Hermann Hesse"
+        },
+        {
+          "category": "book",
+          "title": "The Castle",
+          "author": "Franz Kafka"
+        },
+        {
+          "category": "book",
+          "title": "The Trouble with Being Born",
+          "author": "Emil Cioran"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "source_url": "https://www.instagram.com/reel/DW9GWYTjOqx/",
+      "list": "smoke-4",
+      "status": "labeled",
+      "expected_mentions": [
+        {
+          "category": "book",
+          "title": "The Myth of Sisyphus",
+          "author": "Albert Camus"
+        },
+        {
+          "category": "book",
+          "title": "Nausea",
+          "author": "Jean-Paul Sartre"
+        },
+        {
+          "category": "book",
+          "title": "Meditations",
+          "author": "Marcus Aurelius"
+        },
+        {
+          "category": "book",
+          "title": "Thus Spoke Zarathustra",
+          "author": "Friedrich Nietzsche"
+        },
+        {
+          "category": "book",
+          "title": "The Book of Disquiet",
+          "author": "Fernando Pessoa"
+        },
+        {
+          "category": "book",
+          "title": "The Karamazov Brothers",
+          "author": "Fyodor Dostoevsky",
+          "aliases": [
+            "The Brothers Karamazov"
+          ]
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "source_url": "https://www.instagram.com/reel/DVqsAbKjOcX/",
+      "list": "smoke-4",
+      "status": "labeled",
+      "expected_mentions": [
+        {
+          "category": "book",
+          "title": "The Picture of Dorian Gray",
+          "author": "Oscar Wilde"
+        },
+        {
+          "category": "book",
+          "title": "Song of Solomon",
+          "author": "Toni Morrison"
+        },
+        {
+          "category": "book",
+          "title": "Letters from a Stoic",
+          "author": "Seneca"
+        },
+        {
+          "category": "book",
+          "title": "The Idiot",
+          "author": "Fyodor Dostoevsky"
+        },
+        {
+          "category": "book",
+          "title": "Nineteen Eighty-Four",
+          "author": "George Orwell",
+          "aliases": [
+            "1984"
+          ]
+        }
+      ],
+      "notes": "Migrated from the retired visual_regression_manifest.json on-screen text. Re-watch to confirm."
+    },
+    {
+      "source_url": "https://www.instagram.com/reel/DZU1t7hSRI6/",
+      "list": "comparison-20",
+      "status": "labeled",
+      "expected_mentions": [
+        {
+          "category": "book",
+          "title": "Mottled Dawn",
+          "author": "Saadat Hasan Manto"
+        },
+        {
+          "category": "book",
+          "title": "Train to Pakistan",
+          "author": "Khushwant Singh"
+        },
+        {
+          "category": "book",
+          "title": "The Shadow Lines",
+          "author": "Amitav Ghosh"
+        },
+        {
+          "category": "book",
+          "title": "The Other Side of Silence",
+          "author": "Urvashi Butalia"
+        },
+        {
+          "category": "book",
+          "title": "Midnight's Children",
+          "author": "Salman Rushdie"
+        },
+        {
+          "category": "book",
+          "title": "Partition: The Long Shadow",
+          "author": "Urvashi Butalia"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "source_url": "https://www.instagram.com/reel/DZdUAaeMDDJ/",
+      "list": "comparison-20",
+      "status": "excluded",
+      "expected_mentions": [],
+      "notes": "Removed from labeling; kept as excluded so labels stay in sync with the Reel lists."
+    },
+    {
+      "source_url": "https://www.instagram.com/reel/DXMZVb0kaNM/",
+      "list": "comparison-20",
+      "status": "labeled",
+      "expected_mentions": [
+        {
+          "category": "book",
+          "title": "Amusing Ourselves to Death",
+          "author": "Neil Postman"
+        },
+        {
+          "category": "book",
+          "title": "Ways of Seeing",
+          "author": "John Berger"
+        },
+        {
+          "category": "book",
+          "title": "1984",
+          "author": "George Orwell"
+        },
+        {
+          "category": "book",
+          "title": "A Clockwork Orange",
+          "author": "Anthony Burgess"
+        },
+        {
+          "category": "book",
+          "title": "Animal Farm",
+          "author": "George Orwell"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "source_url": "https://www.instagram.com/reel/DZkPiNyh5Tm/",
+      "list": "comparison-20",
+      "status": "labeled",
+      "expected_mentions": [
+        {
+          "category": "book",
+          "title": "White Nights",
+          "author": "Fyodor Dostoevsky"
+        },
+        {
+          "category": "book",
+          "title": "The Stranger",
+          "author": "Albert Camus"
+        },
+        {
+          "category": "book",
+          "title": "Letters to a Young Poet",
+          "author": "Rainer Maria Rilke"
+        },
+        {
+          "category": "book",
+          "title": "Crime and Punishment",
+          "author": "Fyodor Dostoevsky"
+        },
+        {
+          "category": "book",
+          "title": "The Brothers Karamazov",
+          "author": "Fyodor Dostoevsky"
+        },
+        {
+          "category": "book",
+          "title": "The Secret History",
+          "author": "Donna Tartt"
+        },
+        {
+          "category": "book",
+          "title": "If we were Villains",
+          "author": "M.L. Rio"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "source_url": "https://www.instagram.com/reel/DZeWnNxSanY/",
+      "list": "comparison-20",
+      "status": "labeled",
+      "expected_mentions": [
+        {
+          "category": "book",
+          "title": "The Lion Women of Tehran",
+          "author": "Marjan Kamali"
+        },
+        {
+          "category": "book",
+          "title": "The Bastard of Istanbul",
+          "author": "Elif Shafak"
+        },
+        {
+          "category": "book",
+          "title": "The Kite Runner",
+          "author": "Khaled Hosseini"
+        },
+        {
+          "category": "book",
+          "title": "Pachinko",
+          "author": "Min Jin Lee"
+        },
+        {
+          "category": "book",
+          "title": "The Pearl That Broke Its Shell",
+          "author": "Nadia Hashimi"
+        },
+        {
+          "category": "book",
+          "title": "A Thousand Splendid Suns",
+          "author": "Khaled Hosseini"
+        },
+        {
+          "category": "book",
+          "title": "As Long As The Lemon Trees Grow",
+          "author": "Zoulfa Katouh"
+        },
+        {
+          "category": "book",
+          "title": "The Book of Everlasting Things",
+          "author": "Aanchal Malhotra"
+        },
+        {
+          "category": "book",
+          "title": "A House without Windows",
+          "author": "Nadia Hashimi"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "source_url": "https://www.instagram.com/reel/DYpFwvPyFUl/",
+      "list": "comparison-20",
+      "status": "labeled",
+      "expected_mentions": [
+        {
+          "category": "book",
+          "title": "The Forty Rules of Love",
+          "author": "Elif Shafak"
+        },
+        {
+          "category": "book",
+          "title": "The Kite Runner",
+          "author": "Khaled Hosseini"
+        },
+        {
+          "category": "book",
+          "title": "The Women",
+          "author": "Kristin Hannah"
+        },
+        {
+          "category": "book",
+          "title": "Crime and Punishment",
+          "author": "Fyodor Dostoevsky"
+        },
+        {
+          "category": "book",
+          "title": "The Stationery Shop of Tehran",
+          "author": "Marjan Kamali",
+          "aliases": [
+            "The Stationery Shop"
+          ]
+        },
+        {
+          "category": "book",
+          "title": "The Nightingale",
+          "author": "Kristin Hannah"
+        },
+        {
+          "category": "book",
+          "title": "The Book Thief",
+          "author": "Markus Zusak"
+        },
+        {
+          "category": "book",
+          "title": "100 Indian Stories",
+          "author": "A.J. Thomas"
+        },
+        {
+          "category": "book",
+          "title": "Norwegian Wood",
+          "author": "Haruki Murakami"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "source_url": "https://www.instagram.com/reel/DZtUCZTyyTX/",
+      "list": "comparison-20",
+      "status": "labeled",
+      "expected_mentions": [
+        {
+          "category": "book",
+          "title": "Dugo Sa Bukang-Liwayway (Bleeding Sun)",
+          "author": "Rogelio Sicat"
+        },
+        {
+          "category": "book",
+          "title": "Noli Me Tangere",
+          "author": "Jose Rizal"
+        },
+        {
+          "category": "book",
+          "title": "El Filibusterismo",
+          "author": "Jose Rizal"
+        },
+        {
+          "category": "book",
+          "title": "Dapitan Schoolboy",
+          "author": "Patricia Laurel"
+        },
+        {
+          "category": "book",
+          "title": "Vile Creatures Stories",
+          "author": "Exie Abola"
+        },
+        {
+          "category": "book",
+          "title": "Monstress Stories",
+          "author": "Lysley Tenorio"
+        },
+        {
+          "category": "book",
+          "title": "The Preying Birds",
+          "author": "Amado V Hernandez"
+        }
+      ],
+      "notes": "might go wrong verify by watching the video"
+    },
+    {
+      "source_url": "https://www.instagram.com/reel/DY1eDeHOvo2/",
+      "list": "comparison-20",
+      "status": "labeled",
+      "expected_mentions": [
+        {
+          "category": "book",
+          "title": "The Palace of Illusions",
+          "author": "Chitra Banerjee Divakaruni"
+        },
+        {
+          "category": "book",
+          "title": "The White Nights",
+          "author": "Fyodor Dostoevsky"
+        },
+        {
+          "category": "book",
+          "title": "The Bell Jar",
+          "author": "Sylvia Plath"
+        },
+        {
+          "category": "book",
+          "title": "A Thousand Splendid Suns",
+          "author": "Khaled Hosseini"
+        },
+        {
+          "category": "book",
+          "title": "A Little Life",
+          "author": "Hanya Yanagihara"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "source_url": "https://www.instagram.com/reel/DXhRO5FEiHE/",
+      "list": "comparison-20",
+      "status": "labeled",
+      "expected_mentions": [
+        {
+          "category": "book",
+          "title": "Dracula",
+          "author": "Bram Stoker"
+        },
+        {
+          "category": "book",
+          "title": "Frankenstein",
+          "author": "Mary Shelley"
+        },
+        {
+          "category": "book",
+          "title": "The Strange Case of Dr. Jekyll and Mr. Hyde",
+          "author": "Robert Louis Stevenson"
+        }
+      ],
+      "notes": "check on phone too fast"
+    },
+    {
+      "source_url": "https://www.instagram.com/reel/DZvG5VvIhOX/",
+      "list": "comparison-20",
+      "status": "labeled",
+      "expected_mentions": [
+        {
+          "category": "book",
+          "title": "Lying Without Him",
+          "author": "Minerva Khajuria"
+        },
+        {
+          "category": "book",
+          "title": "Real Life",
+          "author": "Amrita Mahale"
+        },
+        {
+          "category": "book",
+          "title": "Lives not Lived",
+          "author": "Monika Ghatti"
+        },
+        {
+          "category": "book",
+          "title": "Daughters of the Brothel",
+          "author": "Deepak Yadav"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "source_url": "https://www.instagram.com/reel/DXHVaphjDA7/",
+      "list": "comparison-20",
+      "status": "labeled",
+      "expected_mentions": [
+        {
+          "category": "book",
+          "title": "The Restaurant of Lost Recipes",
+          "author": "Hisashi Kashiwai"
+        },
+        {
+          "category": "book",
+          "title": "Before your Memory Fades",
+          "author": "Toshikazu Kawaguchi"
+        },
+        {
+          "category": "book",
+          "title": "Days at the Morisaki Bookshop",
+          "author": "Satoshi Yagisawa"
+        },
+        {
+          "category": "book",
+          "title": "Days at the Torunka Café",
+          "author": "Satoshi Yagisawa"
+        },
+        {
+          "category": "book",
+          "title": "The Convenience Store by the Sea",
+          "author": "Sonoko Machida"
+        },
+        {
+          "category": "book",
+          "title": "Letters from the Ginza Shihodo Stationery Shop",
+          "author": "Kenji Ueda"
+        },
+        {
+          "category": "book",
+          "title": "Marigold Mind Laundry",
+          "author": "Jungeun Yun"
+        },
+        {
+          "category": "book",
+          "title": "Welcome to the Hyunam-dong Bookshop",
+          "author": "Hwang Boreum"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "source_url": "https://www.instagram.com/reel/DYERlNXPsAU/",
+      "list": "comparison-20",
+      "status": "labeled",
+      "expected_mentions": [
+        {
+          "category": "book",
+          "title": "Life of Pi",
+          "author": "Yann Martel"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "source_url": "https://www.instagram.com/reel/DXZZryJiL_p/",
+      "list": "comparison-20",
+      "status": "labeled",
+      "expected_mentions": [
+        {
+          "category": "book",
+          "title": "Dubliners",
+          "author": "James Joyce"
+        },
+        {
+          "category": "book",
+          "title": "Grapes of Wrath",
+          "author": "John Steinbeck"
+        },
+        {
+          "category": "book",
+          "title": "Amongst Women",
+          "author": "John McGahern"
+        },
+        {
+          "category": "book",
+          "title": "Birchwood",
+          "author": "John Banville"
+        },
+        {
+          "category": "book",
+          "title": "Small things like these",
+          "author": "Claire Keegan"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "source_url": "https://www.instagram.com/reel/DYqJJb6v1Yy/",
+      "list": "comparison-20",
+      "status": "labeled",
+      "expected_mentions": [
+        {
+          "category": "book",
+          "title": "East of Eden",
+          "author": "John Steinbeck"
+        },
+        {
+          "category": "book",
+          "title": "The Women",
+          "author": "Kristin Hannah"
+        },
+        {
+          "category": "book",
+          "title": "Royal Assassin",
+          "author": "Robin Hobb"
+        },
+        {
+          "category": "book",
+          "title": "Beartown Series",
+          "author": "Fredrik Backman",
+          "aliases": [
+            "Beartown"
+          ]
+        },
+        {
+          "category": "book",
+          "title": "The Bluest Eye",
+          "author": "Toni Morrison"
+        },
+        {
+          "category": "book",
+          "title": "Animal Farm",
+          "author": "George Orwell"
+        },
+        {
+          "category": "book",
+          "title": "The Four Winds",
+          "author": "Kristin Hannah"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "source_url": "https://www.instagram.com/reel/DZiKHY7sehK/",
+      "list": "comparison-20",
+      "status": "labeled",
+      "expected_mentions": [
+        {
+          "category": "book",
+          "title": "The House of the Dead and the Gambler",
+          "author": "Fyodor Dostoevsky",
+          "aliases": [
+            "The Gambler",
+            "The House of the Dead"
+          ]
+        },
+        {
+          "category": "book",
+          "title": "Devils",
+          "author": "Fyodor Dostoevsky"
+        },
+        {
+          "category": "book",
+          "title": "Humiliated and Insulted",
+          "author": "Fyodor Dostoevsky"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "source_url": "https://www.instagram.com/reel/DYE-vLmMMR3/",
+      "list": "comparison-20",
+      "status": "labeled",
+      "expected_mentions": [
+        {
+          "category": "book",
+          "title": "Whispering Rooms",
+          "author": "Marie Kondo"
+        },
+        {
+          "category": "book",
+          "title": "The Second Chance Convenience Store",
+          "author": "Kim Ho-Yeon"
+        },
+        {
+          "category": "book",
+          "title": "Notes from the stationery shop",
+          "author": "Kenji Ueda"
+        },
+        {
+          "category": "book",
+          "title": "The Convenience Store by the Sea",
+          "author": "Sonoko Machida"
+        },
+        {
+          "category": "book",
+          "title": "The Ex-Boyfriend's Favorite Recipe Funeral Committee",
+          "author": "Saki Kawashiro"
+        },
+        {
+          "category": "book",
+          "title": "The Restaurant of Lost Recipes",
+          "author": "Hisashi Kashiwai"
+        },
+        {
+          "category": "book",
+          "title": "Convenience Store Woman",
+          "author": "Sayaka Murata"
+        },
+        {
+          "category": "book",
+          "title": "The Menu of Happiness",
+          "author": "Hisashi Kashiwai"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "source_url": "https://www.instagram.com/reel/DZxdHbeii8x/",
+      "list": "comparison-20",
+      "status": "labeled",
+      "expected_mentions": [
+        {
+          "category": "book",
+          "title": "The Vegetarian",
+          "author": "Han Kang"
+        },
+        {
+          "category": "book",
+          "title": "I Want to Die but I Want to Eat Tteokbokki",
+          "author": "Baek Sehee"
+        },
+        {
+          "category": "book",
+          "title": "Never Lie",
+          "author": "Freida McFadden"
+        },
+        {
+          "category": "book",
+          "title": "The Striker",
+          "author": "Ana Huang"
+        },
+        {
+          "category": "book",
+          "title": "Rebecca",
+          "author": "Daphne du Maurier"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "source_url": "https://www.instagram.com/reel/DYNqhRHzPDT/",
+      "list": "comparison-20",
+      "status": "labeled",
+      "expected_mentions": [
+        {
+          "category": "book",
+          "title": "That Long Silence",
+          "author": "Shashi Deshpande"
+        },
+        {
+          "category": "book",
+          "title": "The God of Small Things",
+          "author": "Arundhati Roy"
+        },
+        {
+          "category": "book",
+          "title": "Anandamath",
+          "author": "Bankim Chandra Chatterjee"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "source_url": "https://www.instagram.com/reel/DZlB62Oxu8g/",
+      "list": "comparison-20",
+      "status": "labeled",
+      "expected_mentions": [
+        {
+          "category": "book",
+          "title": "The Radium Girls",
+          "author": "Kate Moore"
+        },
+        {
+          "category": "book",
+          "title": "The Facemaker",
+          "author": "Lindsey Fitzharris"
+        },
+        {
+          "category": "book",
+          "title": "The Butchering Art",
+          "author": "Lindsey Fitzharris"
+        },
+        {
+          "category": "book",
+          "title": "A Slow Death: 83 Days of Radiation Sickness",
+          "author": ""
+        },
+        {
+          "category": "book",
+          "title": "Everything is Tuberculosis",
+          "author": "John Green"
+        },
+        {
+          "category": "book",
+          "title": "All the Living and the Dead",
+          "author": "Hayley Campbell"
+        },
+        {
+          "category": "book",
+          "title": "Over my Dead Body",
+          "author": "Greg Melville"
+        },
+        {
+          "category": "book",
+          "title": "The Indifferent Stars Above: The Harrowing Saga of a Donner Party Bride",
+          "author": "Daniel James Brown"
+        },
+        {
+          "category": "book",
+          "title": "The Day I Die",
+          "author": "Anita Hannig"
+        },
+        {
+          "category": "book",
+          "title": "Dark Archives",
+          "author": "Megan Rosenbloom"
+        },
+        {
+          "category": "book",
+          "title": "Smoke Gets in Your Eyes: And Other Lessons from the Crematory",
+          "author": "Caitlin Doughty"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "source_url": "https://www.instagram.com/reel/DYfmsz4vdOo/",
+      "list": "comparison-20",
+      "status": "labeled",
+      "expected_mentions": [
+        {
+          "category": "book",
+          "title": "Animal Farm",
+          "author": "George Orwell"
+        },
+        {
+          "category": "book",
+          "title": "1984",
+          "author": "George Orwell"
+        },
+        {
+          "category": "book",
+          "title": "Brave New World",
+          "author": "Aldous Huxley"
+        },
+        {
+          "category": "book",
+          "title": "The Giver",
+          "author": "Lois Lowry"
+        },
+        {
+          "category": "book",
+          "title": "Lord of the Flies",
+          "author": "William Golding"
+        },
+        {
+          "category": "book",
+          "title": "The Trial",
+          "author": "Franz Kafka"
+        },
+        {
+          "category": "book",
+          "title": "Parable of the Sower",
+          "author": "Octavia Butler"
+        }
+      ],
+      "notes": ""
+    }
+  ]
+}

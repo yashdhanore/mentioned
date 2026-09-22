@@ -20,8 +20,8 @@ provider issue, or evaluation question. If blank, build general extraction conte
 3. Inspect storage/artifact behavior when relevant:
    - `src/storage/`
    - `data/artifacts/` structure, without committing generated outputs
-   - `evals/visual_regression_manifest.json`
-   - `scripts/evaluate_visual_manifest.py`
+   - `evals/README.md`, `evals/reel-labels.json`
+   - `scripts/score_extraction_eval.py`
 4. Inspect tests:
    - `tests/extraction/`
    - worker tests that exercise extraction output
@@ -44,9 +44,9 @@ Summarize:
 - Artifact/eval implications
 - Validation commands to use next
 
-Prefer this validation when extraction outputs or artifact structure change:
+Prefer this validation when extraction prompts, schemas, or models change:
 
 ```bash
 python -m pytest tests/extraction
-python scripts/evaluate_visual_manifest.py --artifacts-dir data/artifacts
+python scripts/score_extraction_eval.py --results outputs/<run>/result.json
 ```
