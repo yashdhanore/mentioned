@@ -17,6 +17,7 @@ import json
 import logging
 from dataclasses import dataclass
 
+from google.genai import errors as genai_errors
 from google.genai.types import GenerateContentConfig, Part
 
 from src.config import get_settings
@@ -165,6 +166,10 @@ def assess_relevance(*, caption: str | None, thumbnail_url: str | None) -> Relev
             thumbnail_bytes=thumbnail_bytes,
             thumbnail_mime=thumbnail_mime,
         )
+    except genai_errors.ClientError as exc:
+        log = logger.warning if exc.code == 429 else logger.error
+        log("Relevance gate call failed, failing open to uncertain: %s", exc)
+        return RelevanceAssessment(verdict=Verdict.UNCERTAIN, reason="gate error")
     except Exception as exc:
         logger.warning("Relevance gate call failed, failing open to uncertain: %s", exc)
         return RelevanceAssessment(verdict=Verdict.UNCERTAIN, reason="gate error")
