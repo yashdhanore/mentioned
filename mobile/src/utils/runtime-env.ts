@@ -1,4 +1,6 @@
-export function isProductionBuild(appEnv: string | undefined = process.env.EXPO_PUBLIC_APP_ENV): boolean {
+export function isProductionBuild(
+  appEnv: string | undefined = process.env.EXPO_PUBLIC_APP_ENV,
+): boolean {
   return appEnv?.trim().toLowerCase() === 'production';
 }
 

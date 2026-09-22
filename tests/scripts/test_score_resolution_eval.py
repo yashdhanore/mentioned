@@ -97,7 +97,6 @@ def test_resolver_runs_each_strategy_once_per_title(tmp_path):
     resolver = Resolver(
         search=CachedBooksSearch(tmp_path, live_search=live, sleep=lambda _s: None),
         agent=lambda _title, _author, prior: Resolution(status="resolved", method="agent"),
-        memo={},
     )
 
     first = resolver.resolve("catalog+agent", "Dune", None)

@@ -3,12 +3,7 @@ import { Animated, Easing, Image, Pressable, ScrollView, Text, View } from 'reac
 
 import { sourceIdentityLabel, type Capture } from '@/captures';
 import { BackIcon, ExternalLinkIcon, MoreIcon } from '@/components/icons';
-import {
-  FailedState,
-  MentionsList,
-  NoMentions,
-  ProcessingMentions,
-} from '@/components/mentions';
+import { FailedState, MentionsList, NoMentions, ProcessingMentions } from '@/components/mentions';
 import { AppMark, IconButton, InlineMessage, SecondaryButton } from '@/components/ui';
 import { useReduceMotion } from '@/hooks/use-reduce-motion';
 import { styles as sharedStyles } from '@/styles';
@@ -38,7 +33,7 @@ export function ReelDetailScreen({
 }) {
   const sourcePreviewWidth = Math.min(Math.max(width * 0.32, 96), 124);
   const sourceHeroWidth = Math.min(Math.max(width * 0.58, 210), 260);
-  const inlineError = actionError ? <InlineMessage tone="error" message={actionError} /> : null;
+  const inlineError = actionError ? <InlineMessage message={actionError} /> : null;
 
   return (
     <ScrollView

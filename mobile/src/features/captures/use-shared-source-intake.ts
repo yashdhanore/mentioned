@@ -46,8 +46,9 @@ export function useSharedSourceIntake({
   closePasteSheet,
 }: UseSharedSourceIntakeOptions): UseSharedSourceIntakeResult {
   const [shareLinkError, setShareLinkError] = useState<string | null>(null);
-  const [pendingSharedSource, setPendingSharedSource] =
-    useState<PendingSharedSourceState | null>(null);
+  const [pendingSharedSource, setPendingSharedSource] = useState<PendingSharedSourceState | null>(
+    null,
+  );
   const handledSharedSourceKeysRef = useRef<Set<string>>(new Set());
   const inFlightShareKeyRef = useRef<string | null>(null);
   const pendingSharedSourceRef = useRef<PendingSharedSourceState | null>(null);
@@ -144,16 +145,19 @@ export function useSharedSourceIntake({
           if (inFlightShareKeyRef.current === sourceKey) {
             inFlightShareKeyRef.current = null;
           }
-          setPendingSharedSource((currentSource) =>
-            currentSource ?? {
-              sourceUrl,
-              sourceKey,
-              createdAtMs: Date.now(),
-              shouldAutoSubmit: authStateRef.current.isAuthLoading,
-            },
+          setPendingSharedSource(
+            (currentSource) =>
+              currentSource ?? {
+                sourceUrl,
+                sourceKey,
+                createdAtMs: Date.now(),
+                shouldAutoSubmit: authStateRef.current.isAuthLoading,
+              },
           );
           if (!authStateRef.current.isAuthLoading) {
-            setAuthError(errorMessage(error, 'Could not keep that shared source. Try sharing it again.'));
+            setAuthError(
+              errorMessage(error, 'Could not keep that shared source. Try sharing it again.'),
+            );
           }
         });
     },

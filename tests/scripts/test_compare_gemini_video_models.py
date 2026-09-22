@@ -17,7 +17,7 @@ USAGE = {
 }
 
 
-def test_compare_models_downloads_once_and_runs_default_models(monkeypatch, tmp_path):
+def test_compare_sources_downloads_once_and_runs_default_models(monkeypatch, tmp_path):
     download_calls = []
     model_calls = []
 
@@ -49,23 +49,25 @@ def test_compare_models_downloads_once_and_runs_default_models(monkeypatch, tmp_
     monkeypatch.setattr(compare_gemini_video_models, "download_assets_with_metadata", fake_download)
     monkeypatch.setattr(compare_gemini_video_models, "_extract_mentions_for_model", fake_extract)
 
-    payload = compare_gemini_video_models.compare_models(
-        "https://www.instagram.com/reel/SHORTCODE/",
+    payload = compare_gemini_video_models.compare_sources(
+        ["https://www.instagram.com/reel/SHORTCODE/"],
         media_dir=tmp_path / "downloads",
     )
 
+    [source] = payload["sources"]
     assert len(download_calls) == 1
-    assert payload["download"]["media_dir_kept"] is True
-    assert payload["download"]["media_count"] == 1
-    assert payload["download"]["source_creator_handle"] == "reader"
-    assert [result["model"] for result in payload["results"]] == [
+    assert download_calls[0][1] == tmp_path / "downloads"
+    assert source["download"]["media_dir_kept"] is True
+    assert source["download"]["media_count"] == 1
+    assert source["download"]["source_creator_handle"] == "reader"
+    assert [result["model"] for result in source["results"]] == [
         "gemini-2.5-flash",
         "gemini-3.1-flash-lite",
     ]
-    assert all(result["ok"] is True for result in payload["results"])
-    assert all(result["mention_count"] == 1 for result in payload["results"])
-    assert all(result["token_summary"]["prompt_tokens"] == 1000 for result in payload["results"])
-    assert all(result["estimated_cost"]["total_usd"] is not None for result in payload["results"])
+    assert all(result["ok"] is True for result in source["results"])
+    assert all(result["mention_count"] == 1 for result in source["results"])
+    assert all(result["token_summary"]["prompt_tokens"] == 1000 for result in source["results"])
+    assert all(result["estimated_cost"]["total_usd"] is not None for result in source["results"])
     assert {model for model, _paths in model_calls} == {
         "gemini-2.5-flash",
         "gemini-3.1-flash-lite",
@@ -73,7 +75,7 @@ def test_compare_models_downloads_once_and_runs_default_models(monkeypatch, tmp_
     assert all(paths == ["media_001.mp4"] for _model, paths in model_calls)
 
 
-def test_compare_models_keeps_result_order_for_custom_models(monkeypatch, tmp_path):
+def test_compare_sources_keeps_result_order_for_custom_models(monkeypatch, tmp_path):
     def fake_download(source_url: str, output_dir: Path) -> DownloadedAssets:
         media_file = output_dir / "media_001.mp4"
         media_file.write_bytes(b"fake video")
@@ -88,13 +90,16 @@ def test_compare_models_keeps_result_order_for_custom_models(monkeypatch, tmp_pa
     monkeypatch.setattr(compare_gemini_video_models, "download_assets_with_metadata", fake_download)
     monkeypatch.setattr(compare_gemini_video_models, "_extract_mentions_for_model", fake_extract)
 
-    payload = compare_gemini_video_models.compare_models(
-        "https://www.instagram.com/reel/SHORTCODE/",
+    payload = compare_gemini_video_models.compare_sources(
+        ["https://www.instagram.com/reel/SHORTCODE/"],
         models=["model-b", "model-a"],
         media_dir=tmp_path / "downloads",
     )
 
-    assert [result["model"] for result in payload["results"]] == ["model-b", "model-a"]
+    assert [result["model"] for result in payload["sources"][0]["results"]] == [
+        "model-b",
+        "model-a",
+    ]
 
 
 def test_compare_sources_summarizes_cost_by_model(monkeypatch, tmp_path):

@@ -34,12 +34,7 @@ type AppMarkProps = {
 
 const COMPACT_BUTTON_HIT_SLOP = { top: 2, bottom: 2, left: 0, right: 0 };
 
-export function PrimaryButton({
-  label,
-  onPress,
-  compact = false,
-  disabled = false,
-}: ButtonProps) {
+export function PrimaryButton({ label, onPress, compact = false, disabled = false }: ButtonProps) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -155,7 +150,6 @@ export function InlineMessage({
   onAction,
 }: {
   message: string;
-  tone: 'error';
   actionLabel?: string;
   onAction?: () => void;
 }) {

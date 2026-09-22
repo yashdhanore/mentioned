@@ -2,10 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
 import { BackHandler, SafeAreaView, useWindowDimensions } from 'react-native';
 
-import {
-  deleteAccount,
-  PRIVACY_POLICY_URL,
-} from '@/api';
+import { deleteAccount, PRIVACY_POLICY_URL } from '@/api';
 import { PasteSheet, ProfileSheet, ReelMenuSheet } from '@/components/sheets';
 import { useCaptures } from '@/features/captures/use-captures';
 import { useSharedSourceIntake } from '@/features/captures/use-shared-source-intake';

@@ -238,7 +238,7 @@ def test_settings_optional_field_strips_whitespace(monkeypatch: pytest.MonkeyPat
     assert get_settings().gemini.gemini_api_key == "key-with-padding"
 
 
-def test_settings_csv_field_blank_string_is_empty_tuple(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_settings_whitespace_only_csv_counts_as_missing(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setenv("AUTH_MODE", "supabase")
     monkeypatch.setenv("DATABASE_URL", "postgresql://api:pw@example.supabase.co/postgres")
@@ -292,14 +292,20 @@ def test_settings_vertex_location_falls_back_to_google_cloud_location(
     assert get_settings().gemini.vertex_location == "europe-west4"
 
 
-def test_settings_gemini_model_set_blank_stays_blank_not_default(
+def test_settings_blank_gemini_models_fall_back_to_the_default(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Unlike optional/int fields, a raw getenv+strip field does not collapse
-    # a blank value back to its default.
     monkeypatch.setenv("GEMINI_MODEL", "   ")
+    monkeypatch.setenv("GEMINI_GATE_MODEL", "")
 
-    assert get_settings().gemini.gemini_model == ""
+    assert get_settings().gemini.gemini_model == "gemini-3.1-flash-lite"
+    assert get_settings().gemini.gemini_gate_model == "gemini-3.1-flash-lite"
+
+
+def test_settings_gemini_model_is_stripped(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GEMINI_MODEL", "  gemini-3.8-flash  ")
+
+    assert get_settings().gemini.gemini_model == "gemini-3.8-flash"
 
 
 @pytest.mark.parametrize(
@@ -377,7 +383,10 @@ def test_settings_production_validation_errors(
 def test_settings_production_localhost_http_cors_origin_is_allowed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    env = {**PRODUCTION_BASE_ENV, "CORS_ALLOWED_ORIGINS": "http://localhost:8082"}
+    env = {
+        **PRODUCTION_BASE_ENV,
+        "CORS_ALLOWED_ORIGINS": "https://app.example.com,http://localhost:8082,http://127.0.0.1:8082",
+    }
     for name, value in env.items():
         monkeypatch.setenv(name, value)
 

@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Image, Linking, Pressable, Text, View } from 'react-native';
 
-import type { Mention, MentionCategory } from '@/captures';
-import { mapsUrlForMention } from '@/captures';
+import { mapsUrlForMention, type Mention, type MentionCategory } from '@/captures';
 import { PlaceIcon, ProductIcon } from '@/components/icons';
 import { FadeInView } from '@/components/motion';
 import { SourceToBooksPreview } from '@/components/product-preview';

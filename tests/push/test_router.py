@@ -2,13 +2,11 @@ from __future__ import annotations
 
 from uuid import UUID
 
-import pytest
 from sqlmodel import select
 
 from src.push.models import PushToken
 from src.timeutils import utc_now
 
-pytestmark = pytest.mark.asyncio
 TEST_USER_ID = "00000000-0000-4000-8000-000000000001"
 TEST_USER_UUID = UUID(TEST_USER_ID)
 OTHER_USER_UUID = UUID("00000000-0000-4000-8000-000000000002")

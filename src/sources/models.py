@@ -34,10 +34,6 @@ class Source(SQLModel, table=True):
     error_message: str | None = Field(default=None)
     skip_reason: str | None = Field(default=None)
     processing_started_at: datetime | None = Field(default=None)
-    # sources has never had a heartbeat_at column; that column only ever existed on
-    # the legacy jobs table (migration 0003), which 0017 dropped. Stale-source
-    # recovery correctly keys staleness on processing_started_at alone
-    # (recover_stale_sources); there is nothing to refresh or unmap here.
     processed_at: datetime | None = Field(default=None)
     created_at: datetime = Field(default_factory=utc_now, nullable=False)
     updated_at: datetime = Field(default_factory=utc_now, nullable=False)

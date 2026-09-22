@@ -55,8 +55,6 @@ def verify_supabase_token(token: str, config: AuthConfig) -> Caller:
             )
         else:
             raise jwt.InvalidAlgorithmError("Unsupported Supabase JWT algorithm")
-    except HTTPException:
-        raise
     except jwt.PyJWTError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

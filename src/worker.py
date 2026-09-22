@@ -88,8 +88,6 @@ def _run_polling_worker(settings: Settings, worker_engine: Engine, shutdown: Shu
     while not shutdown.should_stop:
         try:
             processed = _run_polling_worker_iteration(settings, worker_engine)
-        except (KeyboardInterrupt, SystemExit):
-            raise
         except Exception:
             logger.exception("Unhandled error in polling worker iteration, backing off")
             time.sleep(poll_interval)
@@ -109,8 +107,6 @@ def _run_queue_worker(settings: Settings, worker_engine: Engine, shutdown: Shutd
     while not shutdown.should_stop:
         try:
             _run_queue_worker_iteration(settings, worker_engine)
-        except (KeyboardInterrupt, SystemExit):
-            raise
         except Exception:
             logger.exception("Unhandled error in queue worker iteration, backing off")
             time.sleep(settings.worker_poll_interval_seconds)
@@ -152,7 +148,7 @@ def run_worker() -> None:
 
 def main() -> None:
     settings = get_settings()
-    level = logging.DEBUG if not settings.is_production else logging.INFO
+    level = logging.INFO if settings.is_production else logging.DEBUG
     logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     run_worker()
 

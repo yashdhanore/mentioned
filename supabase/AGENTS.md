@@ -2,15 +2,12 @@
 
 Use this guide for storage bucket, auth, and local Supabase stack configuration changes.
 
-**Alembic owns everything in the `public` schema** - tables, columns, grants, and row-level
-security policies alike. See [`docs/adr/0001-alembic-is-the-schema-source-of-truth.md`](../docs/adr/0001-alembic-is-the-schema-source-of-truth.md).
-Schema, grant, or RLS changes go in a new Alembic revision under `migrations/versions/`, never in
-`supabase/migrations/*.sql`. The Supabase CLI's real job here is storage buckets, Supabase Auth
-config, and the local dev stack (`supabase/config.toml`).
-`supabase/migrations/*.sql` still exists for the storage bucket migration (load-bearing) plus two
-older files that duplicate Alembic-owned `public` schema; those two are rewritten as guarded
-no-ops kept only because the Supabase CLI tracks applied migrations by version, not checksum - do
-not add new schema logic to them, and do not delete them without checking the ADR's reasoning.
+Alembic owns everything in the `public` schema: tables, columns, grants, and row-level security policies alike.
+See [`docs/adr/0001-alembic-is-the-schema-source-of-truth.md`](../docs/adr/0001-alembic-is-the-schema-source-of-truth.md).
+Schema, grant, or RLS changes go in a new Alembic revision under `migrations/versions/`, never in `supabase/migrations/*.sql`.
+The Supabase CLI handles storage buckets, Supabase Auth config, and the local dev stack (`supabase/config.toml`).
+`supabase/migrations/` holds the storage bucket migration (load-bearing) plus two older files that are now no-ops, kept only because the Supabase CLI tracks applied migrations by version, not checksum.
+Do not add schema logic to those two, and do not delete them without reading the ADR.
 
 ## CLI Workflow
 

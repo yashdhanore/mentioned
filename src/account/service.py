@@ -8,12 +8,7 @@ from src.config import Settings, get_settings
 from src.ids import parse_uuid
 from src.push.models import PushToken
 from src.sources.models import SavedSource
-
-try:
-    from supabase import create_client
-except ImportError:  # pragma: no cover - exercised only before dependencies are installed
-    create_client = None
-
+from supabase import create_client
 
 logger = logging.getLogger(__name__)
 
@@ -43,9 +38,6 @@ def delete_supabase_auth_user(owner_id: str, settings: Settings | None = None) -
     service_role_key = settings.auth.supabase_service_role_key
     if not supabase_url or not service_role_key:
         logger.info("Skipping Supabase auth user deletion because admin access is not configured")
-        return False
-    if create_client is None:
-        logger.warning("Skipping Supabase auth user deletion because supabase-py is not installed")
         return False
 
     client = create_client(supabase_url, service_role_key)

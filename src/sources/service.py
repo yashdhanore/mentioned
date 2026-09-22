@@ -29,6 +29,8 @@ def _increment_retry_window(
 def save_source_for_user(
     session: Session, owner_id: str, raw_url: str, *, require_https: bool = False
 ) -> SavedSource:
+    # Two concurrent saves of the same new URL race on the unique source_key (or the
+    # owner/source pair); the loser rolls back and retries once to pick up the winner's row.
     for attempt in range(2):
         try:
             return _save_source_for_user_once(
@@ -285,7 +287,7 @@ def claim_next_pending_source(session: Session) -> Source | None:
     return claim_source_for_processing(session, candidate.id)
 
 
-def recover_stale_sources(session: Session, stale_timeout_seconds: int = 900) -> int:
+def recover_stale_sources(session: Session, stale_timeout_seconds: int) -> int:
     cutoff = utc_now() - timedelta(seconds=stale_timeout_seconds)
     stmt = select(Source).where(
         Source.status == SourceStatus.PROCESSING,

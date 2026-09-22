@@ -60,10 +60,6 @@ function colorFor(id: string) {
   return BOOK_COLORS[hash];
 }
 
-function thumbnailForSavedSource(savedSource: Pick<SavedSourceResponse, 'thumbnail_url'>) {
-  return compact(savedSource.thumbnail_url);
-}
-
 const MENTION_CATEGORIES: readonly MentionCategory[] = ['book', 'place', 'product'];
 
 function asMentionCategory(value: string): MentionCategory | null {
@@ -72,15 +68,16 @@ function asMentionCategory(value: string): MentionCategory | null {
     : null;
 }
 
+// MIN_VISIBLE_CONFIDENCE is shared across all types for now; revisit per
+// type once we have real place/product extraction quality data.
 function visibleMentions(items: SourceItemInSavedSource[]): Mention[] {
   return items
-    // MIN_VISIBLE_CONFIDENCE is shared across all types for now; revisit per
-    // type once we have real place/product extraction quality data.
     .filter((item) => item.confidence === null || item.confidence >= MIN_VISIBLE_CONFIDENCE)
     .filter((item) => compact(item.title))
     .map((item) => ({ item, category: asMentionCategory(item.category) }))
-    .filter((entry): entry is { item: SourceItemInSavedSource; category: MentionCategory } =>
-      entry.category !== null,
+    .filter(
+      (entry): entry is { item: SourceItemInSavedSource; category: MentionCategory } =>
+        entry.category !== null,
     )
     .sort((left, right) => left.item.position - right.item.position)
     .map(({ item, category }) => ({
@@ -129,7 +126,7 @@ export function captureFromSavedSource(savedSource: SavedSourceResponse): Captur
     creator: 'Instagram',
     creatorHandle: compact(savedSource.source_creator_handle),
     status: statusFor(savedSource.status, mentions),
-    thumbnailUrl: thumbnailForSavedSource(savedSource),
+    thumbnailUrl: compact(savedSource.thumbnail_url),
     sourceUrl: savedSource.source_url,
     createdAt: savedSource.created_at,
     mentions,

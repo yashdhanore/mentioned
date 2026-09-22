@@ -8,7 +8,6 @@ from sqlmodel import Session, select
 from src.push.models import PushToken
 from src.sources.models import SavedSource, Source, SourceStatus
 
-pytestmark = pytest.mark.asyncio
 TEST_USER_ID = "00000000-0000-4000-8000-000000000001"
 TEST_USER_UUID = UUID(TEST_USER_ID)
 OTHER_USER_UUID = UUID("00000000-0000-4000-8000-000000000002")
@@ -37,12 +36,16 @@ def _save_source(session: Session, external_id: str, *, owner_id: UUID) -> Saved
     return saved
 
 
-async def test_delete_account_removes_saved_sources_and_push_tokens(
-    client, session: Session, monkeypatch
-) -> None:
+@pytest.fixture(autouse=True)
+def skip_supabase_auth_deletion(monkeypatch):
     monkeypatch.setattr(
         "src.account.router.delete_supabase_auth_user", lambda *_args, **_kwargs: False
     )
+
+
+async def test_delete_account_removes_saved_sources_and_push_tokens(
+    client, session: Session
+) -> None:
     _save_source(session, "DELETEME", owner_id=TEST_USER_UUID)
     session.add(
         PushToken(owner_id=TEST_USER_UUID, expo_push_token="ExpoPushToken[mine]", platform="ios")
@@ -63,11 +66,8 @@ async def test_delete_account_removes_saved_sources_and_push_tokens(
 
 
 async def test_delete_account_leaves_shared_source_when_another_user_still_has_it_saved(
-    client, session: Session, monkeypatch
+    client, session: Session
 ) -> None:
-    monkeypatch.setattr(
-        "src.account.router.delete_supabase_auth_user", lambda *_args, **_kwargs: False
-    )
     saved = _save_source(session, "SHARED", owner_id=TEST_USER_UUID)
     other_saved = _save_source(session, "SHARED", owner_id=OTHER_USER_UUID)
     assert other_saved.source_id == saved.source_id
@@ -87,12 +87,7 @@ async def test_delete_account_leaves_shared_source_when_another_user_still_has_i
     assert session.exec(select(SavedSource.id).where(SavedSource.id == saved_id)).first() is None
 
 
-async def test_delete_account_does_not_affect_other_users_data(
-    client, session: Session, monkeypatch
-) -> None:
-    monkeypatch.setattr(
-        "src.account.router.delete_supabase_auth_user", lambda *_args, **_kwargs: False
-    )
+async def test_delete_account_does_not_affect_other_users_data(client, session: Session) -> None:
     _save_source(session, "MINE", owner_id=TEST_USER_UUID)
     other_saved = _save_source(session, "OTHER", owner_id=OTHER_USER_UUID)
     other_saved_id = other_saved.id

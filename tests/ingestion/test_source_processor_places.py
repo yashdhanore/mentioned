@@ -101,17 +101,14 @@ def test_mixed_source_enriches_book_and_place_leaves_product(session: Session) -
         for item in session.exec(select(SourceItem).where(SourceItem.source_id == source.id)).all()
     }
 
-    # Book enriched its book fields.
     assert items["book"].book_id is not None
     assert items["book"].cover_image_url == "https://books.google.com/thumb.jpg"
     assert items["book"].place_id is None
 
-    # Place enriched its place fields.
     assert items["place"].place_id is not None
     assert items["place"].formatted_address == "12 King St, London, UK"
     assert items["place"].book_id is None
 
-    # Product untouched by either enrichment.
     assert items["product"].book_id is None
     assert items["product"].place_id is None
     assert items["product"].formatted_address is None

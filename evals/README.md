@@ -5,8 +5,7 @@ Labeled Reels let us measure extraction quality as precision, recall, and halluc
 ## Files
 
 - `reel-labels.json` holds the ground truth for every Reel in `reel-lists/`.
-- `reel-lists/*.txt` are the URL lists fed to `scripts/compare_gemini_video_models.py`.
-- `reel-lists/gemini-video-model-comparison.md` has the run commands.
+- `reel-lists/gemini-video-comparison-20.txt` (20 Reels) and `reel-lists/gemini-video-smoke-4.txt` (4 Reels) are the URL lists fed to `scripts/compare_gemini_video_models.py`.
 
 ## How to label a Reel
 
@@ -44,7 +43,7 @@ Label the whole Reel before marking it `labeled`; a half-labeled Reel turns corr
 Check your edits at any time:
 
 ```bash
-python scripts/score_extraction_eval.py
+uv run python scripts/score_extraction_eval.py
 ```
 
 It validates the file and prints labeling coverage.
@@ -66,7 +65,7 @@ uv run python scripts/score_extraction_eval.py \
 When iterating on the prompt, add `--reuse-media` to rerun the models on that media instead of downloading from Instagram again; a folder is only reused for the exact source URL its manifest names.
 
 The scorer only counts `labeled` Reels and lists the rest as skipped.
-It reports, per model: precision and recall with 95% Wilson intervals, F1, author accuracy, false positives on Reels with nothing to find, mean confidence of correct versus wrong mentions, failed extractions, cost, cost per correct mention, and how many predicted mentions carry evidence and a timestamp.
+It reports, per model: precision and recall with 95% Wilson intervals, F1, author accuracy, false positives on Reels with nothing to find, mean confidence of correct versus wrong mentions, failed extractions, cost, cost per correct mention, mean latency, and how many predicted mentions carry evidence and a timestamp.
 `score.json` has the per-Reel true positives, false positives, and misses for error analysis.
 
 ## Results
@@ -119,13 +118,14 @@ Grades the step after extraction: does each book end up attached to the right Go
 
 ```bash
 uv run python -m scripts.score_resolution_eval \
-  --results outputs/eval-models/result-places-prompt.json \
+  --results outputs/gemini-compare-20/result.json \
   --agent-model gemini-3.1-flash-lite \
   --output outputs/resolution/score-agent.json
 ```
 
-Run it as a module (`-m`).
-Books responses are cached under `outputs/books-cache/`, so reruns make no API calls.
+It must run as a module (`-m`) because it imports the other eval scripts.
+Books responses are cached under `outputs/books-cache/`, so reruns make no Books API calls.
+Without `--results` it scores only the labeled titles; without `--agent-model` it skips the agent.
 
 - **First hit**: the first catalog result, unchecked (production until 2026-09-22).
 - **Top 5 + check** (`src/books/resolution.py`, production): the top five results are checked on title and author and summaries are rejected; a book nothing passes keeps its extracted title and gets no cover.

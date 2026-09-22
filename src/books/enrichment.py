@@ -12,9 +12,8 @@ from src.sources.models import SourceItem
 
 BookFinder = Callable[[str, str | None], GoogleBook | None]
 
-
-def clamp_confidence(value: float, low: float = 0.0, high: float = 1.0) -> float:
-    return max(low, min(high, value))
+# A mention that resolved to a catalog entry is a little more likely to be real.
+RESOLVED_BOOK_CONFIDENCE_BONUS = 0.05
 
 
 def enrich_extracted_book_item(
@@ -39,4 +38,4 @@ def enrich_extracted_book_item(
     item.author = ", ".join(book.authors) or extracted.author
     item.google_books_url = book.info_link
     item.cover_image_url = book.cover_image_url
-    item.confidence = clamp_confidence(extracted.confidence + 0.05)
+    item.confidence = max(0.0, min(1.0, extracted.confidence + RESOLVED_BOOK_CONFIDENCE_BONUS))

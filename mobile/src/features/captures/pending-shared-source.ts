@@ -69,7 +69,10 @@ export function createPendingSharedSourceStore(storage: KeyValueStorage) {
     return source;
   };
 
-  const save = async (sourceUrl: string, createdAtMs = Date.now()): Promise<PendingSharedSource> => {
+  const save = async (
+    sourceUrl: string,
+    createdAtMs = Date.now(),
+  ): Promise<PendingSharedSource> => {
     const source = createPendingSharedSource(sourceUrl, createdAtMs);
     await storage.setItem(PENDING_SHARED_SOURCE_STORAGE_KEY, serializePendingSharedSource(source));
     return source;

@@ -57,7 +57,9 @@ export function HomeScreen({
 
       <View style={styles.homeHeader}>
         <Text style={styles.screenTitle}>Saved posts</Text>
-        <Text style={styles.screenSubtitle}>Posts you save so Mentioned can find the books, places, and products inside.</Text>
+        <Text style={styles.screenSubtitle}>
+          Posts you save so Mentioned can find the books, places, and products inside.
+        </Text>
       </View>
 
       {pendingSharedSourceUrl ? (
@@ -86,12 +88,7 @@ export function HomeScreen({
       ) : null}
 
       {error ? (
-        <InlineMessage
-          tone="error"
-          message={error}
-          actionLabel={errorActionLabel}
-          onAction={onErrorAction}
-        />
+        <InlineMessage message={error} actionLabel={errorActionLabel} onAction={onErrorAction} />
       ) : null}
 
       {isLoading && captures.length === 0 ? <LoadingState tileWidth={tileWidth} /> : null}
@@ -118,7 +115,9 @@ function LoadingState({ tileWidth }: { tileWidth: number }) {
   return (
     <View style={styles.loadingSources}>
       <Text style={styles.loadingSourcesTitle}>Loading saved posts</Text>
-      <Text style={styles.loadingSourcesBody}>Your saved posts will appear here when they are ready.</Text>
+      <Text style={styles.loadingSourcesBody}>
+        Your saved posts will appear here when they are ready.
+      </Text>
       <View style={styles.grid}>
         <View style={[styles.reelSkeletonTile, { width: tileWidth }]} />
         <View style={[styles.reelSkeletonTile, { width: tileWidth }]} />

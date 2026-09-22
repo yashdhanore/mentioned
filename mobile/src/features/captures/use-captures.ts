@@ -72,20 +72,23 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
     return captures.some((capture) => capture.status === 'processing');
   }, [captures]);
 
-  const refreshCaptureById = useCallback(async (savedSourceId: string, options: { select?: boolean } = {}) => {
-    const savedSource = await getSavedSource(savedSourceId);
-    const updated = captureFromSavedSource(savedSource);
-    setCaptures((current) => {
-      const existing = current.find((item) => item.id === savedSourceId);
-      if (!existing) {
-        return [updated, ...current];
+  const refreshCaptureById = useCallback(
+    async (savedSourceId: string, options: { select?: boolean } = {}) => {
+      const savedSource = await getSavedSource(savedSourceId);
+      const updated = captureFromSavedSource(savedSource);
+      setCaptures((current) => {
+        const existing = current.find((item) => item.id === savedSourceId);
+        if (!existing) {
+          return [updated, ...current];
+        }
+        return current.map((item) => (item.id === savedSourceId ? updated : item));
+      });
+      if (options.select) {
+        setSelectedCaptureId(savedSourceId);
       }
-      return current.map((item) => (item.id === savedSourceId ? updated : item));
-    });
-    if (options.select) {
-      setSelectedCaptureId(savedSourceId);
-    }
-  }, []);
+    },
+    [],
+  );
 
   const refreshCaptures = useCallback(
     async ({ silent = false }: { silent?: boolean } = {}) => {
@@ -98,9 +101,7 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
           return;
         }
         isSilentRefreshInFlightRef.current = true;
-      }
-
-      if (!silent) {
+      } else {
         setIsLoadingCaptures(true);
       }
       setLoadError(null);
@@ -138,7 +139,7 @@ export function useCaptures(isSignedIn: boolean): UseCapturesResult {
     }
 
     const interval = setInterval(() => {
-      void refreshCaptures({ silent: true }).catch(() => undefined);
+      void refreshCaptures({ silent: true });
     }, PROCESSING_CAPTURE_POLL_INTERVAL_MS);
 
     return () => {

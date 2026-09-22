@@ -9,12 +9,8 @@ from uuid import UUID
 import httpx
 
 from src.config import Settings, get_settings
-
-try:
-    from supabase import create_client
-except ImportError:  # pragma: no cover - exercised only before dependencies are installed
-    create_client = None
-
+from src.extraction.download import redact_signed_urls
+from supabase import create_client
 
 logger = logging.getLogger(__name__)
 
@@ -75,9 +71,9 @@ def _download_response_body(response: httpx.Response) -> bytes | None:
     return bytes(body)
 
 
-def _download_thumbnail(raw_url: str) -> ThumbnailImage | None:
+def download_thumbnail(raw_url: str) -> ThumbnailImage | None:
     if not _is_allowed_thumbnail_url(raw_url):
-        logger.info("Skipping thumbnail with unsupported URL: %s", raw_url)
+        logger.info("Skipping thumbnail with unsupported URL: %s", redact_signed_urls(raw_url))
         return None
 
     current_url = raw_url
@@ -88,7 +84,10 @@ def _download_thumbnail(raw_url: str) -> ThumbnailImage | None:
         ) as client:
             for _ in range(MAX_REDIRECTS + 1):
                 if not _is_allowed_thumbnail_url(current_url):
-                    logger.info("Skipping thumbnail redirect to unsupported URL: %s", current_url)
+                    logger.info(
+                        "Skipping thumbnail redirect to unsupported URL: %s",
+                        redact_signed_urls(current_url),
+                    )
                     return None
 
                 with client.stream("GET", current_url) as response:
@@ -118,7 +117,11 @@ def _download_thumbnail(raw_url: str) -> ThumbnailImage | None:
                         extension=ALLOWED_CONTENT_TYPES[content_type],
                     )
     except httpx.HTTPError as exc:
-        logger.warning("Failed to download thumbnail %s: %s", raw_url, exc)
+        logger.warning(
+            "Failed to download thumbnail %s: %s",
+            redact_signed_urls(raw_url),
+            redact_signed_urls(str(exc)),
+        )
         return None
 
     logger.info("Skipping thumbnail after too many redirects")
@@ -157,11 +160,8 @@ def store_source_thumbnail(
     if not supabase_url or not service_role_key:
         logger.info("Skipping thumbnail storage because Supabase Storage is not configured")
         return None
-    if create_client is None:
-        logger.warning("Skipping thumbnail storage because supabase-py is not installed")
-        return None
 
-    image = _download_thumbnail(raw_thumbnail_url)
+    image = download_thumbnail(raw_thumbnail_url)
     if image is None:
         return None
 
@@ -175,7 +175,7 @@ def store_source_thumbnail(
             file_options={
                 "cache-control": str(THUMBNAIL_CACHE_SECONDS),
                 "content-type": image.content_type,
-                "upsert": "false",
+                "upsert": "true",
             },
         )
         return _public_url(bucket.get_public_url(path))

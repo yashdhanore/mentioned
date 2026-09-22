@@ -15,23 +15,14 @@ class SourceIdentity:
     canonical_url: str
 
 
-def _instagram_identity(normalized_url: str) -> SourceIdentity:
-    parts = urlsplit(normalized_url)
-    segments = [segment for segment in parts.path.split("/") if segment]
-    if len(segments) < 2:
-        raise SourceUrlError(
-            "Only public Instagram Reel and post URLs are supported",
-            error_code="unsupported_source_kind",
-        )
+_INSTAGRAM_SOURCE_TYPES = {"reel": "reel", "p": "post"}
 
-    raw_kind = segments[0].casefold()
-    if raw_kind == "reel":
-        source_type = "reel"
-        path_kind = "reel"
-    elif raw_kind == "p":
-        source_type = "post"
-        path_kind = "p"
-    else:
+
+def _instagram_identity(normalized_url: str) -> SourceIdentity:
+    segments = [segment for segment in urlsplit(normalized_url).path.split("/") if segment]
+    path_kind = segments[0].casefold() if len(segments) >= 2 else ""
+    source_type = _INSTAGRAM_SOURCE_TYPES.get(path_kind)
+    if source_type is None:
         raise SourceUrlError(
             "Only public Instagram Reel and post URLs are supported",
             error_code="unsupported_source_kind",
@@ -50,9 +41,5 @@ def _instagram_identity(normalized_url: str) -> SourceIdentity:
 
 
 def identify_source(raw_url: str, *, require_https: bool = False) -> SourceIdentity:
-    normalized_url = normalize_input_url(raw_url, require_https=require_https)
-    parts = urlsplit(normalized_url)
-    hostname = parts.hostname.casefold() if parts.hostname else ""
-    if hostname in {"instagram.com", "www.instagram.com"}:
-        return _instagram_identity(normalized_url)
-    raise SourceUrlError("Only Instagram URLs are supported", error_code="unsupported_source_kind")
+    # normalize_input_url already rejects every host except Instagram's.
+    return _instagram_identity(normalize_input_url(raw_url, require_https=require_https))

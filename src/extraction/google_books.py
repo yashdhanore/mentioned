@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 GOOGLE_BOOKS_API = "https://www.googleapis.com/books/v1/volumes"
 DEFAULT_MAX_RESULTS = 5
+REQUEST_TIMEOUT_SECONDS = 10.0
 
 BooksSearchStatus = Literal["found", "not_found", "error"]
 
@@ -41,7 +42,7 @@ def search_volumes(query: str, *, max_results: int = DEFAULT_MAX_RESULTS) -> Boo
         params["key"] = api_key
 
     try:
-        with httpx.Client(timeout=10.0) as client:
+        with httpx.Client(timeout=REQUEST_TIMEOUT_SECONDS) as client:
             resp = client.get(GOOGLE_BOOKS_API, params=params)
             resp.raise_for_status()
     except httpx.HTTPStatusError as exc:
@@ -57,7 +58,7 @@ def search_volumes(query: str, *, max_results: int = DEFAULT_MAX_RESULTS) -> Boo
     data = resp.json()
     books = [
         book
-        for book in (_parse_google_book(item) for item in data.get("items") or [])
+        for book in (parse_google_book(item) for item in data.get("items") or [])
         if book is not None
     ]
     if not books:
@@ -114,7 +115,7 @@ def _dict_or_none(value: object) -> dict[str, Any] | None:
     return value if isinstance(value, dict) else None
 
 
-def _parse_google_book(volume: dict[str, Any]) -> GoogleBook | None:
+def parse_google_book(volume: dict[str, Any]) -> GoogleBook | None:
     provider_volume_id = volume.get("id")
     volume_info = volume.get("volumeInfo") or {}
     title = volume_info.get("title")

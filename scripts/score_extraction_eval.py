@@ -59,7 +59,7 @@ def title_similarity(predicted: str, expected: ExpectedMention) -> float:
     return best_title_similarity(predicted, (expected.title, *expected.aliases))
 
 
-def _source_key(source_url: str) -> str:
+def source_key_for(source_url: str) -> str:
     return identify_source(source_url).source_key
 
 
@@ -115,7 +115,7 @@ def load_labels(path: Path) -> dict[str, LabeledReel]:
         if not isinstance(source_url, str):
             raise LabelsError(f"{where}: source_url is required")
         try:
-            source_key = _source_key(source_url)
+            source_key = source_key_for(source_url)
         except ValueError as exc:
             raise LabelsError(f"{where}: {exc}") from exc
         if source_key in reels:
@@ -139,7 +139,7 @@ def load_labels(path: Path) -> dict[str, LabeledReel]:
     return reels
 
 
-def _predicted_mentions(result: dict[str, Any]) -> list[dict[str, Any]]:
+def predicted_mentions(result: dict[str, Any]) -> list[dict[str, Any]]:
     raw = result.get("raw")
     mentions = raw.get("mentions") if isinstance(raw, dict) else None
     if not isinstance(mentions, list):
@@ -261,7 +261,7 @@ def _confidences(mentions: list[dict[str, Any]]) -> list[float]:
     ]
 
 
-def _result_sources(results: dict[str, Any]) -> list[dict[str, Any]]:
+def result_sources(results: dict[str, Any]) -> list[dict[str, Any]]:
     if isinstance(results.get("sources"), list):
         return [source for source in results["sources"] if isinstance(source, dict)]
     if isinstance(results.get("source_url"), str):
@@ -296,11 +296,11 @@ def score_results(labels: dict[str, LabeledReel], results: dict[str, Any]) -> di
     unlabeled: list[str] = []
     unscored: list[dict[str, str]] = []
 
-    for source in _result_sources(results):
+    for source in result_sources(results):
         source_url = source.get("source_url")
         if not isinstance(source_url, str):
             continue
-        reel = labels.get(_source_key(source_url))
+        reel = labels.get(source_key_for(source_url))
         if reel is None or reel.status == "todo":
             unlabeled.append(source_url)
             continue
@@ -336,7 +336,7 @@ def score_results(labels: dict[str, LabeledReel], results: dict[str, Any]) -> di
                 }
                 continue
 
-            predicted = _predicted_mentions(result)
+            predicted = predicted_mentions(result)
             score = score_source(predicted, reel.expected)
             _count_evidence(totals, predicted)
             totals["tp"] += len(score.true_positives)
