@@ -166,8 +166,8 @@ def test_settings_local_defaults() -> None:
     assert settings.auth.supabase_project_url is None
     assert settings.auth.supabase_jwt_audience == "authenticated"
 
-    assert settings.gemini.gemini_model == "gemini-2.5-flash"
-    assert settings.gemini.gemini_gate_model == "gemini-2.5-flash-lite"
+    assert settings.gemini.gemini_model == "gemini-3.1-flash-lite"
+    assert settings.gemini.gemini_gate_model == "gemini-3.1-flash-lite"
     assert settings.gemini.gemini_total_attempts == 3
     assert settings.gemini.gemini_timeout_seconds == 120
     assert settings.gemini.use_vertexai is False

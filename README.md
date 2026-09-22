@@ -58,9 +58,25 @@ A few decisions worth a closer look if you are reviewing this code:
 - **Atomic source claiming with a stale-attempt guard.** `claim_source_for_processing` is a single `UPDATE ... WHERE status = 'pending' ... RETURNING`, and `complete_source_processing`/`fail_source_processing` only finalize a source if it is still in the exact `processing_started_at` attempt the worker claimed, so a slow or duplicated worker can't clobber a newer attempt (`src/sources/service.py`; race tests in `tests/sources/test_service.py`).
 - **Least-privilege, per-request database roles.** The API and worker connect as separate non-superuser, non-`BYPASSRLS` Postgres roles, with startup refusing to boot in production if either role has elevated privileges, and row-level security context is set per transaction via `set_config('app.current_user_id', ...)` in a SQLAlchemy `after_begin` hook rather than once per connection (`src/database.py`).
 - **Thumbnail fetcher hardened against SSRF.** Thumbnails are only fetched from an allowlisted Instagram CDN host suffix, redirects are followed manually and re-validated against the same allowlist, only a fixed set of image content types is accepted, and the response body is streamed with a hard byte cap instead of trusting `Content-Length` (`src/storage/thumbnails.py`).
-- **Relevance gate with a shadow mode.** Before the expensive Gemini video call, a cheap caption+thumbnail check can skip extraction, but only in `active` mode and only on a confident `irrelevant` verdict; `shadow` mode logs the verdict without skipping anything, so the gate can be evaluated before it affects users (`src/extraction/relevance.py`).
+- **Relevance gate with a shadow mode.** Before the expensive Gemini video call, a cheap caption+thumbnail check can skip extraction, but only in `active` mode and only on a confident `irrelevant` verdict; `shadow` mode logs the verdict without skipping anything, so the gate can be evaluated before it affects users (`src/extraction/relevance.py`). It fails open, so a misconfigured gate model (such as a retired one returning 404) logs at error level instead of quietly sending every source to full extraction.
 - **A release gate script instead of a manual checklist.** `scripts/check_release_env.py` checks the production environment shape (auth mode, HTTPS enforcement, distinct database roles, CORS/host allowlists, rate-limit guardrails, worker replica count) without printing secrets, and is meant to run before every beta deploy.
 - **A strict allowlist for shared URLs on the client.** The share extension and paste-link flow both run shared text through the same parser, which only accepts `https://instagram.com` or `https://www.instagram.com` URLs with a `/reel/` or `/p/` path before it ever reaches the API (`mobile/src/utils/shared-source-url.ts`).
+
+## Extraction quality
+
+Extraction is measured against 22 hand-labeled Reels (131 books), scored as precision and recall with 95% Wilson intervals, cost per correct mention, and latency (`evals/`, `scripts/score_extraction_eval.py`).
+Latest run, 2026-09-22:
+
+| Model | Precision | Recall | Cost per 1,000 correct mentions |
+| --- | --- | --- | --- |
+| `gemini-2.5-flash` (previous production default) | 0.963 | 0.992 | $1.26 |
+| `gemini-3.1-flash-lite` (production) | 0.992 | 0.992 | $0.27 |
+| `gemini-3.8-flash` | 1.000 | 0.992 | $1.03 |
+
+Error analysis drove the changes: most of the first run's errors turned out to be labeling mistakes, and most of the rest were places leaking into book Reels ("Turkey" captioned next to a book set there), which a prompt fix cut from 12 to 1 with no loss of recall.
+A confidence threshold looked like a free win and was dropped when the next run showed the model's confidence was not stable.
+The set has no place, product, or empty Reels yet, so it says nothing about recall on those.
+Full results, method, and limits are in [`evals/README.md`](evals/README.md#results).
 
 ## Known limitations
 

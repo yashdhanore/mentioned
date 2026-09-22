@@ -115,8 +115,8 @@ class GeminiConfig(BaseSettings):
     model_config = _ENV_CONFIG
 
     gemini_api_key: OptionalEnvStr = None
-    gemini_model: StrippedStr = "gemini-2.5-flash"
-    gemini_gate_model: StrippedStr = "gemini-2.5-flash-lite"
+    gemini_model: StrippedStr = "gemini-3.1-flash-lite"
+    gemini_gate_model: StrippedStr = "gemini-3.1-flash-lite"
     gemini_total_attempts: Annotated[int, BeforeValidator(_blank_as(3))] = 3
     gemini_timeout_seconds: Annotated[int, BeforeValidator(_blank_as(120))] = 120
     use_vertexai: EnvBool = Field(

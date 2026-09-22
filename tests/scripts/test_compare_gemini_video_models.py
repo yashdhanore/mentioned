@@ -60,7 +60,7 @@ def test_compare_models_downloads_once_and_runs_default_models(monkeypatch, tmp_
     assert payload["download"]["source_creator_handle"] == "reader"
     assert [result["model"] for result in payload["results"]] == [
         "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
+        "gemini-3.1-flash-lite",
     ]
     assert all(result["ok"] is True for result in payload["results"])
     assert all(result["mention_count"] == 1 for result in payload["results"])
@@ -68,7 +68,7 @@ def test_compare_models_downloads_once_and_runs_default_models(monkeypatch, tmp_
     assert all(result["estimated_cost"]["total_usd"] is not None for result in payload["results"])
     assert {model for model, _paths in model_calls} == {
         "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
+        "gemini-3.1-flash-lite",
     }
     assert all(paths == ["media_001.mp4"] for _model, paths in model_calls)
 
@@ -130,6 +130,42 @@ def test_compare_sources_summarizes_cost_by_model(monkeypatch, tmp_path):
     assert [item["sources"] for item in payload["summary"]["models"]] == [2, 2]
     assert [item["successful_sources"] for item in payload["summary"]["models"]] == [2, 2]
     assert [item["mentions"] for item in payload["summary"]["models"]] == [2, 2]
+
+
+def test_compare_sources_reuses_media_only_for_the_same_source(monkeypatch, tmp_path):
+    download_calls = []
+
+    def fake_download(source_url: str, output_dir: Path) -> DownloadedAssets:
+        download_calls.append(source_url)
+        media_file = output_dir / "media_001.mp4"
+        media_file.write_bytes(source_url.encode())
+        return DownloadedAssets(paths=[media_file], source_creator_handle="reader")
+
+    extracted_media = []
+
+    def fake_extract(paths: list[Path], *, model: str) -> dict:
+        extracted_media.append(paths[0].read_bytes().decode())
+        return {"raw": {"mentions": []}, "usage": USAGE}
+
+    monkeypatch.setattr(compare_gemini_video_models, "download_assets_with_metadata", fake_download)
+    monkeypatch.setattr(compare_gemini_video_models, "_extract_mentions_for_model", fake_extract)
+    media_dir = tmp_path / "downloads"
+    one = "https://www.instagram.com/reel/ONE/"
+    two = "https://www.instagram.com/reel/TWO/"
+    three = "https://www.instagram.com/reel/THREE/"
+
+    compare_gemini_video_models.compare_sources([one, two], models=["m"], media_dir=media_dir)
+    download_calls.clear()
+    extracted_media.clear()
+    # source_002 now belongs to a different URL, so it must not be reused for THREE.
+    payload = compare_gemini_video_models.compare_sources(
+        [one, three], models=["m"], media_dir=media_dir, reuse_media=True
+    )
+
+    assert download_calls == [three]
+    assert extracted_media == [one, three]
+    assert [source["download"]["media_reused"] for source in payload["sources"]] == [True, False]
+    assert payload["sources"][0]["download"]["source_creator_handle"] == "reader"
 
 
 def test_source_urls_from_text_extracts_only_urls():

@@ -14,7 +14,7 @@ from typing import Any
 from google.genai.types import GenerateContentConfig
 
 from src.config import get_settings
-from src.extraction.download import download_assets_with_metadata
+from src.extraction.download import DownloadedAssets, download_assets_with_metadata
 from src.extraction.gemini import (
     EXTRACTION_PROMPT,
     MENTION_SCHEMA,
@@ -24,8 +24,8 @@ from src.extraction.gemini import (
     upload_to_gemini,
 )
 
-DEFAULT_MODELS = ("gemini-2.5-flash", "gemini-2.5-flash-lite")
-PRICING_SOURCE = "Gemini Developer API paid tier, standard mode, checked 2026-06-21"
+DEFAULT_MODELS = ("gemini-2.5-flash", "gemini-3.1-flash-lite")
+PRICING_SOURCE = "Gemini Developer API paid tier, standard mode, checked 2026-09-22"
 
 # USD per 1M tokens. Gemini pricing separates audio input from text/image/video input.
 DEFAULT_PRICE_TABLE: dict[str, dict[str, float]] = {
@@ -34,10 +34,26 @@ DEFAULT_PRICE_TABLE: dict[str, dict[str, float]] = {
         "input_audio": 1.00,
         "output": 2.50,
     },
-    "gemini-2.5-flash-lite": {
-        "input_text_image_video": 0.10,
+    "gemini-3.1-flash-lite": {
+        "input_text_image_video": 0.25,
+        "input_audio": 0.50,
+        "output": 1.50,
+    },
+    "gemini-3.5-flash-lite": {
+        "input_text_image_video": 0.30,
         "input_audio": 0.30,
-        "output": 0.40,
+        "output": 2.50,
+    },
+    "gemini-3.5-flash": {
+        "input_text_image_video": 1.50,
+        "input_audio": 1.50,
+        "output": 9.00,
+    },
+    # Launch pricing through 2026-12-31; doubles to 1.50 input / 7.50 output after.
+    "gemini-3.8-flash": {
+        "input_text_image_video": 0.75,
+        "input_audio": 0.75,
+        "output": 3.75,
     },
 }
 
@@ -283,11 +299,52 @@ def _run_model(paths: list[Path], model: str) -> dict[str, Any]:
     }
 
 
+MEDIA_MANIFEST_NAME = "media-manifest.json"
+
+
+def _write_media_manifest(media_dir: Path, source_url: str, assets: DownloadedAssets) -> None:
+    manifest = {
+        "source_url": source_url,
+        "paths": [path.name for path in assets.paths],
+        "thumbnail_url": assets.thumbnail_url,
+        "source_creator_handle": assets.source_creator_handle,
+    }
+    (media_dir / MEDIA_MANIFEST_NAME).write_text(json.dumps(manifest, indent=2) + "\n")
+
+
+def _reusable_media(media_dir: Path, source_url: str) -> DownloadedAssets | None:
+    """Return a previous download of this exact source, or None to download again."""
+    try:
+        manifest = json.loads((media_dir / MEDIA_MANIFEST_NAME).read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    if manifest.get("source_url") != source_url or not manifest.get("paths"):
+        return None
+    paths = [media_dir / name for name in manifest["paths"]]
+    if not all(path.is_file() for path in paths):
+        return None
+    return DownloadedAssets(
+        paths=paths,
+        thumbnail_url=manifest.get("thumbnail_url"),
+        source_creator_handle=manifest.get("source_creator_handle"),
+    )
+
+
 def _compare_in_dir(
-    source_url: str, models: list[str], media_dir: Path, *, keep_media: bool
+    source_url: str,
+    models: list[str],
+    media_dir: Path,
+    *,
+    keep_media: bool,
+    reuse_media: bool = False,
 ) -> dict[str, Any]:
     download_started = time.monotonic()
-    assets = download_assets_with_metadata(source_url, media_dir)
+    assets = _reusable_media(media_dir, source_url) if reuse_media else None
+    reused = assets is not None
+    if assets is None:
+        assets = download_assets_with_metadata(source_url, media_dir)
+        if keep_media and assets.paths:
+            _write_media_manifest(media_dir, source_url, assets)
     download_seconds = _round_seconds(time.monotonic() - download_started)
     paths = assets.paths
 
@@ -298,6 +355,7 @@ def _compare_in_dir(
             "duration_seconds": download_seconds,
             "media_dir": str(media_dir),
             "media_dir_kept": keep_media,
+            "media_reused": reused,
             "media_count": len(paths),
             "media": [_media_summary(path) for path in paths],
             "thumbnail_url": assets.thumbnail_url,
@@ -418,6 +476,7 @@ def compare_sources(
     *,
     models: list[str] | None = None,
     media_dir: Path | None = None,
+    reuse_media: bool = False,
 ) -> dict[str, Any]:
     model_names = _normalize_models(models)
     started = time.monotonic()
@@ -430,7 +489,13 @@ def compare_sources(
             source_media_dir.mkdir(parents=True, exist_ok=True)
             try:
                 sources.append(
-                    _compare_in_dir(source_url, model_names, source_media_dir, keep_media=True)
+                    _compare_in_dir(
+                        source_url,
+                        model_names,
+                        source_media_dir,
+                        keep_media=True,
+                        reuse_media=reuse_media,
+                    )
                 )
             except Exception as exc:
                 sources.append(
@@ -486,7 +551,7 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help=(
             "Gemini model to run. Repeat to compare more models. "
-            "Defaults to gemini-2.5-flash and gemini-2.5-flash-lite."
+            "Defaults to gemini-2.5-flash and gemini-3.1-flash-lite."
         ),
     )
     parser.add_argument(
@@ -504,14 +569,30 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Optional path to write the comparison JSON.",
     )
-    return parser.parse_args()
+    parser.add_argument(
+        "--reuse-media",
+        action="store_true",
+        help=(
+            "Reuse media a previous run saved under --media-dir for the same source URL "
+            "instead of downloading it again, e.g. when iterating on the prompt."
+        ),
+    )
+    args = parser.parse_args()
+    if args.reuse_media and args.media_dir is None:
+        parser.error("--reuse-media requires --media-dir")
+    return args
 
 
 def main() -> int:
     args = parse_args()
     try:
         source_urls = _normalize_source_urls(args)
-        payload = compare_sources(source_urls, models=args.models, media_dir=args.media_dir)
+        payload = compare_sources(
+            source_urls,
+            models=args.models,
+            media_dir=args.media_dir,
+            reuse_media=args.reuse_media,
+        )
     except Exception as exc:
         print(f"comparison failed: {exc}", file=sys.stderr)
         return 1

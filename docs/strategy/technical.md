@@ -176,7 +176,8 @@ The work splits along two independent axes:
 - Decision: Before the expensive multimodal extraction, run one cheap multimodal call on signals we
   already fetch for free in the yt-dlp preflight - the caption (`description`/`title`) plus the post
   thumbnail. The gate returns a three-way enum verdict (`relevant`/`irrelevant`/`uncertain`) via
-  Gemini structured output, on a cheaper model (`GEMINI_GATE_MODEL`, default `gemini-2.5-flash-lite`).
+  Gemini structured output, on a cheaper model (`GEMINI_GATE_MODEL`, default `gemini-3.1-flash-lite`
+  since 2026-09-22; see the gate model retirement note).
   Lives in `src/extraction/relevance.py`, called from `src/extraction/pipeline.py` after download.
 - Fail open: the pipeline skips the expensive call ONLY on a confident `irrelevant`; `relevant` and
   `uncertain` both escalate to full extraction. Any gate error, empty, unparseable, or unknown
@@ -211,7 +212,10 @@ The work splits along two independent axes:
   deduped by Google `place_id`; new `places` table; additive `place_id`/`formatted_address`/
   `latitude`/`longitude` columns on `source_items` (denormalized for the read path, no join);
   additive optional API fields; mobile place row shows the address and deep-links to Google Maps.
-  Provider lives in `src/extraction/google_places.py` (Text Search New, `places:searchText`).
+  Provider was specified as `src/extraction/google_places.py` (Text Search New, `places:searchText`).
+  Correction (2026-09-22): that file was never written, `find_google_place_sync` always returns None,
+  and the `location_hint` the note describes is plumbed from `ExtractedMention` to
+  `enrich_extracted_place_item` but never produced, since `MENTION_SCHEMA` has no such field.
 - Matching: Gemini emits an optional transient `location_hint` (city/neighborhood, "do not guess")
   that biases the Places query. Save only high-confidence matches (hint present, or single
   candidate); otherwise FAIL OPEN to a bare title - same philosophy as the relevance gate. Dropping
@@ -461,7 +465,8 @@ The work splits along two independent axes:
 
 ### 2026-09-22 - Labeled Reel Evals Replace The Visual Manifest
 
-- Status: Accepted and implemented; labels are being filled in by hand.
+- Status: Accepted and implemented; 22 Reels labeled, 2 excluded. First results in the 2026-09-22
+  model comparison note below.
 - Product constraint: Gives the useful-but-imperfect extraction bar a number, and gates the
   Flash-vs-Lite, fps/media-resolution, evidence-grounding, and verify-pass decisions above on
   labeled precision/recall instead of mention counts.
@@ -473,6 +478,58 @@ The work splits along two independent axes:
   OCR text artifacts that only the pre-Gemini pipeline produced; its one Reel became a label. The
   harness pattern (golden set, confidence intervals, hallucination reported separately) follows
   `ai-engineering-from-scratch` phase 11 lesson 10 and the phase 19 video capstone.
+
+### 2026-09-22 - Gate Model Retirement, Model Comparison, And The Places Prompt Fix
+
+- Status: Accepted and implemented. Gate default changed, and production extraction moved from
+  `gemini-2.5-flash` to `gemini-3.1-flash-lite` on the strength of the results below.
+- Product constraint: Cost control and useful-but-imperfect extraction in the save -> extract ->
+  revisit loop, measured on the labeled Reel evals rather than mention counts.
+- Gate: `gemini-2.5-flash-lite` still lists but returns 404 "no longer available to new users", so a
+  gate on it fails open on every call and every save pays for full extraction. Impact in production
+  was nil: `mentioned-worker` and `mentioned-api` are both suspended on Render, so nothing ran the
+  dead gate. Default is
+  now `gemini-3.1-flash-lite` (cheapest callable model, $0.25 in / $1.50 out per 1M tokens), not
+  Google's suggested `gemini-3.5-flash-lite`, whose video/image input costs the same as the
+  `gemini-2.5-flash` extraction call. Permanent 4xx gate errors now log at error level.
+- Results (22 Reels, one run each, after the places fix): precision/recall `gemini-2.5-flash`
+  0.963/0.992 at $1.26 per 1,000 correct mentions; `gemini-3.1-flash-lite` 0.992/0.992 at $0.27;
+  `gemini-3.5-flash-lite` 0.985/0.992 at $0.36; `gemini-3.8-flash` 1.000/0.992 at $1.03 (launch
+  pricing, doubles 2027-01-01). Every model misses the same single book. Intervals overlap: Lite is no worse at about a fifth of the cost, not
+  proven better. This supersedes the 2026-06-21 observation that Flash beat Lite on dense lists,
+  which compared older models and scored mention counts.
+- Places fix: the prompt now defines a place as somewhere the creator recommends going and excludes
+  a place that only describes another item (a book's country). False places fell from 12 to 1 for
+  `gemini-2.5-flash` with no recall loss, but the set has no place Reels, so place recall is
+  unmeasured.
+- Labeling rule adopted: books that only flash past without being recommended are marked `optional`,
+  and only when at least two models found them independently. A title one model alone produced stays
+  a false positive, because model output copied into ground truth would bless hallucinations such as
+  the invented "The theory of symbolic transformations".
+- Rejected: a confidence threshold. One run separated right and wrong books by confidence; the next
+  returned the same wrong books at 1.0. Consistent with the 2026-06-24 gate note on not trusting
+  LLM self-reported confidence.
+- Extraction model: `GEMINI_MODEL` now defaults to `gemini-3.1-flash-lite`. It is not pinned in
+  `render.yaml` or the deployment docs, so the worker picks it up on its next deploy.
+  `gemini-3.8-flash` scored highest and is the fallback if a later run shows Lite degrading, at
+  roughly four times the cost and with launch pricing that doubles on 2027-01-01.
+- Consequence to watch: the gate and the extractor now run the same model, so the gate's saving comes
+  entirely from its input (caption plus one thumbnail instead of full video and audio), not from a
+  cheaper tier. If the gate is ever measured and found to skip almost nothing, it stops paying for
+  itself.
+- Next: add place, product, and nothing-to-find Reels before trusting the places fix on place Reels,
+  and measure the gate before tuning or replacing it.
+
+### 2026-09-22 - Dead Paths In Place Enrichment
+
+- Status: Recorded, not yet fixed.
+- Product constraint: Place mentions are stored without address or map data, so a saved place is not
+  yet worth revisiting; this is the gap between the 2026-06-25 note and the code.
+- Notes: Two contradictions between that note and the repo. The place provider
+  `src/extraction/google_places.py` was never written and `find_google_place_sync` always returns
+  `None`. `location_hint` is plumbed from `ExtractedMention` into `enrich_extracted_place_item` but
+  is absent from `MENTION_SCHEMA` and `EXTRACTION_PROMPT`, so it is always `None` outside tests.
+  Either implement both or delete the plumbing; do not assume the hint arrives.
 
 ### 2026-09-22 - Worker Poison-Message And Shutdown Policy
 
