@@ -74,18 +74,28 @@ def normalize_title(value: str) -> str:
     return LEADING_ARTICLE_RE.sub("", _normalize_text(main_title))
 
 
+def title_forms(value: str) -> set[str]:
+    """Comparable forms of a title: with and without subtitle, and each side of a
+    bilingual "Original / Translation" title."""
+    parts = [value, *value.split(" / ")] if " / " in value else [value]
+    forms = set()
+    for part in parts:
+        forms.add(LEADING_ARTICLE_RE.sub("", _normalize_text(part)))
+        forms.add(normalize_title(part))
+    forms.discard("")
+    return forms
+
+
 def title_similarity(predicted: str, expected: ExpectedMention) -> float:
-    predicted_norm = normalize_title(predicted)
-    if not predicted_norm:
-        return 0.0
+    predicted_forms = title_forms(predicted)
     best = 0.0
     for candidate in (expected.title, *expected.aliases):
-        candidate_norm = normalize_title(candidate)
-        if not candidate_norm:
-            continue
-        if predicted_norm == candidate_norm:
-            return 1.0
-        best = max(best, SequenceMatcher(None, predicted_norm, candidate_norm).ratio())
+        for candidate_form in title_forms(candidate):
+            if candidate_form in predicted_forms:
+                return 1.0
+            for predicted_form in predicted_forms:
+                ratio = SequenceMatcher(None, predicted_form, candidate_form).ratio()
+                best = max(best, ratio)
     return best
 
 

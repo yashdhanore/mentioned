@@ -169,6 +169,28 @@ def test_single_source_compare_output_is_accepted(tmp_path):
 
 
 @pytest.mark.parametrize(
+    ("predicted", "expected"),
+    [
+        ("Partition The Long Shadow", "Partition: The Long Shadow"),
+        ("Mga Ibong Mandaragit / The Preying Birds", "The Preying Birds"),
+        ("Dune: Deluxe Edition", "Dune"),
+    ],
+)
+def test_title_matching_handles_subtitles_and_bilingual_titles(predicted, expected):
+    label = score_extraction_eval.ExpectedMention(
+        category="book", title=expected, author=None, aliases=(), optional=False
+    )
+    assert score_extraction_eval.title_similarity(predicted, label) == 1.0
+
+
+def test_unrelated_titles_do_not_match():
+    label = score_extraction_eval.ExpectedMention(
+        category="book", title="The Trial", author=None, aliases=(), optional=False
+    )
+    assert score_extraction_eval.title_similarity("The Castle", label) < 0.88
+
+
+@pytest.mark.parametrize(
     ("reel", "message"),
     [
         ({"source_url": REEL_A, "status": "done"}, "status must be one of"),
