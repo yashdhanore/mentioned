@@ -11,9 +11,6 @@ export const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: 'hidden',
   },
-  reelTileFeatured: {
-    aspectRatio: 1.46,
-  },
   reelTileImage: {
     height: '100%',
     width: '100%',
@@ -26,29 +23,12 @@ export const styles = StyleSheet.create({
     position: 'absolute',
     right: 0,
   },
-  latestBadge: {
-    backgroundColor: colors.primary,
-    borderRadius: 999,
-    left: spacing.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    position: 'absolute',
-    top: spacing.sm,
-  },
-  latestBadgeText: {
-    ...typography.labelMd,
-    color: colors.onPrimary,
-  },
   reelTileMeta: {
     bottom: spacing.md,
     gap: spacing.sm,
     left: spacing.md,
     position: 'absolute',
     right: spacing.md,
-  },
-  reelTileTitle: {
-    ...typography.titleMd,
-    color: colors.onPrimary,
   },
   reelCreator: {
     ...typography.caption,

@@ -19,13 +19,11 @@ type IconButtonProps = {
   children: ReactNode;
   onPress: () => void;
   disabled?: boolean;
-  variant?: 'plain' | 'filled';
 };
 
 type SurfaceProps = {
   children: ReactNode;
   style?: StyleProp<ViewStyle>;
-  variant?: 'plain' | 'paper' | 'raised';
 };
 
 type AppMarkProps = {
@@ -84,7 +82,6 @@ export function IconButton({
   children,
   disabled = false,
   onPress,
-  variant = 'plain',
 }: IconButtonProps) {
   return (
     <Pressable
@@ -93,13 +90,12 @@ export function IconButton({
       disabled={disabled}
       style={({ pressed }) => [
         styles.iconButton,
-        variant === 'filled' && styles.iconButtonFilled,
         disabled && styles.disabledButton,
         pressed && styles.pressed,
       ]}
       onPress={onPress}
     >
-      {typeof children === 'string' ? <Text style={styles.iconButtonText}>{children}</Text> : children}
+      {children}
     </Pressable>
   );
 }
@@ -121,19 +117,8 @@ export function AppMark({ size = 32, style }: AppMarkProps = {}) {
   );
 }
 
-export function Surface({ children, style, variant = 'plain' }: SurfaceProps) {
-  return (
-    <View
-      style={[
-        styles.surface,
-        variant === 'paper' && styles.paperSurface,
-        variant === 'raised' && styles.raisedSurface,
-        style,
-      ]}
-    >
-      {children}
-    </View>
-  );
+export function Surface({ children, style }: SurfaceProps) {
+  return <View style={[styles.surface, style]}>{children}</View>;
 }
 
 export function BookSpine({
@@ -158,40 +143,19 @@ export function BookSpineSkeleton() {
   return <View style={styles.bookSpineSkeleton} />;
 }
 
-export function SourceQuote({
-  attribution,
-  quote,
-}: {
-  attribution?: string | null;
-  quote: string;
-}) {
-  return (
-    <View style={styles.sourceQuote}>
-      <View style={styles.sourceQuoteLine} />
-      <View style={styles.sourceQuoteCopy}>
-        <Text style={styles.sourceQuoteText}>{quote}</Text>
-        {attribution ? <Text style={styles.sourceQuoteAttribution}>{attribution}</Text> : null}
-      </View>
-    </View>
-  );
-}
-
 export function InlineMessage({
   message,
-  tone,
   actionLabel,
   onAction,
 }: {
   message: string;
-  tone: 'error' | 'warning';
+  tone: 'error';
   actionLabel?: string;
   onAction?: () => void;
 }) {
   return (
-    <View style={[styles.inlineMessage, tone === 'error' ? styles.inlineError : styles.inlineWarning]}>
-      <Text style={[styles.inlineMessageText, tone === 'error' ? styles.inlineErrorText : styles.inlineWarningText]}>
-        {message}
-      </Text>
+    <View style={[styles.inlineMessage, styles.inlineError]}>
+      <Text style={[styles.inlineMessageText, styles.inlineErrorText]}>{message}</Text>
       {actionLabel && onAction ? (
         <Pressable
           accessibilityRole="button"

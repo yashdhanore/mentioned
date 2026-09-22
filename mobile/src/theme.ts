@@ -20,8 +20,6 @@ export const colors = {
   hairline: 'rgba(16, 26, 23, 0.10)',
   book: '#2F4A44',
   bookSoft: '#E7ECE5',
-  sourceContext: '#405B55',
-  sourceContextSoft: '#E9EDE7',
   warning: '#8A5E00',
   warningSoft: '#FFF3D6',
   success: '#17643C',

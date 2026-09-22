@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, Image, Pressable, ScrollView, Text, View } from 'react-native';
 
-import type { Capture } from '@/captures';
+import { sourceIdentityLabel, type Capture } from '@/captures';
 import { BackIcon, ExternalLinkIcon, MoreIcon } from '@/components/icons';
 import {
   FailedState,
@@ -9,7 +9,7 @@ import {
   NoMentions,
   ProcessingMentions,
 } from '@/components/mentions';
-import { AppMark, IconButton, InlineMessage, SecondaryButton, SourceQuote } from '@/components/ui';
+import { AppMark, IconButton, InlineMessage, SecondaryButton } from '@/components/ui';
 import { styles as sharedStyles } from '@/styles';
 import { styles as localStyles } from './reel-detail-screen.styles';
 
@@ -171,9 +171,6 @@ function SourceHero({
             </Text>
           ) : null}
         </View>
-        {capture.sourceContextSnippet ? (
-          <SourceQuote quote={capture.sourceContextSnippet} attribution="From post" />
-        ) : null}
       </View>
     </View>
   );
@@ -207,10 +204,6 @@ function savedAtLabel(createdAt: string): string | null {
     day: 'numeric',
     month: 'short',
   })}`;
-}
-
-function sourceIdentityLabel(capture: Capture): string {
-  return capture.creatorHandle ? `@${capture.creatorHandle}` : capture.creator;
 }
 
 function ProcessingBrandMark() {
@@ -296,9 +289,6 @@ function OriginalSourceSection({
           <Text numberOfLines={1} style={styles.sourceCreator}>
             {sourceIdentityLabel(capture)}
           </Text>
-          {capture.sourceContextSnippet ? (
-            <SourceQuote quote={capture.sourceContextSnippet} attribution="From post" />
-          ) : null}
           <View style={styles.detailSourceAction}>
             <SecondaryButton label="Open original" onPress={onOpenSource} compact />
           </View>
