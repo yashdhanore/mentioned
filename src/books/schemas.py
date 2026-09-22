@@ -29,12 +29,3 @@ class GoogleBook:
     sale_info: dict[str, Any] | None = None
     access_info: dict[str, Any] | None = None
     raw_provider_payload: dict[str, Any] | None = None
-
-
-@dataclass
-class BookEnrichment:
-    canonical_title: str | None = None
-    canonical_author: str | None = None
-    google_books_url: str | None = None
-    cover_image_url: str | None = None
-    confidence_boost: float = 0.0
