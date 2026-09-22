@@ -32,6 +32,8 @@ type AppMarkProps = {
   style?: StyleProp<ViewStyle>;
 };
 
+const COMPACT_BUTTON_HIT_SLOP = { top: 2, bottom: 2, left: 0, right: 0 };
+
 export function PrimaryButton({
   label,
   onPress,
@@ -42,6 +44,7 @@ export function PrimaryButton({
     <Pressable
       accessibilityRole="button"
       disabled={disabled}
+      hitSlop={compact ? COMPACT_BUTTON_HIT_SLOP : undefined}
       style={({ pressed }) => [
         styles.primaryButton,
         compact && styles.compactButton,
@@ -65,6 +68,7 @@ export function SecondaryButton({
     <Pressable
       accessibilityRole="button"
       disabled={disabled}
+      hitSlop={compact ? COMPACT_BUTTON_HIT_SLOP : undefined}
       style={({ pressed }) => [
         styles.secondaryButton,
         compact && styles.compactButton,
@@ -89,6 +93,7 @@ export function IconButton({
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       disabled={disabled}
+      hitSlop={2}
       style={({ pressed }) => [
         styles.iconButton,
         disabled && styles.disabledButton,
@@ -155,7 +160,11 @@ export function InlineMessage({
   onAction?: () => void;
 }) {
   return (
-    <View style={[styles.inlineMessage, styles.inlineError]}>
+    <View
+      accessibilityRole="alert"
+      accessibilityLiveRegion="polite"
+      style={[styles.inlineMessage, styles.inlineError]}
+    >
       <Text style={[styles.inlineMessageText, styles.inlineErrorText]}>{message}</Text>
       {actionLabel && onAction ? (
         <Pressable

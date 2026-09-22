@@ -118,6 +118,7 @@ export function PasteSheet({
       <Text style={styles.sheetBody}>Use this when sharing from another app is not available.</Text>
       <Text style={styles.inputLabel}>Post URL</Text>
       <TextInput
+        accessibilityLabel="Post URL"
         autoCapitalize="none"
         autoCorrect={false}
         keyboardType="url"
@@ -241,9 +242,15 @@ function BottomSheet({
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <Animated.View style={[styles.modalOverlay, { opacity: backdropOpacity }]}>
-          <Pressable style={styles.modalOverlayFill} onPress={onClose} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+            style={styles.modalOverlayFill}
+            onPress={onClose}
+          />
         </Animated.View>
         <Animated.View
+          accessibilityViewIsModal
           style={[styles.bottomSheet, { transform: [{ translateY }] }]}
           onLayout={(event) => {
             cardHeight.current = event.nativeEvent.layout.height;
