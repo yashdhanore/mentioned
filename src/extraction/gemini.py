@@ -19,15 +19,15 @@ EXTRACTION_PROMPT = """\
 Analyze this Instagram content (video with audio, or images).
 Identify all books, products, and places that are explicitly mentioned, shown, or recommended.
 
-Return JSON: {"mentions": [{"title": "...", "author": "...", "category": "book|product|place", "confidence": 0.0-1.0}]}
-
 Rules:
 - Only include items clearly and intentionally featured or recommended
 - For books: include author if visible or spoken
-- Confidence reflects how certain you are (visible cover = high, just mentioned in passing = lower)
+- Confidence is between 0.0 and 1.0 and reflects how certain you are (visible cover = high, just mentioned in passing = lower)
 - Do NOT include incidental background items, UI elements, or generic references
 - A place is a specific location the creator recommends going to, such as a restaurant, shop, hotel, beach, landmark, or a destination pitched as a trip
 - Do NOT list a place that only describes another item, such as the country or city a book is set in, where an author is from, or an on-screen label like "Turkey" next to a book
+- For places: set location_hint to the city, region, or country the place is in, if the content shows or says it
+- For each item you include under the rules above, give evidence of where it is featured: the timestamp (MM:SS) where it is first clearly shown or said, whether that is speech, on_screen_text, or visual (such as a book cover), and a short quote of the words spoken or shown. Evidence does not make an item qualify: a book that only flashes past is still incidental
 """
 
 MENTION_SCHEMA = {
@@ -42,6 +42,19 @@ MENTION_SCHEMA = {
                     "author": {"type": "string"},
                     "category": {"type": "string", "enum": ["book", "product", "place"]},
                     "confidence": {"type": "number"},
+                    "location_hint": {"type": "string"},
+                    "evidence": {
+                        "type": "object",
+                        "properties": {
+                            "timestamp": {"type": "string"},
+                            "source": {
+                                "type": "string",
+                                "enum": ["speech", "on_screen_text", "visual"],
+                            },
+                            "quote": {"type": "string"},
+                        },
+                        "required": ["source"],
+                    },
                 },
                 "required": ["title", "category", "confidence"],
             },

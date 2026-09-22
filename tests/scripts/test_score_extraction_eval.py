@@ -168,11 +168,31 @@ def test_single_source_compare_output_is_accepted(tmp_path):
     assert flash["author_accuracy"] == 0.0
 
 
+def test_evidence_and_timestamp_coverage_are_reported(tmp_path):
+    labels = _labels(tmp_path)
+    mentions = [
+        _book(
+            "Song of Solomon",
+            evidence={"source": "speech", "timestamp": "0:07", "quote": "Song of Solomon"},
+        ),
+        _book("Beloved", evidence={"source": "visual", "timestamp": "around the end"}),
+        _book("Sula"),
+    ]
+    results = {"source_url": REEL_B, "results": [_result("flash", mentions)]}
+
+    [flash] = score_results(labels, results)["models"]
+
+    assert flash["evidence_coverage"] == 0.667
+    assert flash["timestamp_coverage"] == 0.333
+
+
 @pytest.mark.parametrize(
     ("predicted", "expected"),
     [
         ("Partition The Long Shadow", "Partition: The Long Shadow"),
         ("Mga Ibong Mandaragit / The Preying Birds", "The Preying Birds"),
+        ("Mga Ibong Mandaragit (The Preying Birds)", "The Preying Birds"),
+        ("Luha ng Buwaya (Crocodile's Tears)", "Luha ng Buwaya"),
         ("Dune: Deluxe Edition", "Dune"),
     ],
 )
