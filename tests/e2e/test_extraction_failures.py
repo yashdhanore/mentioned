@@ -19,8 +19,6 @@ Reel "no mentions" for good, which is the failure these scenarios guard against.
 from __future__ import annotations
 
 import json
-import threading
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
@@ -36,12 +34,12 @@ from src.ingestion.queue_worker import process_source_extraction_message
 from src.sources.failure import SourceFailureReason, safe_source_error_message
 from src.sources.models import SavedSource, Source, SourceItem, SourceStatus
 from src.sources.queue import SOURCE_EXTRACTIONS_QUEUE, SourceExtractionMessage
+from tests.e2e.fakes import FakeGemini, gemini_text_reply
 from tests.e2e.harness import (
     WORKER_DATABASE_URL,
     Report,
     admin_database_url,
     api_env,
-    free_port,
     requires_local_stack,
     start_api,
     stop_api,
@@ -49,66 +47,18 @@ from tests.e2e.harness import (
 
 pytestmark = requires_local_stack
 
-EXTRACTION_MODEL = "fake-extraction-model"
-GATE_MODEL = "fake-gate-model"
+EXTRACTION_MODEL = FakeGemini.extraction_model
+GATE_MODEL = FakeGemini.gate_model
 EXTRACTION_FAILED = safe_source_error_message(SourceFailureReason.EXTRACTION_FAILED)
 # Long enough that the `make dev` worker never sees the message before this test archives it.
 QUEUE_DELAY_SECONDS = 300
-
-
-def _text_reply(text: str, finish_reason: str = "STOP") -> dict[str, Any]:
-    return {
-        "candidates": [
-            {
-                "content": {"role": "model", "parts": [{"text": text}]},
-                "finishReason": finish_reason,
-                "index": 0,
-            }
-        ],
-        "usageMetadata": {"promptTokenCount": 10, "candidatesTokenCount": 5, "totalTokenCount": 15},
-    }
-
 
 PROMPT_BLOCKED = {
     "promptFeedback": {"blockReason": "PROHIBITED_CONTENT"},
     "usageMetadata": {"promptTokenCount": 10, "totalTokenCount": 10},
 }
 CANDIDATE_BLOCKED = {"candidates": [{"finishReason": "SAFETY", "index": 0}]}
-RELEVANT_GATE = _text_reply(json.dumps({"verdict": "relevant", "reason": "fake gate"}))
 PRODUCT_MENTION = {"title": "Kindle Paperwhite", "category": "product", "confidence": 0.9}
-
-
-class FakeGemini:
-    """A local stand-in for the Gemini API that answers each model with a set reply."""
-
-    def __init__(self) -> None:
-        self.replies: dict[str, dict[str, Any]] = {}
-        self.requests: list[str] = []
-        fake = self
-
-        class Handler(BaseHTTPRequestHandler):
-            def do_POST(self) -> None:
-                self.rfile.read(int(self.headers.get("Content-Length", 0)))
-                # Path shape: /v1beta/models/<model>:generateContent
-                model = self.path.split("/models/", 1)[-1].split(":", 1)[0]
-                fake.requests.append(model)
-                body = json.dumps(fake.replies.get(model, {"error": "no reply set"})).encode()
-                self.send_response(200 if model in fake.replies else 500)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Content-Length", str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
-
-            def log_message(self, *_args) -> None:
-                pass
-
-        self.server = ThreadingHTTPServer(("127.0.0.1", free_port()), Handler)
-        self.base_url = f"http://127.0.0.1:{self.server.server_address[1]}"
-        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
-
-    def reply(self, *, extraction: dict[str, Any], gate: dict[str, Any] = RELEVANT_GATE) -> None:
-        self.replies = {EXTRACTION_MODEL: extraction, GATE_MODEL: gate}
-        self.requests = []
 
 
 @pytest.fixture(scope="module")
@@ -124,9 +74,9 @@ def report():
 @pytest.fixture(scope="module")
 def fake_gemini():
     fake = FakeGemini()
-    fake.thread.start()
+    fake.start()
     yield fake
-    fake.server.shutdown()
+    fake.stop()
 
 
 @pytest.fixture(scope="module")
@@ -269,17 +219,17 @@ UNUSABLE_REPLIES = [
     (
         "G3",
         "JSON cut off at the output token limit",
-        _text_reply('{"mentions": [{"title": "Dune", "categ', finish_reason="MAX_TOKENS"),
+        gemini_text_reply('{"mentions": [{"title": "Dune", "categ', finish_reason="MAX_TOKENS"),
     ),
-    ("G4", "empty text", _text_reply("")),
-    ("G5", "top-level JSON array", _text_reply("[]")),
-    ("G6", "no mentions key", _text_reply('{"items": []}')),
-    ("G7", "mentions is not a list", _text_reply('{"mentions": "none"}')),
-    ("G8", "a mention is not an object", _text_reply('{"mentions": ["Dune"]}')),
+    ("G4", "empty text", gemini_text_reply("")),
+    ("G5", "top-level JSON array", gemini_text_reply("[]")),
+    ("G6", "no mentions key", gemini_text_reply('{"items": []}')),
+    ("G7", "mentions is not a list", gemini_text_reply('{"mentions": "none"}')),
+    ("G8", "a mention is not an object", gemini_text_reply('{"mentions": ["Dune"]}')),
     (
         "G9",
         "non-numeric confidence",
-        _text_reply(json.dumps({"mentions": [{**PRODUCT_MENTION, "confidence": "high"}]})),
+        gemini_text_reply(json.dumps({"mentions": [{**PRODUCT_MENTION, "confidence": "high"}]})),
     ),
 ]
 
@@ -328,7 +278,7 @@ def test_genuinely_empty_reply_is_done_with_no_items(
         ["guard: no over-correction"],
         'Fake Gemini answers {"mentions": []}',
     ) as scenario:
-        fake_gemini.reply(extraction=_text_reply('{"mentions": []}'))
+        fake_gemini.reply(extraction=gemini_text_reply('{"mentions": []}'))
         owner_id = str(uuid4())
 
         saved_id = _save_and_process(saved_reels, engines, worker_settings, owner_id)
@@ -347,7 +297,7 @@ def test_valid_reply_saves_the_mention(
         ["guard: happy path"],
         "Fake Gemini answers one product mention",
     ) as scenario:
-        fake_gemini.reply(extraction=_text_reply(json.dumps({"mentions": [PRODUCT_MENTION]})))
+        fake_gemini.reply(extraction=gemini_text_reply(json.dumps({"mentions": [PRODUCT_MENTION]})))
         owner_id = str(uuid4())
 
         saved_id = _save_and_process(saved_reels, engines, worker_settings, owner_id)
@@ -368,7 +318,7 @@ def test_unusable_gate_reply_still_fails_open_to_extraction(
         "Fake Gemini blocks the gate call and answers extraction with one product mention",
     ) as scenario:
         fake_gemini.reply(
-            extraction=_text_reply(json.dumps({"mentions": [PRODUCT_MENTION]})),
+            extraction=gemini_text_reply(json.dumps({"mentions": [PRODUCT_MENTION]})),
             gate=PROMPT_BLOCKED,
         )
         owner_id = str(uuid4())

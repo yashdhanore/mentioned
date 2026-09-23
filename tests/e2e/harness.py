@@ -7,8 +7,10 @@ copy at `outputs/e2e/<suite>/latest.json`, so each run leaves a reviewable artif
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -19,6 +21,8 @@ from typing import Any
 
 import httpx
 import pytest
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import make_url
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 OUTPUTS_DIR = REPO_ROOT / "outputs" / "e2e"
@@ -81,14 +85,26 @@ class Report:
         # One folder per run holds the report and every API process log from that run.
         self.run_dir = self.suite_dir / self.started_at.strftime("%Y%m%dT%H%M%SZ")
         self.scenarios: list[dict[str, Any]] = []
+        # Suite-level facts a reviewer needs to trust the run, such as which fakes stood in
+        # for which providers.
+        self.context: dict[str, Any] = {}
 
-    def scenario(self, name: str, failure_modes: list[str], setup: str) -> Scenario:
-        scenario = Scenario(name, failure_modes, setup)
+    def scenario(
+        self, name: str, failure_modes: list[str], setup: str, known_bug: str | None = None
+    ) -> Scenario:
+        scenario = Scenario(name, failure_modes, setup, known_bug)
         self.scenarios.append(scenario.record)
         return scenario
 
     def write(self) -> Path:
-        passed = bool(self.scenarios) and all(s["outcome"] == "passed" for s in self.scenarios)
+        # A known bug that still fails keeps the run green, like a strict xfail; one that
+        # starts passing turns it red so the marker gets removed.
+        passed = bool(self.scenarios) and all(
+            s["outcome"] in PASSING_OUTCOMES for s in self.scenarios
+        )
+        outcomes: dict[str, int] = {}
+        for scenario in self.scenarios:
+            outcomes[scenario["outcome"]] = outcomes.get(scenario["outcome"], 0) + 1
         payload = {
             "suite": self.suite,
             "started_at": self.started_at.isoformat(),
@@ -98,6 +114,8 @@ class Report:
             "supabase_api_url": STACK["API_URL"] if STACK else None,
             "rerun": self.rerun,
             "passed": passed,
+            "outcomes": outcomes,
+            "context": self.context,
             "scenarios": self.scenarios,
         }
         self.run_dir.mkdir(parents=True, exist_ok=True)
@@ -108,10 +126,21 @@ class Report:
         return path
 
 
-class Scenario:
-    """Use as a context manager so a scenario that crashes is reported as an error, not a pass."""
+KNOWN_BUG = "known bug"
+PASSING_OUTCOMES = {"passed", KNOWN_BUG}
 
-    def __init__(self, name: str, failure_modes: list[str], setup: str) -> None:
+
+class Scenario:
+    """Use as a context manager so a scenario that crashes is reported as an error, not a pass.
+
+    `known_bug` marks a scenario that asserts the correct behavior of a product bug that is
+    not fixed yet; pair it with `pytest.mark.xfail(strict=True)` on the test.
+    """
+
+    def __init__(
+        self, name: str, failure_modes: list[str], setup: str, known_bug: str | None = None
+    ) -> None:
+        self.known_bug = known_bug
         self.record: dict[str, Any] = {
             "name": name,
             "failure_modes": failure_modes,
@@ -119,6 +148,8 @@ class Scenario:
             "outcome": "not finished",
             "checks": [],
         }
+        if known_bug:
+            self.record["known_bug"] = known_bug
 
     def __enter__(self) -> Scenario:
         return self
@@ -127,9 +158,14 @@ class Scenario:
         self, exc_type: type[BaseException] | None, exc: BaseException | None, _tb
     ) -> bool:
         if exc is None:
-            self.record["outcome"] = "passed" if self.record["checks"] else "no checks"
+            if not self.record["checks"]:
+                self.record["outcome"] = "no checks"
+            elif self.known_bug:
+                self.record["outcome"] = "passed unexpectedly"
+            else:
+                self.record["outcome"] = "passed"
         elif isinstance(exc, AssertionError):
-            self.record["outcome"] = "failed"
+            self.record["outcome"] = KNOWN_BUG if self.known_bug else "failed"
         else:
             self.record["outcome"] = "error"
             self.record["error"] = f"{exc_type.__name__}: {exc}" if exc_type else str(exc)
@@ -141,6 +177,104 @@ class Scenario:
             {"check": label, "expected": expected, "actual": actual, "passed": passed}
         )
         assert passed, f"{label}: expected {expected!r}, got {actual!r}"
+
+
+class IsolatedDatabase:
+    """A database of its own in the local Postgres, migrated by Alembic like production.
+
+    The `make dev` worker polls the `extract_sources` queue in the `postgres` database, and
+    the API queues every new save with no delay, so a Reel saved through the API there would
+    be taken by that worker, which then downloads it from Instagram. A suite that saves
+    through the API uses this database instead, where only the suite's own worker runs.
+    Roles are cluster-wide, so the API and worker still connect as `mentioned_api` and
+    `mentioned_worker` under the same grants and RLS policies as `make dev` and production.
+    """
+
+    NAME_RE = re.compile(r"^[a-z][a-z0-9_]{0,62}$")
+
+    def __init__(self, name: str) -> None:
+        assert STACK is not None
+        if not self.NAME_RE.match(name):
+            raise ValueError(f"not a safe database name: {name!r}")
+        self.name = name
+        self.admin_url = self._with_database(STACK["DB_URL"])
+        self.api_url = self._with_database(API_DATABASE_URL)
+        self.worker_url = self._with_database(WORKER_DATABASE_URL)
+
+    def _with_database(self, url: str) -> str:
+        return make_url(url).set(database=self.name).render_as_string(hide_password=False)
+
+    def _maintenance(self, statement: str) -> None:
+        engine = create_engine(admin_database_url(), isolation_level="AUTOCOMMIT")
+        try:
+            with engine.connect() as connection:
+                connection.execute(text(statement))
+        finally:
+            engine.dispose()
+
+    def create(self) -> None:
+        # A run that was killed leaves its database behind; start from a clean one.
+        self.drop()
+        self._maintenance(f'create database "{self.name}"')
+        env = dict(os.environ, DATABASE_URL=self.admin_url)
+        result = subprocess.run(
+            [sys.executable, "-m", "alembic", "upgrade", "head"],
+            cwd=REPO_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"alembic upgrade failed:\n{result.stdout}\n{result.stderr}")
+
+    def drop(self) -> None:
+        self._maintenance(f'drop database if exists "{self.name}" with (force)')
+
+
+def _is_this_machine(host: object) -> bool:
+    if host is None:
+        return True
+    name = host.decode() if isinstance(host, bytes) else str(host)
+    if name.casefold() == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(name.split("%", 1)[0]).is_loopback
+    except ValueError:
+        return False
+
+
+class NetworkGuard:
+    """Refuses every connection this process tries to open to another machine.
+
+    E2E suites fake Instagram, Gemini, and Google Books; if code under test ever reached a
+    real provider anyway (a missed base URL, a new provider), the call fails here and is
+    recorded, instead of quietly contacting it. Subprocesses are not covered.
+    """
+
+    def __init__(self) -> None:
+        self.blocked: list[str] = []
+
+    def install(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        real_getaddrinfo = socket.getaddrinfo
+        real_connect = socket.socket.connect
+        guard = self
+
+        def getaddrinfo(host, *args, **kwargs):
+            if not _is_this_machine(host):
+                guard.blocked.append(f"resolve {host}")
+                raise socket.gaierror(f"E2E network guard: refused to resolve {host}")
+            return real_getaddrinfo(host, *args, **kwargs)
+
+        def connect(sock, address):
+            if sock.family in (socket.AF_INET, socket.AF_INET6) and not _is_this_machine(
+                address[0]
+            ):
+                guard.blocked.append(f"connect {address[0]}")
+                raise ConnectionRefusedError(f"E2E network guard: refused {address[0]}")
+            return real_connect(sock, address)
+
+        monkeypatch.setattr(socket, "getaddrinfo", getaddrinfo)
+        monkeypatch.setattr(socket.socket, "connect", connect)
 
 
 def free_port() -> int:
