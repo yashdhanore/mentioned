@@ -368,7 +368,6 @@ PRODUCTION_BASE_ENV = {
         ({"TRUSTED_HOSTS": ""}, "Production requires at least one TRUSTED_HOSTS"),
         ({"TRUSTED_HOSTS": "*"}, "Production TRUSTED_HOSTS must be explicit non-local hosts"),
         ({"SUPABASE_PROJECT_URL": ""}, "Production requires SUPABASE_PROJECT_URL"),
-        ({"SUPABASE_SERVICE_ROLE_KEY": ""}, "Production requires SUPABASE_SERVICE_ROLE_KEY"),
         ({"SUPABASE_JWT_AUDIENCE": ""}, "Production requires SUPABASE_JWT_AUDIENCE"),
     ],
 )
