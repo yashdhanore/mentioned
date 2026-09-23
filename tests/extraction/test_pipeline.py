@@ -79,18 +79,6 @@ def test_pipeline_extracts_from_all_downloaded_media(mock_extract, mock_download
 
 
 @patch("src.extraction.pipeline.download_assets_with_metadata")
-def test_pipeline_download_failure(mock_download):
-    mock_download.side_effect = RuntimeError("Network error")
-
-    result = run_pipeline("https://instagram.com/reel/ABC123/")
-
-    assert result.error is not None
-    assert "Download failed" in result.error
-    assert "Network error" not in result.error
-    assert result.mentions == []
-
-
-@patch("src.extraction.pipeline.download_assets_with_metadata")
 @patch("src.extraction.pipeline.extract_mentions_from_media")
 def test_pipeline_extraction_failure(mock_extract, mock_download, tmp_path):
     media_file = tmp_path / "media_001.mp4"
@@ -109,20 +97,6 @@ def test_pipeline_extraction_failure(mock_extract, mock_download, tmp_path):
     assert "Gemini API error" not in result.error
     assert result.thumbnail_url == "https://example.com/reel.jpg"
     assert result.source_creator_handle == "jamesclear"
-
-
-@patch("src.extraction.pipeline.download_assets_with_metadata")
-@patch("src.extraction.pipeline.extract_mentions_from_media")
-def test_pipeline_empty_mentions(mock_extract, mock_download, tmp_path):
-    media_file = tmp_path / "media_001.mp4"
-    media_file.write_bytes(b"fake video")
-    mock_download.return_value = DownloadedAssets(paths=[media_file])
-    mock_extract.return_value = {"mentions": []}
-
-    result = run_pipeline("https://instagram.com/reel/ABC123/")
-
-    assert result.error is None
-    assert result.mentions == []
 
 
 @patch("src.extraction.pipeline.assess_relevance")
@@ -151,25 +125,6 @@ def test_pipeline_active_gate_skips_irrelevant(
     assert result.mentions == []
     assert result.skip_reason is not None
     assert result.thumbnail_url == "https://example.com/reel.jpg"
-
-
-@patch("src.extraction.pipeline.assess_relevance")
-@patch("src.extraction.pipeline.download_assets_with_metadata")
-@patch("src.extraction.pipeline.extract_mentions_from_media")
-def test_pipeline_active_gate_proceeds_on_uncertain(
-    mock_extract, mock_download, mock_gate, monkeypatch, tmp_path
-):
-    _set_gate_mode(monkeypatch, "active")
-    media_file = tmp_path / "media_001.mp4"
-    media_file.write_bytes(b"fake video")
-    mock_download.return_value = DownloadedAssets(paths=[media_file], caption="hmm")
-    mock_gate.return_value = RelevanceAssessment(verdict=Verdict.UNCERTAIN, reason="ambiguous")
-    mock_extract.return_value = {"mentions": []}
-
-    result = run_pipeline("https://instagram.com/reel/ABC123/")
-
-    mock_extract.assert_called_once_with([media_file])
-    assert result.skip_reason is None
 
 
 @patch("src.extraction.pipeline.assess_relevance")

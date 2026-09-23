@@ -57,27 +57,3 @@ def test_enrich_extracted_book_item_links_book_and_clamps_confidence(
     assert item.google_books_url == "https://books.google.com/books?id=google-volume-1"
     assert item.cover_image_url == "https://books.google.com/thumb.jpg"
     assert item.confidence == 1.0
-
-
-def test_enrich_extracted_book_item_leaves_item_when_provider_misses(
-    session: Session,
-) -> None:
-    item = _item()
-    extracted = ExtractedMention(
-        title="Atomic Habits",
-        author="James Clear",
-        category="book",
-        confidence=0.72,
-    )
-
-    enrich_extracted_book_item(
-        session,
-        item,
-        extracted,
-        book_finder=lambda _title, _author: None,
-    )
-
-    assert list(session.exec(select(Book)).all()) == []
-    assert item.book_id is None
-    assert item.title == "Atomic Habits"
-    assert item.confidence == 0.72

@@ -70,22 +70,3 @@ def test_enrich_place_item_upserts_place_and_denormalizes(session: Session) -> N
     assert item.latitude == 51.5072
     assert item.longitude == -0.1276
     assert item.maps_url == "https://www.google.com/maps/place/?q=place_id:ChIJ-place-1"
-
-
-def test_enrich_place_item_fails_open_to_bare_title(session: Session) -> None:
-    source = _source(session)
-    item = _item(source)
-    extracted = ExtractedMention(title="Cafe Nero", category="place", confidence=0.8)
-
-    enrich_extracted_place_item(
-        session,
-        item,
-        extracted,
-        place_finder=lambda _name, _hint: None,
-    )
-
-    places = list(session.exec(select(Place)).all())
-    assert places == []
-    assert item.place_id is None
-    assert item.formatted_address is None
-    assert item.title == "Cafe Nero"

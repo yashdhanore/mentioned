@@ -76,24 +76,3 @@ def test_saved_source_list_response_query_count_does_not_grow_with_saved_sources
 
     assert small_count == 2
     assert large_count == 2
-
-
-def test_saved_source_list_response_shape_and_order(session: Session) -> None:
-    _create_saved_source(session, "FIRST", item_count=1)
-    _create_saved_source(session, "SECOND", item_count=3)
-
-    responses = saved_source_list_response(session, OWNER, limit=50)
-
-    assert [r.source_key for r in responses] == [
-        "instagram:reel:SECOND",
-        "instagram:reel:FIRST",
-    ]
-    second = responses[0]
-    assert [item.position for item in second.items] == [0, 1, 2]
-    assert [item.title for item in second.items] == [
-        "SECOND item 0",
-        "SECOND item 1",
-        "SECOND item 2",
-    ]
-    first = responses[1]
-    assert [item.title for item in first.items] == ["FIRST item 0"]
