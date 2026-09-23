@@ -10,6 +10,9 @@
   It fails open: only a confident `irrelevant` verdict skips extraction, and it skips only when `RELEVANCE_GATE_MODE=active`.
   See the dated note in `docs/strategy/technical.md`.
 - Wrap external binaries and network providers behind small functions so tests can monkeypatch them.
+- An unusable extraction reply (blocked, truncated, not JSON, or the wrong shape) must raise `GeminiResponseError` from `parse_mentions_response` in `gemini.py`, never fall back to `{"mentions": []}`.
+  The pipeline then fails the source, which the user can retry; a done source with no mentions is cached for every user of that Reel and never extracted again.
+  `scripts/compare_gemini_video_models.py` uses the same parser, so evals count such replies as failed extractions, not as Reels with nothing in them.
 - `gemini.py` and `relevance.py` both build their Gemini client through `get_gemini_client()` in `gemini_client.py`; it applies the configurable `GEMINI_TIMEOUT_SECONDS` HTTP timeout (hard ceiling in `src/config.py`) so one hung call cannot stall the worker forever.
 - When the extraction prompt, schema, or model changes, run a comparison and score it against the labeled Reels in `evals/reel-labels.json` (see `evals/README.md`).
 - `google_books.py` keeps `not_found` and `error` apart in `BooksSearchResult`; never log an httpx exception from it directly, because its message contains the URL with the API key.

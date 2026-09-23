@@ -25,6 +25,31 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run pytest
 
+  # The E2E suites under tests/e2e skip without a local Supabase stack, so the backend job
+  # above only runs the isolation tests; this job gives them the same stack as `make dev`.
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --frozen --extra dev
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.117.0
+      - run: supabase start -x realtime,imgproxy,studio,postgres-meta,edge-runtime,logflare,vector,supavisor,mailpit
+      - run: scripts/local-db-setup.sh
+      - run: uv run pytest tests/e2e -v
+        env:
+          E2E_REQUIRED: "1"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-reports
+          path: outputs/e2e
+          retention-days: 14
+
   mobile:
     runs-on: ubuntu-latest
     defaults:

@@ -184,6 +184,7 @@ def test_settings_production_field_defaults(monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "https://mentioned.example")
     monkeypatch.setenv("TRUSTED_HOSTS", "mentioned-api.onrender.com")
     monkeypatch.setenv("SUPABASE_PROJECT_URL", "https://example.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "service-role-key")
 
     settings = get_settings()
 
@@ -347,6 +348,7 @@ PRODUCTION_BASE_ENV = {
     "CORS_ALLOWED_ORIGINS": "https://mentioned.example",
     "TRUSTED_HOSTS": "mentioned-api.onrender.com",
     "SUPABASE_PROJECT_URL": "https://example.supabase.co",
+    "SUPABASE_SERVICE_ROLE_KEY": "service-role-key",
 }
 
 

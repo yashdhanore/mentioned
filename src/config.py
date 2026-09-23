@@ -323,6 +323,9 @@ def validate_settings(settings: Settings) -> None:
         raise RuntimeError("Production TRUSTED_HOSTS must be explicit non-local hosts")
     if not settings.auth.supabase_project_url:
         raise RuntimeError("Production requires SUPABASE_PROJECT_URL")
+    if not settings.auth.supabase_service_role_key:
+        # The API deletes Supabase logins on account deletion; the worker stores thumbnails.
+        raise RuntimeError("Production requires SUPABASE_SERVICE_ROLE_KEY")
     if not settings.auth.supabase_jwt_audience:
         raise RuntimeError("Production requires SUPABASE_JWT_AUDIENCE")
 

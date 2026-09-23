@@ -63,35 +63,9 @@ eval "$(supabase status -o env 2>/dev/null | grep -E '^(API_URL|SERVICE_ROLE_KEY
 export SUPABASE_PROJECT_URL="$API_URL"
 export SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
 
-echo "Ensuring local dev database roles exist..."
-docker exec -i supabase_db_mentioned psql -U postgres -d postgres -v ON_ERROR_STOP=1 >> "$LOG_DIR/supabase.log" 2>&1 <<'SQL'
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'mentioned_api') THEN
-    CREATE ROLE mentioned_api LOGIN PASSWORD 'local-dev-api-pw' NOSUPERUSER NOBYPASSRLS;
-  END IF;
-  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'mentioned_worker') THEN
-    CREATE ROLE mentioned_worker LOGIN PASSWORD 'local-dev-worker-pw' NOSUPERUSER NOBYPASSRLS;
-  END IF;
-END
-$$;
-SQL
-if [ $? -ne 0 ]; then
-  echo "Creating local dev database roles failed, see $LOG_DIR/supabase.log" >&2
-  exit 1
-fi
-
-echo "Applying backend schema migrations (alembic)..."
-DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
-  .venv/bin/alembic upgrade head >> "$LOG_DIR/supabase.log" 2>&1
-if [ $? -ne 0 ]; then
-  echo "alembic upgrade head failed, see $LOG_DIR/supabase.log" >&2
-  exit 1
-fi
-
-echo "Applying Supabase-managed migrations (storage buckets)..."
-supabase migration up --local >> "$LOG_DIR/supabase.log" 2>&1 || {
-  echo "supabase migration up --local failed, see $LOG_DIR/supabase.log" >&2
+echo "Preparing the local database (roles, alembic, storage migrations)..."
+scripts/local-db-setup.sh >> "$LOG_DIR/supabase.log" 2>&1 || {
+  echo "Preparing the local database failed, see $LOG_DIR/supabase.log" >&2
   exit 1
 }
 

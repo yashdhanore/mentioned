@@ -200,8 +200,52 @@ def extract_mentions_from_media(media_paths: Path | Sequence[Path]) -> dict:
         ),
         total_attempts=settings.gemini.gemini_total_attempts,
     )
+    return parse_mentions_response(response)
+
+
+class GeminiResponseError(RuntimeError):
+    """Gemini answered, but not with mentions the pipeline can use."""
+
+
+def _finish_details(response) -> str:
+    feedback = getattr(response, "prompt_feedback", None)
+    block_reason = getattr(feedback, "block_reason", None)
+    candidates = getattr(response, "candidates", None) or []
+    finish_reason = getattr(candidates[0], "finish_reason", None) if candidates else None
+    return f"block_reason={block_reason}, finish_reason={finish_reason}"
+
+
+def _is_number(value: object) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def parse_mentions_response(response) -> dict:
+    """Return the `{"mentions": [...]}` payload, or raise GeminiResponseError.
+
+    A blocked, truncated, or malformed reply must fail the source, which the user can
+    retry, rather than be stored as a done source with no mentions: `sources` is a cache
+    shared by everyone who saves the same Reel, and a done source is never extracted again.
+    """
+    text = response.text
+    if not text:
+        raise GeminiResponseError(f"Gemini returned no text ({_finish_details(response)})")
     try:
-        return json.loads(response.text)
-    except (json.JSONDecodeError, TypeError) as exc:
-        logger.warning("Failed to parse Gemini response: %s", exc)
-        return {"mentions": []}
+        payload = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise GeminiResponseError(
+            f"Gemini returned invalid JSON ({_finish_details(response)}): {exc}"
+        ) from exc
+
+    mentions = payload.get("mentions") if isinstance(payload, dict) else None
+    if not isinstance(mentions, list):
+        raise GeminiResponseError("Gemini JSON has no mentions list")
+    for mention in mentions:
+        if not isinstance(mention, dict):
+            raise GeminiResponseError("Gemini returned a mention that is not an object")
+        for field in ("title", "author", "category", "location_hint"):
+            if mention.get(field) is not None and not isinstance(mention[field], str):
+                raise GeminiResponseError(f"Gemini returned a non-text mention {field}")
+        confidence = mention.get("confidence")
+        if confidence is not None and not _is_number(confidence):
+            raise GeminiResponseError("Gemini returned a non-numeric mention confidence")
+    return payload
