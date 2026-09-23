@@ -99,7 +99,7 @@ Then open the mobile app at http://localhost:8081, tap +, and paste a public Ins
 Without `EXTRACTION_BACKEND=gemini`, the worker uses a stub that returns zero mentions.
 Without `GOOGLE_BOOKS_API_KEY`, Books lookups are rate-limited almost immediately.
 
-`scripts/dev-up.sh` starts Supabase, creates the `mentioned_api` and `mentioned_worker` Postgres roles, applies all migrations, and points the API, worker, and mobile app at the local stack, so nothing else in `.env` needs to change.
+`scripts/dev-up.sh` starts Supabase, runs `scripts/local-db-setup.sh` to create the `mentioned_api` and `mentioned_worker` Postgres roles and apply all migrations, and points the API, worker, and mobile app at the local stack, so nothing else in `.env` needs to change.
 Run outside `make dev` without a `DATABASE_URL`, the API and worker fall back to SQLite, where the worker polls for pending sources instead of reading pgmq.
 
 ## Tests and checks
@@ -113,7 +113,8 @@ uv run pytest
 ```
 
 The Postgres role and RLS tests are skipped unless `POSTGRES_TEST_DATABASE_URL`, `POSTGRES_TEST_API_DATABASE_URL`, and `POSTGRES_TEST_WORKER_DATABASE_URL` are set.
-CI runs the backend, mobile, and web checks on every pull request and push to `main` (`.github/workflows/ci.yml`).
+CI runs the backend, E2E, mobile, and web checks on every pull request and push to `main` (`.github/workflows/ci.yml`).
+The E2E job runs `tests/e2e` against a local Supabase stack and uploads each run's report as the `e2e-reports` artifact.
 
 ## API
 

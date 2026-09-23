@@ -51,6 +51,9 @@ def _local_stack() -> dict[str, str] | None:
 
 
 STACK = _local_stack()
+# CI sets E2E_REQUIRED so a broken stack setup fails the job instead of skipping to green.
+if STACK is None and os.getenv("E2E_REQUIRED"):
+    raise RuntimeError("E2E_REQUIRED is set but `supabase status` found no local stack")
 requires_local_stack = pytest.mark.skipif(
     STACK is None, reason="needs the local Supabase stack; start it with `make dev`"
 )

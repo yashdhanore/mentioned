@@ -36,7 +36,8 @@ Mentioned is a FastAPI, Supabase, Expo, and Astro product for extracting books, 
 - The Docker image (`Dockerfile`) installs only dependencies (`uv sync --frozen --no-dev --no-install-project`), not this package itself, so the API runs via `fastapi run src/main.py` and the worker via `python -m src.worker` there, not the console script.
 - Run mobile checks from `mobile/`: `npm test` (focused scripts plus `lint`, `format:check`, and `typecheck`); lint alone with `npm run lint`, format check with `npm run format:check`.
 - Run web checks from `web/`: `npm test` (typecheck, build, and Playwright e2e)
-- CI runs the backend, mobile, and web checks on every pull request and push to `main`; see `.github/workflows/ci.yml`.
+- CI runs the backend, E2E, mobile, and web checks on every pull request and push to `main`; see `.github/workflows/ci.yml`.
+  The `e2e` job starts local Supabase, runs `scripts/local-db-setup.sh`, and uploads `outputs/e2e` as the `e2e-reports` artifact.
 
 ## Shipping Expectations
 

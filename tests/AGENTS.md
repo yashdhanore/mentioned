@@ -18,5 +18,6 @@
 
 - Run all backend tests with `pytest`; the E2E suites run too when `make dev` is up.
 - Run only the E2E suites with `pytest tests/e2e -v`.
+- CI runs them in the `e2e` job with `E2E_REQUIRED=1`, which fails the run instead of skipping when the stack is missing; download a run's reports from the job's `e2e-reports` artifact.
 - Run focused suites with paths such as `pytest tests/sources`, `pytest tests/extraction`, or `pytest tests/auth`.
 - Update this guide when test layout, required fixtures, offline strategy, or validation commands change.
