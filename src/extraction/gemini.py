@@ -32,6 +32,8 @@ Rules:
 - For each item you include under the rules above, give evidence of where it is featured: the timestamp (MM:SS) where it is first clearly shown or said, whether that is speech, on_screen_text, or visual (such as a book cover), and a short quote of the words spoken or shown. Evidence does not make an item qualify: a book that only flashes past is still incidental
 """
 
+MENTION_CATEGORIES = ("book", "product", "place")
+
 MENTION_SCHEMA = {
     "type": "object",
     "properties": {
@@ -42,7 +44,7 @@ MENTION_SCHEMA = {
                 "properties": {
                     "title": {"type": "string"},
                     "author": {"type": "string"},
-                    "category": {"type": "string", "enum": ["book", "product", "place"]},
+                    "category": {"type": "string", "enum": list(MENTION_CATEGORIES)},
                     "confidence": {"type": "number"},
                     "location_hint": {"type": "string"},
                     "evidence": {
@@ -245,7 +247,13 @@ def parse_mentions_response(response) -> dict:
         for field in ("title", "author", "category", "location_hint"):
             if mention.get(field) is not None and not isinstance(mention[field], str):
                 raise GeminiResponseError(f"Gemini returned a non-text mention {field}")
+        # The database refuses these values, so they must fail here as an unusable reply.
+        category = mention.get("category")
+        if category is not None and category not in MENTION_CATEGORIES:
+            raise GeminiResponseError(f"Gemini returned an unknown mention category {category!r}")
         confidence = mention.get("confidence")
         if confidence is not None and not _is_number(confidence):
             raise GeminiResponseError("Gemini returned a non-numeric mention confidence")
+        if confidence is not None and not 0 <= confidence <= 1:
+            raise GeminiResponseError(f"Gemini returned a confidence outside 0..1: {confidence}")
     return payload

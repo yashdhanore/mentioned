@@ -15,21 +15,23 @@ class SourceIdentity:
     canonical_url: str
 
 
-_INSTAGRAM_SOURCE_TYPES = {"reel": "reel", "p": "post"}
+# URL path segment -> (source type, canonical path segment). The desktop Reels tab shows
+# /reels/<code>/ for the same Reel a share link shows as /reel/<code>/.
+_INSTAGRAM_PATH_KINDS = {"reel": ("reel", "reel"), "reels": ("reel", "reel"), "p": ("post", "p")}
 
 
 def _instagram_identity(normalized_url: str) -> SourceIdentity:
     segments = [segment for segment in urlsplit(normalized_url).path.split("/") if segment]
     path_kind = segments[0].casefold() if len(segments) >= 2 else ""
-    source_type = _INSTAGRAM_SOURCE_TYPES.get(path_kind)
-    if source_type is None:
+    if path_kind not in _INSTAGRAM_PATH_KINDS:
         raise SourceUrlError(
             "Only public Instagram Reel and post URLs are supported",
             error_code="unsupported_source_kind",
         )
 
+    source_type, canonical_path_kind = _INSTAGRAM_PATH_KINDS[path_kind]
     external_id = segments[1]
-    canonical_url = f"https://www.instagram.com/{path_kind}/{external_id}/"
+    canonical_url = f"https://www.instagram.com/{canonical_path_kind}/{external_id}/"
     source_key = f"instagram:{source_type}:{external_id}"
     return SourceIdentity(
         platform="instagram",
