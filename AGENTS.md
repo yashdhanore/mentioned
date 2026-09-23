@@ -41,7 +41,15 @@ Mentioned is a FastAPI, Supabase, Expo, and Astro product for extracting books, 
 ## Shipping Expectations
 
 - Match the existing style and boundaries in the files you touch.
-- Add or update focused tests when behavior changes.
+- Add or update tests when behavior changes, following [Testing](#testing).
 - Use Alembic for schema changes in `public`: tables, columns, grants, and row-level security policies all go in a new revision under `migrations/versions/`; prod applies it via `alembic upgrade head` in the worker pre-deploy step.
   The Supabase CLI owns only storage buckets, auth, and local stack config, nothing in `public`; see [supabase/AGENTS.md](supabase/AGENTS.md).
 - For hosted backend failures, inspect Render evidence before guessing from local code.
+
+## Testing
+
+- NEVER write unit tests after you write code.
+- Highly prefer E2E tests as the sole testing mechanism.
+  Use them to verify complex features work.
+  At the end of E2E tests, produce a verifiable and repeatable artifact.
+- If you must test a system in isolation, FIRST write all the ways it could fail, THEN write the code.
