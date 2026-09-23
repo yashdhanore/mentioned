@@ -124,15 +124,19 @@ def process_source_extraction_message(
             archive_source_extraction_message(session, message.msg_id)
             session.commit()
             return
+        source_id = source.id
         should_archive = False
         try:
             should_archive = ingestion.process_source(session, source)
         except Exception:
-            logger.exception(
-                "Source %s failed while processing queue message %s", source.id, message.msg_id
-            )
+            # Roll back first: after a failed flush the session refuses every query, even
+            # reading an attribute of `source`, which would crash this handler and leave the
+            # source processing.
             session.rollback()
-            failed_source = session.get(Source, source.id)
+            logger.exception(
+                "Source %s failed while processing queue message %s", source_id, message.msg_id
+            )
+            failed_source = session.get(Source, source_id)
             if failed_source:
                 should_archive = fail_source_processing(
                     session,
@@ -163,6 +167,6 @@ def process_source_extraction_message(
         logger.info(
             "Archived source queue message %s for source %s (read_count=%s)",
             message.msg_id,
-            source.id,
+            source_id,
             message.read_count,
         )

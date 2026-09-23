@@ -213,6 +213,16 @@ UNUSABLE_REPLIES = [
         "non-numeric confidence",
         gemini_text_reply(json.dumps({"mentions": [{**PRODUCT_MENTION, "confidence": "high"}]})),
     ),
+    (
+        "G10",
+        "confidence outside 0..1 (a percentage)",
+        gemini_text_reply(json.dumps({"mentions": [{**PRODUCT_MENTION, "confidence": 95}]})),
+    ),
+    (
+        "G11",
+        "category outside book, product, and place",
+        gemini_text_reply(json.dumps({"mentions": [{**PRODUCT_MENTION, "category": "movie"}]})),
+    ),
 ]
 
 

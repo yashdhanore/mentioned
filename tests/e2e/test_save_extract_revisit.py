@@ -69,6 +69,8 @@ FAILURE_MODES = {
     "L3": "Concurrent saves of a new Reel (double tap, two users) fail or duplicate it",
     "L4": "Invalid input is accepted or leaves rows or queue messages behind",
     "L5": "An API that requires HTTPS accepts an http URL",
+    "L6": "A desktop /reels/<code>/ link is rejected or saved as a different Reel than "
+    "/reel/<code>/",
     "Q1": "More than 3 new saves in a minute are accepted",
     "Q2": "More than 25 saves in a day are accepted",
     "Q3": "More than 5 Reels processing at once are accepted",
@@ -82,8 +84,8 @@ FAILURE_MODES = {
     "X6": "The relevance gate says irrelevant but the extraction still runs, or it shows failed",
     "X7": "A download failure is stored as done, or still calls Gemini",
     "X8": "The same book in two Reels creates two catalog rows",
-    "X9": "A mention the database refuses (confidence outside 0..1) crashes the worker run "
-    "and leaves the Reel processing",
+    "X9": "The database refuses the extracted items and the worker run crashes, or leaves "
+    "the Reel processing or its message queued",
     "C1": "A second user saving a done Reel re-extracts it or sees different items",
     "C2": "Two users saving a pending Reel get two extractions or different results",
     "C3": "Saving a failed Reel again does not retry it, or other savers do not see the retry",
@@ -100,6 +102,7 @@ BOOKS_API_KEY = "fake-books-key"
 EXTRACTION = FakeGemini.extraction_model
 GATE = FakeGemini.gate_model
 DOWNLOAD_FAILED = safe_source_error_message(SourceFailureReason.DOWNLOAD_FAILED)
+UNEXPECTED_ERROR = safe_source_error_message(SourceFailureReason.UNEXPECTED_ERROR)
 # What yt-dlp prints when Instagram refuses an anonymous download.
 INSTAGRAM_REFUSED = (
     "[Instagram] Requested content is not available, rate-limit reached or login required"
@@ -142,28 +145,6 @@ ITEM_FIELDS = {
     "position",
 }
 PLACE_FIELDS = ("place_id", "formatted_address", "latitude", "longitude", "maps_url")
-L3_BUG = (
-    "A double tap on a new Reel returns a 500 when a third save of the same Reel (another "
-    "user's) inserts the source first: both of the user's requests lose the source_key race, "
-    "retry, and race again on the owner/source pair, and save_source_for_user gives up after "
-    "one retry (src/sources/service.py:34-42, UniqueViolation on "
-    "saved_sources_owner_source_key at service.py:79)."
-)
-X9_BUG = (
-    "When saving the extracted items fails in the database (here a confidence of 95 violates "
-    "source_items_confidence_check), the worker's except handler logs source.id on an "
-    "instance complete_source_processing already expired, before rolling back, so it raises "
-    "PendingRollbackError (src/ingestion/queue_worker.py:130-134). The Reel stays processing "
-    "and its message unarchived until the visibility timeout, then repeats up to the "
-    "poison-message cutoff."
-)
-C4_BUG = (
-    "A user's first save of a Reel whose shared source already failed (for another user, or "
-    "for this user before they deleted it) returns that failure without a new attempt: "
-    "save_source_for_user only queues extraction for a brand-new source "
-    "(src/sources/service.py:56-68, 81), and the router only retries a failed source the "
-    "caller had already saved (src/sources/router.py:72-80)."
-)
 
 
 def _volume(title: str, authors: list[str], subtitle: str | None = None) -> dict[str, Any]:
@@ -813,6 +794,36 @@ def test_saving_the_same_reel_again_returns_the_same_save(report, loop) -> None:
         )
 
 
+def test_desktop_reels_link_saves_the_same_reel(report, loop) -> None:
+    with report.scenario(
+        "A user saves a Reel from the desktop Reels tab, then from a share link",
+        ["L6"],
+        "The same Reel saved as instagram.com/reels/<code>/ and then as /reel/<code>/",
+    ) as scenario:
+        reel = loop.reel([{"title": "Leuchtturm1917", "category": "product", "confidence": 0.9}])
+        user = loop.user()
+
+        desktop = user.save(f"https://www.instagram.com/reels/{reel.shortcode}/")
+        scenario.check("desktop link status", 202, desktop.status_code)
+        shared = user.save(reel.url)
+        scenario.check(
+            "the share link returns the same save",
+            (202, desktop.json()["id"]),
+            (shared.status_code, shared.json()["id"]),
+        )
+        scenario.check("source rows for the Reel", 1, loop.source_count(reel))
+        scenario.check("extraction messages sent", 1, loop.messages_sent(reel))
+        loop.run_worker()
+        scenario.check(
+            "extracted from the canonical Reel URL",
+            ("done", ["Leuchtturm1917"]),
+            (
+                user.saved(desktop.json()["id"])["status"],
+                [item["title"] for item in user.saved(desktop.json()["id"])["items"]],
+            ),
+        )
+
+
 def test_double_tap_saves_the_reel_once(report, loop) -> None:
     with report.scenario(
         "A user double-taps save on a new Reel",
@@ -905,7 +916,6 @@ def test_save_that_loses_the_race_for_a_new_reel_uses_the_winners_source(report,
         scenario.check("extraction messages sent (user one's only)", 1, loop.messages_sent(reel))
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=L3_BUG)
 def test_double_tap_while_another_user_saves_the_same_new_reel(report, loop) -> None:
     with report.scenario(
         "A user double-taps save on a new Reel while another user is saving it",
@@ -913,7 +923,6 @@ def test_double_tap_while_another_user_saves_the_same_new_reel(report, loop) -> 
         "User one's save is held mid-transaction (source inserted, not committed) while user "
         "two sends two saves; database locks then release them in the order that makes both "
         "of user two's requests retry at once",
-        known_bug=L3_BUG,
     ) as scenario:
         reel = loop.reel()
         user = loop.user()
@@ -1352,31 +1361,66 @@ def test_failed_download_is_retried_by_saving_again(report, loop) -> None:
         )
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=X9_BUG)
-def test_mention_the_database_refuses_does_not_crash_the_worker(report, loop) -> None:
+REFUSED_TITLE = "Refused by the database"
+
+
+@contextmanager
+def _database_refuses_title(loop: Loop, title: str) -> Iterator[None]:
+    """Make the suite's own database refuse one item title, like any failed write would."""
+    literal = title.replace("'", "''")
+    with loop.admin_engine.begin() as connection:
+        connection.execute(
+            text(
+                f"""
+                create function e2e_refuse_item() returns trigger language plpgsql as $$
+                begin
+                  if new.title = '{literal}' then
+                    raise exception 'e2e: database refused %', new.title;
+                  end if;
+                  return new;
+                end $$;
+                create trigger e2e_refuse_item before insert on source_items
+                  for each row execute function e2e_refuse_item();
+                """
+            )
+        )
+    try:
+        yield
+    finally:
+        with loop.admin_engine.begin() as connection:
+            connection.execute(text("drop trigger e2e_refuse_item on source_items"))
+            connection.execute(text("drop function e2e_refuse_item()"))
+
+
+def test_database_refusing_the_items_fails_the_reel(report, loop) -> None:
     with report.scenario(
-        "Gemini returns a confidence outside 0..1",
+        "The database refuses the extracted items",
         ["X9"],
-        "Gemini returns one valid product and one with confidence 95, which the "
-        "source_items_confidence_check constraint refuses",
-        known_bug=X9_BUG,
+        "A trigger in the suite's database refuses one of the two extracted items, so "
+        "storing the extraction fails after Gemini answered",
     ) as scenario:
         reel = loop.reel(
             [
                 {"title": "Pilot Kakuno", "category": "product", "confidence": 0.9},
-                {"title": "Rhodia Pad", "category": "product", "confidence": 95},
+                {"title": REFUSED_TITLE, "category": "product", "confidence": 0.8},
             ]
         )
         user = loop.user()
         saved_id = user.save(reel.url).json()["id"]
-        try:
-            loop.run_worker()
-            worker_error = None
-        except Exception as exc:
-            worker_error = type(exc).__name__
+        with _database_refuses_title(loop, REFUSED_TITLE):
+            try:
+                loop.run_worker()
+                worker_error = None
+            except Exception as exc:
+                worker_error = f"{type(exc).__name__}: {exc}"
         scenario.check("worker run finishes", None, worker_error)
-        status = user.saved(saved_id)["status"]
-        scenario.check("the Reel is no longer processing", True, status in {"done", "failed"})
+        saved = user.saved(saved_id)
+        scenario.check(
+            "the Reel is failed with nothing half-stored",
+            {"status": "failed", "error_message": UNEXPECTED_ERROR, "items": []},
+            {key: saved[key] for key in ("status", "error_message", "items")},
+        )
+        scenario.check("stored items", 0, loop.item_count(reel))
         scenario.check("queue message archived", 0, loop.messages_queued(reel))
 
 
@@ -1465,14 +1509,12 @@ def test_users_saving_a_pending_reel_share_one_extraction(report, loop) -> None:
         )
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=C4_BUG)
 def test_first_save_of_a_reel_that_failed_for_someone_else_retries_it(report, loop) -> None:
     with report.scenario(
         "A user saves a Reel that already failed for another user",
         ["C4"],
         "User one's save fails because Instagram refused the download; Instagram recovers; "
         "user two saves the Reel for the first time",
-        known_bug=C4_BUG,
     ) as scenario:
         reel = loop.reel(
             [{"title": "Lamy Safari", "category": "product", "confidence": 0.9}],
@@ -1490,6 +1532,41 @@ def test_first_save_of_a_reel_that_failed_for_someone_else_retries_it(report, lo
             "user two's save starts a new attempt",
             ("processing", 2),
             (response.json()["status"], loop.messages_sent(reel)),
+        )
+
+
+def test_resaving_a_deleted_failed_reel_retries_it(report, loop) -> None:
+    with report.scenario(
+        "A user deletes a failed save and saves the Reel again",
+        ["C4"],
+        "The only saver's download fails; they delete the save; Instagram recovers; they "
+        "save the Reel again",
+    ) as scenario:
+        reel = loop.reel(
+            [{"title": "Kaweco Sport", "category": "product", "confidence": 0.9}],
+            download_error=INSTAGRAM_REFUSED,
+        )
+        user = loop.user()
+        first_id = user.save(reel.url).json()["id"]
+        loop.run_worker()
+        scenario.check("the first save failed", "failed", user.saved(first_id)["status"])
+        scenario.check("delete status", 200, user.delete(first_id).status_code)
+        loop.yt_dlp.set_error(reel.shortcode, None)
+
+        again = user.save(reel.url)
+        scenario.check(
+            "the new save starts a new attempt",
+            (202, "processing", 2),
+            (again.status_code, again.json()["status"], loop.messages_sent(reel)),
+        )
+        loop.run_worker()
+        scenario.check(
+            "the retry is extracted",
+            ("done", ["Kaweco Sport"]),
+            (
+                user.saved(again.json()["id"])["status"],
+                [item["title"] for item in user.saved(again.json()["id"])["items"]],
+            ),
         )
 
 
