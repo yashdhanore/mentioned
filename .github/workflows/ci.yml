@@ -38,7 +38,17 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: 2.117.0
-      - run: supabase start -x realtime,imgproxy,studio,postgres-meta,edge-runtime,logflare,vector,supavisor,mailpit
+      # Image pulls from the public registry are sometimes rate limited, and a failed start
+      # can leave containers holding the ports, so stop fully and back off before retrying.
+      - name: Start Supabase
+        run: |
+          for attempt in 1 2 3; do
+            supabase start -x realtime,imgproxy,studio,postgres-meta,edge-runtime,logflare,vector,supavisor,mailpit && exit 0
+            echo "supabase start failed (attempt $attempt of 3)"
+            supabase stop --no-backup || true
+            sleep $((attempt * 30))
+          done
+          exit 1
       - run: scripts/local-db-setup.sh
       - run: uv run pytest tests/e2e -v
         env:
