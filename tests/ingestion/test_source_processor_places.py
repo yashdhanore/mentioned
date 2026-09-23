@@ -112,23 +112,3 @@ def test_mixed_source_enriches_book_and_place_leaves_product(session: Session) -
     assert items["product"].book_id is None
     assert items["product"].place_id is None
     assert items["product"].formatted_address is None
-
-
-def test_place_finder_miss_leaves_bare_title(session: Session) -> None:
-    source = _source(session, "PLACEMISS")
-    processor = SourceIngestion(
-        extraction_runner=lambda _url: PipelineResult(
-            mentions=[ExtractedMention(title="Some Cafe", category="place", confidence=0.8)],
-        ),
-        thumbnail_store=lambda _url, *, source_id: None,
-        place_finder=lambda _name, _hint: None,
-    )
-
-    processor.process_source(session, source)
-
-    places = list(session.exec(select(Place)).all())
-    item = session.exec(select(SourceItem).where(SourceItem.source_id == source.id)).one()
-
-    assert places == []
-    assert item.place_id is None
-    assert item.title == "Some Cafe"

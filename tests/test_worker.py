@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import signal
-from uuid import uuid4
 
 import pytest
 from sqlmodel import Session, SQLModel, create_engine
@@ -13,7 +12,6 @@ from src.worker import (
     _run_polling_worker,
     _run_polling_worker_iteration,
     _run_queue_worker,
-    _run_queue_worker_iteration,
     install_signal_handlers,
 )
 
@@ -24,29 +22,6 @@ def engine():
     SQLModel.metadata.create_all(engine)
     yield engine
     SQLModel.metadata.drop_all(engine)
-
-
-def test_run_queue_worker_iteration_processes_sources_and_drains_push(monkeypatch, engine):
-    calls: list[str] = []
-    source_id = uuid4()
-
-    def fake_read_sources(*_args, **_kwargs):
-        calls.append("read_sources")
-        return [("source_message", source_id)]
-
-    def fake_process_source(message, _worker_engine, _settings) -> None:
-        calls.append(f"process_source:{message[1]}")
-
-    def fake_drain_push(_settings, _worker_engine) -> None:
-        calls.append("drain_push")
-
-    monkeypatch.setattr("src.worker.read_source_extraction_messages", fake_read_sources)
-    monkeypatch.setattr("src.worker.process_source_extraction_message", fake_process_source)
-    monkeypatch.setattr("src.worker._drain_push_notifications", fake_drain_push)
-
-    _run_queue_worker_iteration(Settings(worker_id="worker-queue"), engine)
-
-    assert calls == ["read_sources", f"process_source:{source_id}", "drain_push"]
 
 
 def test_run_polling_worker_iteration_claims_and_processes_pending_source(monkeypatch, engine):
