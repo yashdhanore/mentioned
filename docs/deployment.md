@@ -50,6 +50,7 @@ Both `mentioned-api` and `mentioned-worker` need:
 ```text
 DATABASE_URL=postgresql://mentioned_api.../postgres
 SUPABASE_PROJECT_URL=https://<project-ref>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
 TRUSTED_HOSTS=mentioned-api.onrender.com,<your-custom-api-domain>
 ```
 
@@ -58,7 +59,6 @@ The worker also needs:
 ```text
 WORKER_DATABASE_URL=postgresql://mentioned_worker.../postgres
 MIGRATION_DATABASE_URL=postgresql://postgres.../postgres
-SUPABASE_SERVICE_ROLE_KEY=<worker-only-service-role-key>
 GEMINI_API_KEY=<Gemini API key>
 GOOGLE_BOOKS_API_KEY=<optional Google Books API key>
 ```
@@ -67,7 +67,9 @@ GOOGLE_BOOKS_API_KEY=<optional Google Books API key>
 With `WEB_BASE_URL` set, `GET /privacy` and `GET /support` on the API 301-redirect to the web app, so `web/src/pages/privacy.astro` and `support.astro` own that copy.
 Without it, the API serves built-in fallback pages, so neither URL 404s before the web app is deployed.
 
-`SUPABASE_SERVICE_ROLE_KEY` is used only by the worker to copy public Reel thumbnails into the public `job-thumbnails` Supabase Storage bucket; never set it in the mobile app or expose it to browser clients.
+`SUPABASE_SERVICE_ROLE_KEY` is server-only: never set it in the mobile app or expose it to browser clients.
+The API uses it to delete the user's Supabase login on `DELETE /v1/account`, and the worker uses it to copy public Reel thumbnails into the public `job-thumbnails` Supabase Storage bucket.
+Production settings validation refuses to start either service without it, because an API without it could not remove logins on account deletion.
 The bucket path still contains a literal `jobs/` segment on purpose, so already-uploaded thumbnails are not orphaned by later renames (`src/storage/thumbnails.py`).
 
 The blueprint also sets the non-secret production flags on both services (`APP_ENV=production`, `AUTH_MODE=supabase`, `AUTO_CREATE_TABLES=false`, `DOCS_ENABLED=false`, `SOURCE_REQUIRE_HTTPS=true`, `WORKER_REPLICAS=1`, `SUPABASE_JWT_AUDIENCE=authenticated`).

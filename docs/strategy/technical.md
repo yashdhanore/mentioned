@@ -724,6 +724,27 @@ The work splits along two independent axes:
   local dev never runs Alembic against SQLite in practice (`AUTO_CREATE_TABLES` uses
   `SQLModel.metadata.create_all` instead); the squash is no worse than the chain it replaces.
 
+### 2026-09-23 - The API Holds The Service-Role Key To Delete Logins
+
+- Status: Accepted and implemented.
+- Product constraint: Privacy and App Store account deletion - in-app deletion must remove the
+  Supabase login, not only the rows, and must never report success when it did not.
+- Notes: `render.yaml` gave `SUPABASE_SERVICE_ROLE_KEY` only to the worker (it was added for
+  thumbnail uploads before account deletion existed), and `delete_supabase_auth_user` returned
+  `False` without the key, which the router ignored. Production therefore answered
+  `{"deleted": true}` while the login still signed in (reproduced against local Supabase Auth).
+  The API now gets the key, `validate_settings` refuses a production boot without it, and the
+  router refuses with 503 before deleting any data when Supabase auth has no admin access. A GoTrue
+  `user_not_found` counts as deleted, so a retry after a lost response and the `make dev` user
+  (whose fake id has no login, and which got a 502 once `scripts/dev-up.sh` began exporting the
+  local key) both succeed. Covered end to end by `tests/e2e/test_account_deletion.py`.
+- Rejected: a `SECURITY DEFINER` Postgres function deleting from `auth.users` so the key stays
+  worker-only - it bypasses GoTrue, writes to a Supabase-owned schema, trusts the RLS user setting
+  the API role can set itself, and cannot run in the SQLite suite. Also rejected: having the worker
+  delete the login asynchronously, because the API could then not truthfully confirm the deletion.
+- Accepted cost: the internet-facing API now holds a key that bypasses RLS, widening the blast
+  radius of an API compromise beyond the `mentioned_api` `NOBYPASSRLS` role.
+
 ### Book Catalog And Reading List Support
 
 > Product intent lives in `docs/strategy/product.md`. Technical work here should support the

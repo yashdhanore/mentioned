@@ -37,10 +37,10 @@ def _save_source(session: Session, external_id: str, *, owner_id: UUID) -> Saved
 
 
 @pytest.fixture(autouse=True)
-def skip_supabase_auth_deletion(monkeypatch):
-    monkeypatch.setattr(
-        "src.account.router.delete_supabase_auth_user", lambda *_args, **_kwargs: False
-    )
+def no_supabase_admin_access(monkeypatch):
+    # Dev auth without admin access: the real deletion path skips the login, which has no
+    # Supabase counterpart here. Login deletion is covered in tests/e2e/test_account_deletion.py.
+    monkeypatch.setattr("src.account.router.get_auth_admin", lambda: None)
 
 
 async def test_delete_account_removes_saved_sources_and_push_tokens(

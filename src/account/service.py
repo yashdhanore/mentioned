@@ -3,14 +3,19 @@ from __future__ import annotations
 import logging
 
 from sqlmodel import Session, delete
+from supabase_auth.errors import AuthApiError
 
 from src.config import Settings, get_settings
 from src.ids import parse_uuid
 from src.push.models import PushToken
 from src.sources.models import SavedSource
-from supabase import create_client
+from supabase import Client, create_client
 
 logger = logging.getLogger(__name__)
+
+
+class AuthAdminUnavailableError(RuntimeError):
+    """Supabase auth is on, but the admin access needed to delete a login is not configured."""
 
 
 def delete_account_data(session: Session, owner_id: str) -> None:
@@ -26,20 +31,27 @@ def delete_account_data(session: Session, owner_id: str) -> None:
     session.commit()
 
 
-def delete_supabase_auth_user(owner_id: str, settings: Settings | None = None) -> bool:
-    """Delete the Supabase auth user via the service-role admin API.
-
-    Returns True when the user was deleted, False when Supabase admin access is
-    not configured (e.g. local dev). Raises on unexpected admin API failures so
-    the caller does not report a successful deletion that left the login intact.
-    """
+def get_auth_admin(settings: Settings | None = None) -> Client | None:
+    """Return a Supabase admin client for deleting logins, check before any data is deleted."""
     settings = settings or get_settings()
     supabase_url = settings.auth.supabase_project_url
     service_role_key = settings.auth.supabase_service_role_key
-    if not supabase_url or not service_role_key:
-        logger.info("Skipping Supabase auth user deletion because admin access is not configured")
-        return False
+    if supabase_url and service_role_key:
+        return create_client(supabase_url, service_role_key)
+    if settings.auth.auth_mode == "supabase":
+        raise AuthAdminUnavailableError(
+            "Deleting a login requires SUPABASE_PROJECT_URL and SUPABASE_SERVICE_ROLE_KEY"
+        )
+    return None
 
-    client = create_client(supabase_url, service_role_key)
-    client.auth.admin.delete_user(owner_id)
-    return True
+
+def delete_supabase_auth_user(admin: Client | None, owner_id: str) -> None:
+    """Delete the Supabase login via the service-role admin API."""
+    if admin is None:
+        logger.info("Skipping Supabase auth user deletion because admin access is not configured")
+        return
+    try:
+        admin.auth.admin.delete_user(owner_id)
+    except AuthApiError as exc:
+        if exc.code != "user_not_found":
+            raise
