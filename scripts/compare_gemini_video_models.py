@@ -19,6 +19,7 @@ from src.extraction.gemini import (
     EXTRACTION_PROMPT,
     MENTION_SCHEMA,
     generate_with_retry,
+    parse_mentions_response,
     upload_to_gemini,
 )
 from src.extraction.gemini_client import get_gemini_client
@@ -221,10 +222,9 @@ def _extract_mentions_for_model(paths: list[Path], *, model: str) -> dict[str, A
         ),
         total_attempts=settings.gemini.gemini_total_attempts,
     )
-    try:
-        raw = json.loads(response.text)
-    except (json.JSONDecodeError, TypeError):
-        raw = {"mentions": []}
+    # An unusable reply raises, so _run_model records it as a failed extraction instead of
+    # scoring it as a Reel with no mentions.
+    raw = parse_mentions_response(response)
     usage = response.usage_metadata
     return {
         "raw": raw,

@@ -6,6 +6,8 @@
 
 - Follow the root [Testing](../AGENTS.md#testing) policy: E2E tests first, isolation tests only after listing the ways the system can fail.
 - E2E tests live in `tests/e2e/`, run against the real local stack from `make dev` (Supabase Auth, Postgres with the `mentioned_api` role, API processes they boot themselves), and skip when that stack is not running.
+  Fake external providers at the network boundary, such as a local Gemini server reached through the SDK's `GOOGLE_GEMINI_BASE_URL`, and stub only what cannot run locally, such as the Instagram download; never contact Instagram from a test.
+  Shared plumbing (report, local stack discovery, API processes) lives in `tests/e2e/harness.py`.
   Each suite writes a JSON report of every check plus the API logs to `outputs/e2e/<suite>/<run>/`, with a copy of the newest report at `outputs/e2e/<suite>/latest.json`.
 - Place tests in `tests/test_*.py` or the relevant feature subdirectory with functions named `test_*`.
 - In isolation tests, prefer `tmp_path`, `monkeypatch`, and in-process fakes for file, provider, and subprocess behavior so tests stay deterministic and offline.
