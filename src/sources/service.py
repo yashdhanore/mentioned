@@ -29,16 +29,19 @@ def _increment_retry_window(
 def save_source_for_user(
     session: Session, owner_id: str, raw_url: str, *, require_https: bool = False
 ) -> SavedSource:
-    # Two concurrent saves of the same new URL race on the unique source_key (or the
-    # owner/source pair); the loser rolls back and retries once to pick up the winner's row.
-    for attempt in range(2):
+    # Concurrent saves of the same new URL race on two unique keys: the source_key, then the
+    # owner/source pair. A save that loses a race rolls back and retries, and the next
+    # attempt finds the winner's committed row, so each key can be lost at most once and
+    # the third attempt always succeeds.
+    attempts = 3
+    for attempt in range(attempts):
         try:
             return _save_source_for_user_once(
                 session, owner_id, raw_url, require_https=require_https
             )
         except IntegrityError:
             session.rollback()
-            if attempt == 1:
+            if attempt == attempts - 1:
                 raise
         except Exception:
             session.rollback()
@@ -77,6 +80,10 @@ def _save_source_for_user_once(
         saved = SavedSource(owner_id=owner_uuid, source_id=source.id)
         session.add(saved)
         session.flush()
+        # A new save of a Reel whose shared source failed (for another user, or for this
+        # user before they deleted their save) gets a fresh attempt, not the old failure.
+        if not should_enqueue and source.status == SourceStatus.FAILED:
+            should_enqueue = _reset_failed_source(session, source.id) is not None
 
     if should_enqueue:
         enqueue_source_extraction(session, source.id)
@@ -95,11 +102,12 @@ def get_saved_source_by_key(session: Session, owner_id: str, source_key: str) ->
     ).first()
 
 
-def retry_failed_saved_source(session: Session, saved_source: SavedSource) -> bool:
+def _reset_failed_source(session: Session, source_id: UUID) -> UUID | None:
+    """Move a failed source back to pending; only one of several concurrent callers wins."""
     now = utc_now()
     stmt = (
         update(Source)
-        .where(Source.id == saved_source.source_id, Source.status == SourceStatus.FAILED)
+        .where(Source.id == source_id, Source.status == SourceStatus.FAILED)
         .values(
             status=SourceStatus.PENDING,
             error_message=None,
@@ -109,7 +117,12 @@ def retry_failed_saved_source(session: Session, saved_source: SavedSource) -> bo
         )
         .returning(Source.id)
     )
-    source_id = session.execute(stmt).scalar_one_or_none()
+    return session.execute(stmt).scalar_one_or_none()
+
+
+def retry_failed_saved_source(session: Session, saved_source: SavedSource) -> bool:
+    now = utc_now()
+    source_id = _reset_failed_source(session, saved_source.source_id)
     if source_id is None:
         session.rollback()
         return False
