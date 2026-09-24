@@ -9,6 +9,8 @@ Book mentions are attached to a catalog entry only through `src/books/resolution
 Shared HTTP error types live in `src/errors.py` (`AppError`); domain modules subclass it and `src/main.py` registers one exception handler for the whole hierarchy.
 Shared pgmq session/payload helpers used by `src/sources/queue.py` and `src/push/queue.py` live in `src/pgmq.py`; each queue's own `read`/`read_with_poll` SQL and message shape stay separate since they differ.
 `src/worker.py` handles SIGTERM/SIGINT with a plain flag checked between loop iterations (finishes the in-flight source, then exits) and never lets an unhandled exception kill the process; both source and push queue readers archive malformed/unknown-version messages instead of raising, and `process_source_extraction_message`/`process_push_notification_message` fail and archive a message once its `read_count` exceeds `WORKER_QUEUE_MAX_DELIVERIES` (poison-message cutoff).
+Langfuse tracing goes through `src/observability.py`: use its `langfuse()` client and `observe_step`, never the SDK's `get_client()` (it disables itself once two clients exist in a process); the worker's `main()` configures tracing and shuts it down on exit, and tracing is off unless both `LANGFUSE_*` keys are set.
+Never put media bytes, a user id, or a raw httpx exception message (it can carry an API key) on a trace; see the 2026-09-24 note in `docs/strategy/technical.md`.
 `sources.error_message` is API-visible to every user who saved that URL; store one of the stable messages from `src/sources/failure.py`, never raw exception text (log that server-side instead).
 
 ## Commands

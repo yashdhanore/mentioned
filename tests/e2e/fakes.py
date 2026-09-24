@@ -7,6 +7,8 @@
   no configurable base URL, and the worker runs in the test process).
 - `FakeYtDlp` puts `fake_yt_dlp.py` first on PATH as `yt-dlp`, so the real download code runs
   but nothing is fetched from Instagram.
+- `FakeLangfuse` accepts the OTLP trace exports and score batches the real Langfuse SDK sends,
+  and decodes them, so a suite can check exactly what would have left the process.
 
 Each fake records what it was asked, so a scenario can check which calls happened.
 """
@@ -15,6 +17,7 @@ from __future__ import annotations
 
 import base64
 import contextlib
+import gzip
 import json
 import os
 import stat
@@ -53,7 +56,12 @@ def _send_json(handler: BaseHTTPRequestHandler, status: int, payload: Any) -> No
     handler.wfile.write(body)
 
 
-def gemini_text_reply(text: str, finish_reason: str = "STOP") -> dict[str, Any]:
+DEFAULT_USAGE = {"promptTokenCount": 10, "candidatesTokenCount": 5, "totalTokenCount": 15}
+
+
+def gemini_text_reply(
+    text: str, finish_reason: str = "STOP", usage: dict[str, Any] | None = None
+) -> dict[str, Any]:
     """A `generateContent` response whose only candidate answers `text`."""
     return {
         "candidates": [
@@ -63,12 +71,14 @@ def gemini_text_reply(text: str, finish_reason: str = "STOP") -> dict[str, Any]:
                 "index": 0,
             }
         ],
-        "usageMetadata": {"promptTokenCount": 10, "candidatesTokenCount": 5, "totalTokenCount": 15},
+        "usageMetadata": usage or DEFAULT_USAGE,
     }
 
 
-def gemini_mentions_reply(mentions: list[dict[str, Any]]) -> dict[str, Any]:
-    return gemini_text_reply(json.dumps({"mentions": mentions}))
+def gemini_mentions_reply(
+    mentions: list[dict[str, Any]], usage: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    return gemini_text_reply(json.dumps({"mentions": mentions}), usage=usage)
 
 
 def gemini_gate_reply(verdict: str, reason: str) -> dict[str, Any]:
@@ -102,9 +112,15 @@ class FakeGemini(_LocalServer):
     extraction_model = "fake-extraction-model"
     gate_model = "fake-gate-model"
 
-    def __init__(self) -> None:
+    def __init__(self, *, extraction_model: str | None = None, gate_model: str | None = None):
+        if extraction_model:
+            self.extraction_model = extraction_model
+        if gate_model:
+            self.gate_model = gate_model
         self.replies: dict[str, dict[str, Any]] = {}
         self.reel_replies: dict[str, dict[str, dict[str, Any]]] = {}
+        # Per model, HTTP error statuses to answer, in order, before the set reply.
+        self.failures: dict[str, list[int]] = {}
         self.requests: list[str] = []
         self.calls: list[dict[str, str | None]] = []
         fake = self
@@ -121,6 +137,11 @@ class FakeGemini(_LocalServer):
                 reel = next((m for m in fake.reel_replies if m in request_text), None)
                 fake.requests.append(model)
                 fake.calls.append({"model": model, "reel": reel})
+                pending = fake.failures.get(model)
+                if pending:
+                    status = pending.pop(0)
+                    _send_json(self, status, {"error": {"code": status, "message": "fake"}})
+                    return
                 reply = fake.reel_replies.get(reel, {}).get(model) or fake.replies.get(model)
                 if reply is None:
                     _send_json(self, 500, {"error": "no reply set"})
@@ -135,8 +156,13 @@ class FakeGemini(_LocalServer):
     def reply(self, *, extraction: dict[str, Any], gate: dict[str, Any] | None = None) -> None:
         """Answer every request per model, and forget earlier requests."""
         self.replies = {self.extraction_model: extraction, self.gate_model: gate or RELEVANT_GATE}
+        self.failures = {}
         self.requests = []
         self.calls = []
+
+    def fail_next(self, model: str, status: int, times: int = 1) -> None:
+        """Answer the next `times` requests to `model` with HTTP `status`."""
+        self.failures.setdefault(model, []).extend([status] * times)
 
     def reply_for_reel(
         self, marker: str, *, extraction: dict[str, Any], gate: dict[str, Any] | None = None
@@ -196,6 +222,193 @@ class FakeGoogleBooks(_LocalServer):
 
     def queries(self) -> list[str | None]:
         return [request["q"] for request in self.requests]
+
+
+def _otlp_value(value: Any) -> Any:
+    kind = value.WhichOneof("value")
+    if kind == "array_value":
+        return [_otlp_value(item) for item in value.array_value.values]
+    if kind == "kvlist_value":
+        return {item.key: _otlp_value(item.value) for item in value.kvlist_value.values}
+    return getattr(value, kind) if kind else None
+
+
+def _otlp_attributes(attributes: Any) -> dict[str, Any]:
+    return {item.key: _otlp_value(item.value) for item in attributes}
+
+
+def _json_or_raw(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+    try:
+        return json.loads(value)
+    except ValueError:
+        return value
+
+
+class ExportedSpan:
+    """One span as the Langfuse SDK exported it, with the Langfuse attributes decoded."""
+
+    METADATA_PREFIX = "langfuse.observation.metadata."
+
+    def __init__(self, span: Any, resource: dict[str, Any], scope: str) -> None:
+        self.name: str = span.name
+        self.trace_id: str = span.trace_id.hex()
+        self.span_id: str = span.span_id.hex()
+        self.parent_span_id: str | None = span.parent_span_id.hex() or None
+        self.attributes = _otlp_attributes(span.attributes)
+        self.resource = resource
+        self.scope = scope
+
+    def _get(self, key: str) -> Any:
+        return _json_or_raw(self.attributes.get(key))
+
+    @property
+    def type(self) -> str | None:
+        return self.attributes.get("langfuse.observation.type")
+
+    @property
+    def level(self) -> str:
+        return self.attributes.get("langfuse.observation.level") or "DEFAULT"
+
+    @property
+    def status_message(self) -> str | None:
+        return self.attributes.get("langfuse.observation.status_message")
+
+    @property
+    def input(self) -> Any:
+        return self._get("langfuse.observation.input")
+
+    @property
+    def output(self) -> Any:
+        return self._get("langfuse.observation.output")
+
+    @property
+    def metadata(self) -> dict[str, Any]:
+        return {
+            key.removeprefix(self.METADATA_PREFIX): _json_or_raw(value)
+            for key, value in self.attributes.items()
+            if key.startswith(self.METADATA_PREFIX)
+        }
+
+    @property
+    def model(self) -> str | None:
+        return self.attributes.get("langfuse.observation.model.name")
+
+    @property
+    def usage(self) -> dict[str, Any] | None:
+        return self._get("langfuse.observation.usage_details")
+
+    @property
+    def cost(self) -> dict[str, Any] | None:
+        return self._get("langfuse.observation.cost_details")
+
+    @property
+    def session_id(self) -> str | None:
+        return self.attributes.get("session.id")
+
+    @property
+    def user_id(self) -> str | None:
+        return self.attributes.get("user.id")
+
+    @property
+    def tags(self) -> list[str]:
+        return list(self.attributes.get("langfuse.trace.tags") or [])
+
+    @property
+    def trace_name(self) -> str | None:
+        return self.attributes.get("langfuse.trace.name")
+
+    @property
+    def environment(self) -> str | None:
+        # The SDK stamps each span with its client's environment; the resource attribute
+        # belongs to the process-wide tracer provider, which the first client creates.
+        return self.attributes.get("langfuse.environment") or self.resource.get(
+            "langfuse.environment"
+        )
+
+
+class FakeLangfuse(_LocalServer):
+    """Langfuse Cloud's ingestion endpoints: OTLP trace exports (protobuf) and score batches.
+
+    `status` other than 200 makes every request fail, to stand in for an outage."""
+
+    OTEL_PATH = "/api/public/otel/v1/traces"
+    INGESTION_PATH = "/api/public/ingestion"
+
+    def __init__(self, status: int = 200) -> None:
+        from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
+            ExportTraceServiceRequest,
+            ExportTraceServiceResponse,
+        )
+
+        self.status = status
+        self.bodies: list[bytes] = []
+        self.spans: list[ExportedSpan] = []
+        self.scores: list[dict[str, Any]] = []
+        self.authorizations: set[str | None] = set()
+        self.lock = threading.Lock()
+        fake = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self) -> None:
+                body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+                if self.headers.get("Content-Encoding") == "gzip":
+                    body = gzip.decompress(body)
+                with fake.lock:
+                    fake.bodies.append(body)
+                    fake.authorizations.add(self.headers.get("Authorization"))
+                if fake.status != 200:
+                    _send_json(self, fake.status, {"error": "fake outage"})
+                    return
+                if self.path == FakeLangfuse.OTEL_PATH:
+                    request = ExportTraceServiceRequest()
+                    request.ParseFromString(body)
+                    spans = [
+                        ExportedSpan(span, _otlp_attributes(rs.resource.attributes), ss.scope.name)
+                        for rs in request.resource_spans
+                        for ss in rs.scope_spans
+                        for span in ss.spans
+                    ]
+                    with fake.lock:
+                        fake.spans.extend(spans)
+                    reply = ExportTraceServiceResponse().SerializeToString()
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/x-protobuf")
+                    self.send_header("Content-Length", str(len(reply)))
+                    self.end_headers()
+                    self.wfile.write(reply)
+                    return
+                if self.path == FakeLangfuse.INGESTION_PATH:
+                    batch = json.loads(body or b"{}").get("batch") or []
+                    with fake.lock:
+                        fake.scores.extend(
+                            event["body"] for event in batch if event.get("type") == "score-create"
+                        )
+                    _send_json(self, 207, {"successes": [], "errors": []})
+                    return
+                _send_json(self, 404, {"error": "unknown path"})
+
+            def do_GET(self) -> None:
+                # The SDK may look up its project; nothing a suite checks depends on it.
+                _send_json(self, 200, {"data": [{"id": "e2e-project", "name": "e2e"}]})
+
+            def log_message(self, *_args) -> None:
+                pass
+
+        super().__init__(Handler)
+
+    def spans_in_session(self, session_id: str) -> list[ExportedSpan]:
+        with self.lock:
+            return [span for span in self.spans if span.session_id == session_id]
+
+    def scores_for_trace(self, trace_id: str) -> list[dict[str, Any]]:
+        with self.lock:
+            return [score for score in self.scores if score.get("traceId") == trace_id]
+
+    def everything_sent(self) -> bytes:
+        with self.lock:
+            return b"".join(self.bodies)
 
 
 class FakeYtDlp:

@@ -5,11 +5,12 @@ import tempfile
 from pathlib import Path
 
 from src.config import get_settings
-from src.extraction.download import download_assets_with_metadata
+from src.extraction.download import DownloadedAssets, download_assets_with_metadata
 from src.extraction.gemini import extract_mentions_from_media
 from src.extraction.local_pipeline import extract_mentions_locally
 from src.extraction.relevance import Verdict, assess_relevance
 from src.extraction.schemas import ExtractedMention, PipelineResult
+from src.observability import describe_error, langfuse, media_view
 from src.sources.failure import SourceFailureReason, safe_source_error_message
 
 logger = logging.getLogger(__name__)
@@ -19,13 +20,20 @@ def run_pipeline(source_url: str) -> PipelineResult:
     """Download media and return structured mentions."""
     with tempfile.TemporaryDirectory() as tmp:
         logger.info("Downloading media from %s", source_url)
-        try:
-            assets = download_assets_with_metadata(source_url, Path(tmp))
-        except Exception as exc:
-            logger.warning("Download failed for %s: %s", source_url, exc)
-            return PipelineResult(
-                error=safe_source_error_message(SourceFailureReason.DOWNLOAD_FAILED)
-            )
+        with langfuse().start_as_current_observation(
+            name="download-media", input={"source_url": source_url}
+        ) as download:
+            try:
+                assets = download_assets_with_metadata(source_url, Path(tmp))
+            except Exception as exc:
+                logger.warning("Download failed for %s: %s", source_url, exc)
+                download.update(level="ERROR", status_message=describe_error(exc))
+                return PipelineResult(
+                    error=safe_source_error_message(SourceFailureReason.DOWNLOAD_FAILED)
+                )
+            download.update(output=_download_view(assets))
+            if not assets.paths:
+                download.update(level="ERROR", status_message="no media downloaded")
 
         paths = assets.paths
         if not paths:
@@ -98,3 +106,13 @@ def run_pipeline(source_url: str) -> PipelineResult:
             thumbnail_url=assets.thumbnail_url,
             source_creator_handle=assets.source_creator_handle,
         )
+
+
+def _download_view(assets: DownloadedAssets) -> dict[str, object]:
+    """What the download produced, as a trace records it: media described, never attached."""
+    return {
+        "media": [media_view(path) for path in assets.paths],
+        "caption": assets.caption,
+        "creator_handle": assets.source_creator_handle,
+        "has_thumbnail": assets.thumbnail_url is not None,
+    }

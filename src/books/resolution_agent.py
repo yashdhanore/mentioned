@@ -18,8 +18,15 @@ from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types
 
-from src.books.resolution import BookSearch, Resolution, ScoredCandidate
+from src.books.resolution import (
+    BookSearch,
+    Resolution,
+    ScoredCandidate,
+    resolution_details,
+    resolution_view,
+)
 from src.books.schemas import GoogleBook
+from src.observability import describe_error, langfuse, observe_step, record_gemini_reply
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +104,9 @@ def _candidate_lines(candidates: tuple[ScoredCandidate, ...]) -> str:
     )
 
 
+AGENT_TEMPERATURE = 0.0
+
+
 def _config(*, allow_search: bool) -> types.GenerateContentConfig:
     allowed = [SEARCH_TOOL, SUBMIT_TOOL] if allow_search else [SUBMIT_TOOL]
     return types.GenerateContentConfig(
@@ -108,7 +118,7 @@ def _config(*, allow_search: bool) -> types.GenerateContentConfig:
             )
         ),
         automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
-        temperature=0.0,
+        temperature=AGENT_TEMPERATURE,
     )
 
 
@@ -127,7 +137,50 @@ def resolve_with_agent(
 
     Fails open: any model or tool failure returns `prior` unchanged, and a pick the
     agent never saw in a search result is refused rather than trusted. Token counts
-    are added to `usage` when given, so callers can price the agent."""
+    are added to `usage` when given, so callers can price the agent.
+
+    Traced as the `resolve-book-agent` agent: one `choose-book-action` generation per model
+    turn, with the `search-books` and `submit-resolution` tool calls it asked for as siblings,
+    so the trace shows what the agent saw and decided after each search."""
+    with observe_step(
+        "resolve-book-agent",
+        as_type="agent",
+        input={
+            "title": title,
+            "author": author,
+            "rejected_candidates": resolution_details(prior)["candidates"],
+        },
+        metadata={"max_searches": max_searches},
+    ) as agent:
+        resolution = _run_agent(
+            title,
+            author,
+            prior,
+            search=search,
+            client=client,
+            model=model,
+            max_searches=max_searches,
+            usage=usage,
+        )
+        agent.update(output=resolution_view(resolution), metadata=resolution_details(resolution))
+        if resolution is prior:
+            agent.update(
+                level="WARNING", status_message="failed open: kept the catalog check result"
+            )
+        return resolution
+
+
+def _run_agent(
+    title: str,
+    author: str | None,
+    prior: Resolution,
+    *,
+    search: BookSearch,
+    client: genai.Client,
+    model: str,
+    max_searches: int,
+    usage: dict[str, int] | None,
+) -> Resolution:
     seen: dict[str, GoogleBook] = {c.book.provider_volume_id: c.book for c in prior.candidates}
     prompt = AGENT_PROMPT.format(
         title=title,
@@ -141,41 +194,67 @@ def resolve_with_agent(
     queries = list(prior.queries)
     searches = 0
 
-    for _turn in range(max_searches + 1):
-        try:
-            response = client.models.generate_content(
-                model=model,
-                contents=contents,
-                config=_config(allow_search=searches < max_searches),
-            )
-        except MODEL_CALL_ERRORS as exc:
-            logger.warning("Book resolution agent call failed: %s: %s", type(exc).__name__, exc)
-            return prior
+    for turn in range(max_searches + 1):
+        allow_search = searches < max_searches
+        with langfuse().start_as_current_observation(
+            name="choose-book-action",
+            as_type="generation",
+            model=model,
+            model_parameters={"temperature": AGENT_TEMPERATURE},
+            input=_chat_messages(contents),
+            metadata={
+                "turn": turn + 1,
+                "allowed_tools": [SEARCH_TOOL, SUBMIT_TOOL] if allow_search else [SUBMIT_TOOL],
+            },
+        ) as generation:
+            try:
+                response = client.models.generate_content(
+                    model=model,
+                    contents=contents,
+                    config=_config(allow_search=allow_search),
+                )
+            except MODEL_CALL_ERRORS as exc:
+                logger.warning("Book resolution agent call failed: %s: %s", type(exc).__name__, exc)
+                generation.update(level="ERROR", status_message=describe_error(exc))
+                return prior
+            record_gemini_reply(generation, model=model, response=response)
+            calls = response.function_calls or []
+            generation.update(output=_assistant_message(calls))
         _record_usage(usage, response)
-        calls = response.function_calls or []
         if not calls:
             return prior
         contents.append(response.candidates[0].content)
 
         submission = next((call for call in calls if call.name == SUBMIT_TOOL), None)
         if submission is not None:
-            return _finish(prior, submission.args or {}, seen, queries, searches)
+            with langfuse().start_as_current_observation(
+                name="submit-resolution", as_type="tool", input=submission.args or {}
+            ) as tool:
+                resolution = _finish(prior, submission.args or {}, seen, queries, searches)
+                tool.update(output=resolution_view(resolution))
+            return resolution
 
         # The API expects one response per function call in a turn, so every call is
         # answered, with an error when it cannot be run.
         tool_responses = []
         for call in calls:
             query = str((call.args or {}).get("query", "")).strip()
-            if call.name != SEARCH_TOOL:
-                answer: dict[str, Any] = {"error": f"unknown tool {call.name}"}
-            elif not query:
-                answer = {"error": "query is empty"}
-            elif searches >= max_searches:
-                answer = {"error": f"search budget used up; call {SUBMIT_TOOL}"}
-            else:
-                searches += 1
-                queries.append(query)
-                answer = _run_search(search, query, seen)
+            with langfuse().start_as_current_observation(
+                name="search-books", as_type="tool", input=call.args or {}
+            ) as tool:
+                if call.name != SEARCH_TOOL:
+                    answer: dict[str, Any] = {"error": f"unknown tool {call.name}"}
+                elif not query:
+                    answer = {"error": "query is empty"}
+                elif searches >= max_searches:
+                    answer = {"error": f"search budget used up; call {SUBMIT_TOOL}"}
+                else:
+                    searches += 1
+                    queries.append(query)
+                    answer = _run_search(search, query, seen)
+                tool.update(output=answer)
+                if "error" in answer:
+                    tool.update(level="WARNING", status_message=answer["error"])
             tool_responses.append(
                 types.Part(
                     function_response=types.FunctionResponse(
@@ -185,6 +264,44 @@ def resolve_with_agent(
             )
         contents.append(types.Content(role="user", parts=tool_responses))
     return prior
+
+
+def _chat_messages(contents: list[types.Content]) -> list[dict[str, Any]]:
+    """The conversation so far in the role/content shape Langfuse renders as a chat, with
+    tool calls as cards."""
+    messages: list[dict[str, Any]] = []
+    for content in contents:
+        role = "assistant" if content.role == "model" else "user"
+        for part in content.parts or []:
+            if part.text:
+                messages.append({"role": role, "content": part.text})
+            elif part.function_call:
+                messages.append(_assistant_message([part.function_call]))
+            elif part.function_response:
+                response = part.function_response
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": response.id or response.name,
+                        "content": json.dumps(response.response),
+                    }
+                )
+    return messages
+
+
+def _assistant_message(calls: list[types.FunctionCall]) -> dict[str, Any]:
+    return {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+            {
+                "id": call.id or call.name,
+                "type": "function",
+                "function": {"name": call.name, "arguments": json.dumps(call.args or {})},
+            }
+            for call in calls
+        ],
+    }
 
 
 def _run_search(search: BookSearch, query: str, seen: dict[str, GoogleBook]) -> dict[str, Any]:

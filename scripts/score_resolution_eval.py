@@ -34,7 +34,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from scripts.compare_gemini_video_models import DEFAULT_PRICE_TABLE
 from scripts.score_extraction_eval import (
     DEFAULT_LABELS_PATH,
     ExpectedMention,
@@ -61,12 +60,15 @@ from src.books.titles import (
     normalize_text,
     title_forms,
 )
+from src.config import get_settings
 from src.extraction.google_books import (
     BooksSearchResult,
     book_search_query,
     parse_google_book,
     search_volumes,
 )
+from src.extraction.pricing import PRICE_TABLE
+from src.observability import configure_tracing, shutdown_tracing
 
 DEFAULT_CACHE_DIR = Path("outputs/books-cache")
 STRATEGIES = ("first_hit", "catalog", "catalog+agent")
@@ -310,7 +312,7 @@ def score_predictions(
 
 
 def _agent_cost(model: str, usage: dict[str, int]) -> float | None:
-    prices = DEFAULT_PRICE_TABLE.get(model)
+    prices = PRICE_TABLE.get(model)
     if prices is None:
         return None
     return round(
@@ -361,7 +363,6 @@ def format_report(report: dict[str, Any]) -> str:
 
 def build_agent(model: str, search: BookSearch, usage: dict[str, int]):
     from src.books.resolution_agent import resolve_with_agent
-    from src.config import get_settings
     from src.extraction.gemini_client import get_gemini_client
 
     client = get_gemini_client(get_settings())
@@ -395,6 +396,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    configure_tracing(get_settings(), environment="eval")
+    try:
+        return _main(args)
+    finally:
+        shutdown_tracing()
+
+
+def _main(args: argparse.Namespace) -> int:
     try:
         labels = load_labels(args.labels)
         results = json.loads(args.results.read_text("utf-8")) if args.results else None

@@ -13,15 +13,25 @@ independent signal - the prompt must not let caption text alone force a skip.
 from __future__ import annotations
 
 import enum
+import hashlib
 import json
 import logging
 from dataclasses import dataclass
+from typing import Any
 
 from google.genai import errors as genai_errors
 from google.genai.types import GenerateContentConfig, Part
 
 from src.config import get_settings
 from src.extraction.gemini_client import get_gemini_client
+from src.observability import (
+    describe_error,
+    langfuse,
+    media_placeholder,
+    record_gemini_reply,
+    text_part,
+    user_message,
+)
 from src.storage.thumbnails import download_thumbnail
 
 logger = logging.getLogger(__name__)
@@ -94,6 +104,14 @@ Return JSON only: {{"verdict": "relevant|irrelevant|uncertain", "reason": "<shor
 """
 
 
+GATE_PROMPT_VERSION = hashlib.sha256(
+    (GATE_PROMPT + json.dumps(VERDICT_SCHEMA, sort_keys=True)).encode()
+).hexdigest()[:12]
+GATE_TEMPERATURE = 0.0
+# `_parse_verdict` reasons that mean the reply was unusable, not that the model was unsure.
+UNUSABLE_REPLY_REASONS = ("empty response", "unparseable response", "unexpected response shape")
+
+
 def _fetch_thumbnail_bytes(thumbnail_url: str) -> tuple[bytes, str] | None:
     # The URL comes from scraped metadata, so it goes through the host-allowlisted,
     # size-capped thumbnail downloader rather than a plain GET.
@@ -101,6 +119,11 @@ def _fetch_thumbnail_bytes(thumbnail_url: str) -> tuple[bytes, str] | None:
     if image is None:
         return None
     return image.data, image.content_type
+
+
+def _gate_text(caption: str | None) -> str:
+    caption_text = caption.strip() if caption else ""
+    return f"{GATE_PROMPT}\n\nCaption:\n{caption_text or '(no caption)'}"
 
 
 def _call_gate_model(
@@ -115,8 +138,7 @@ def _call_gate_model(
     parts: list = []
     if thumbnail_bytes and thumbnail_mime:
         parts.append(Part.from_bytes(data=thumbnail_bytes, mime_type=thumbnail_mime))
-    caption_text = caption.strip() if caption else ""
-    parts.append(f"{GATE_PROMPT}\n\nCaption:\n{caption_text or '(no caption)'}")
+    parts.append(_gate_text(caption))
 
     return client.models.generate_content(
         model=settings.gemini.gemini_gate_model,
@@ -124,7 +146,7 @@ def _call_gate_model(
         config=GenerateContentConfig(
             response_mime_type="application/json",
             response_schema=VERDICT_SCHEMA,
-            temperature=0.0,
+            temperature=GATE_TEMPERATURE,
         ),
     )
 
@@ -151,7 +173,11 @@ def _parse_verdict(raw_text: str | None) -> RelevanceAssessment:
 
 
 def assess_relevance(*, caption: str | None, thumbnail_url: str | None) -> RelevanceAssessment:
-    """Return a three-way relevance verdict. Fails open to UNCERTAIN on any error."""
+    """Return a three-way relevance verdict. Fails open to UNCERTAIN on any error.
+
+    Traced as the `assess-relevance` generation. The thumbnail is described, not attached; a
+    fail-open is recorded as a WARNING with its reason, so a gate that silently stopped
+    working shows up in the trace list."""
     thumbnail_bytes: bytes | None = None
     thumbnail_mime: str | None = None
     if thumbnail_url:
@@ -159,6 +185,45 @@ def assess_relevance(*, caption: str | None, thumbnail_url: str | None) -> Relev
         if fetched is not None:
             thumbnail_bytes, thumbnail_mime = fetched
 
+    model = get_settings().gemini.gemini_gate_model
+    with langfuse().start_as_current_observation(
+        name="assess-relevance",
+        as_type="generation",
+        model=model,
+        model_parameters={"temperature": GATE_TEMPERATURE},
+        input=_gate_input(caption, thumbnail_url, thumbnail_bytes, thumbnail_mime),
+        metadata={"prompt_version": GATE_PROMPT_VERSION},
+    ) as generation:
+        assessment = _assess(generation, model, caption, thumbnail_bytes, thumbnail_mime)
+        generation.update(output={"verdict": assessment.verdict.value, "reason": assessment.reason})
+        return assessment
+
+
+def _gate_input(
+    caption: str | None,
+    thumbnail_url: str | None,
+    thumbnail_bytes: bytes | None,
+    thumbnail_mime: str | None,
+) -> list[dict[str, Any]]:
+    """The gate call as the model sees it, with the thumbnail described, not attached."""
+    parts = []
+    if thumbnail_bytes and thumbnail_mime:
+        parts.append(
+            media_placeholder(f"thumbnail {thumbnail_mime}, {len(thumbnail_bytes) / 1024:.0f} KB")
+        )
+    elif thumbnail_url:
+        parts.append(text_part("[thumbnail could not be downloaded; the model saw none]"))
+    parts.append(text_part(_gate_text(caption)))
+    return user_message(*parts)
+
+
+def _assess(
+    generation: Any,
+    model: str,
+    caption: str | None,
+    thumbnail_bytes: bytes | None,
+    thumbnail_mime: str | None,
+) -> RelevanceAssessment:
     try:
         response = _call_gate_model(
             caption=caption,
@@ -168,9 +233,20 @@ def assess_relevance(*, caption: str | None, thumbnail_url: str | None) -> Relev
     except genai_errors.ClientError as exc:
         log = logger.warning if exc.code == 429 else logger.error
         log("Relevance gate call failed, failing open to uncertain: %s", exc)
+        generation.update(level="WARNING", status_message=f"failed open: {describe_error(exc)}")
         return RelevanceAssessment(verdict=Verdict.UNCERTAIN, reason="gate error")
     except Exception as exc:
         logger.warning("Relevance gate call failed, failing open to uncertain: %s", exc)
+        generation.update(level="WARNING", status_message=f"failed open: {describe_error(exc)}")
         return RelevanceAssessment(verdict=Verdict.UNCERTAIN, reason="gate error")
 
-    return _parse_verdict(response.text)
+    record_gemini_reply(generation, model=model, response=response)
+    assessment = _parse_verdict(response.text)
+    reason = assessment.reason or ""
+    if reason in UNUSABLE_REPLY_REASONS or reason.startswith("unknown verdict"):
+        generation.update(
+            level="WARNING",
+            status_message=f"failed open: {reason}",
+            metadata={"raw_reply": response.text},
+        )
+    return assessment

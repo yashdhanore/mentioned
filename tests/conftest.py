@@ -6,6 +6,12 @@ import src.config
 # later Settings() in the session; CI has no .env, so tests must not depend on one either.
 src.config.load_dotenv = lambda *args, **kwargs: False
 
+import os
+
+# No test may send traces to Langfuse Cloud, even with keys in the shell; the tracing E2E suite
+# turns this back on for its fake Langfuse server.
+os.environ["LANGFUSE_TRACING_ENABLED"] = "false"
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.pool import StaticPool
