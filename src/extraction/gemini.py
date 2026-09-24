@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import time
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import httpx
 from google import genai
@@ -14,6 +17,17 @@ from google.genai.types import GenerateContentConfig, Part
 from src.config import get_settings
 from src.extraction.download import check_media_size_limits
 from src.extraction.gemini_client import get_gemini_client
+from src.observability import (
+    describe_error,
+    gemini_usage,
+    langfuse,
+    media_placeholder,
+    media_view,
+    observe_step,
+    record_gemini_reply,
+    text_part,
+    user_message,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +78,12 @@ MENTION_SCHEMA = {
     },
     "required": ["mentions"],
 }
+
+# Traces carry this so quality and cost can be compared across prompt and schema changes.
+EXTRACTION_PROMPT_VERSION = hashlib.sha256(
+    (EXTRACTION_PROMPT + json.dumps(MENTION_SCHEMA, sort_keys=True)).encode()
+).hexdigest()[:12]
+EXTRACTION_TEMPERATURE = 0.1
 
 INLINE_SIZE_LIMIT = 20 * 1024 * 1024
 VERTEX_INLINE_SIZE_LIMIT = 100 * 1024 * 1024
@@ -161,6 +181,12 @@ def generate_with_retry(
             if isinstance(exc, genai_errors.APIError) and exc.code not in RETRYABLE_STATUS_CODES:
                 raise
             delay = RETRY_DELAYS_SECONDS[attempt]
+            langfuse().create_event(
+                name="retry-gemini-call",
+                level="WARNING",
+                status_message=describe_error(exc),
+                metadata={"attempt": attempt + 1, "delay_seconds": delay},
+            )
             logger.warning(
                 "Gemini request failed (attempt %d/%d), retrying in %ds: %s: %s",
                 attempt + 1,
@@ -173,6 +199,62 @@ def generate_with_retry(
     return client.models.generate_content(model=model, contents=contents, config=config)
 
 
+@dataclass(frozen=True)
+class MentionsReply:
+    payload: dict
+    usage: dict[str, Any] | None
+
+
+def request_mentions(paths: list[Path], *, model: str) -> MentionsReply:
+    """Send the media and `EXTRACTION_PROMPT` to `model` and return the parsed mentions.
+
+    Traced as the `extract-mentions` generation: the prompt and a description of each media
+    file (never its bytes), the parsed reply, token usage, cost, and why it finished. An
+    unusable reply raises `GeminiResponseError` and is recorded as an ERROR with its raw text.
+    """
+    settings = get_settings()
+    client = get_gemini_client(settings)
+    file_parts = [
+        upload_to_gemini(client, media_path, use_vertexai=settings.gemini.use_vertexai)
+        for media_path in paths
+    ]
+    with observe_step(
+        "extract-mentions",
+        as_type="generation",
+        model=model,
+        model_parameters={"temperature": EXTRACTION_TEMPERATURE},
+        input=user_message(
+            *(media_placeholder(_describe_media(path)) for path in paths),
+            text_part(EXTRACTION_PROMPT),
+        ),
+        metadata={
+            "prompt_version": EXTRACTION_PROMPT_VERSION,
+            "media": [media_view(path) for path in paths],
+        },
+    ) as generation:
+        response = generate_with_retry(
+            client,
+            model=model,
+            contents=[*file_parts, EXTRACTION_PROMPT],
+            config=GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=MENTION_SCHEMA,
+                temperature=EXTRACTION_TEMPERATURE,
+            ),
+            total_attempts=settings.gemini.gemini_total_attempts,
+        )
+        record_gemini_reply(generation, model=model, response=response)
+        generation.update(output=response.text)
+        payload = parse_mentions_response(response)
+        generation.update(output=payload)
+    return MentionsReply(payload=payload, usage=gemini_usage(response))
+
+
+def _describe_media(path: Path) -> str:
+    view = media_view(path)
+    return f"{view['mime_type']} {view['file']}, {view['bytes'] / 1024 / 1024:.1f} MB"
+
+
 def extract_mentions_from_media(media_paths: Path | Sequence[Path]) -> dict:
     settings = get_settings()
     paths = _media_path_list(media_paths)
@@ -183,24 +265,7 @@ def extract_mentions_from_media(media_paths: Path | Sequence[Path]) -> dict:
         max_file_bytes=settings.max_media_file_bytes,
         max_total_bytes=settings.max_media_total_bytes,
     )
-    client = get_gemini_client(settings)
-    file_parts = [
-        upload_to_gemini(client, media_path, use_vertexai=settings.gemini.use_vertexai)
-        for media_path in paths
-    ]
-
-    response = generate_with_retry(
-        client,
-        model=settings.gemini.gemini_model,
-        contents=[*file_parts, EXTRACTION_PROMPT],
-        config=GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=MENTION_SCHEMA,
-            temperature=0.1,
-        ),
-        total_attempts=settings.gemini.gemini_total_attempts,
-    )
-    return parse_mentions_response(response)
+    return request_mentions(paths, model=settings.gemini.gemini_model).payload
 
 
 class GeminiResponseError(RuntimeError):

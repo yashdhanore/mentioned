@@ -150,6 +150,24 @@ class GoogleBooksConfig(BaseSettings):
     api_key: OptionalEnvStr = Field(default=None, validation_alias="GOOGLE_BOOKS_API_KEY")
 
 
+class LangfuseConfig(BaseSettings):
+    """Langfuse Cloud credentials. Tracing is on only when both keys are set; see
+    `src/observability.py`."""
+
+    model_config = _ENV_CONFIG
+
+    public_key: OptionalEnvStr = Field(default=None, validation_alias="LANGFUSE_PUBLIC_KEY")
+    secret_key: OptionalEnvStr = Field(default=None, validation_alias="LANGFUSE_SECRET_KEY")
+    # Langfuse Cloud EU. The US region is https://us.cloud.langfuse.com.
+    base_url: Annotated[str, BeforeValidator(_blank_as("https://cloud.langfuse.com"))] = Field(
+        default="https://cloud.langfuse.com", validation_alias="LANGFUSE_BASE_URL"
+    )
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.public_key and self.secret_key)
+
+
 class Settings(BaseSettings):
     model_config = _ENV_CONFIG
 
@@ -198,6 +216,7 @@ class Settings(BaseSettings):
     auth: AuthConfig = Field(default_factory=AuthConfig)
     gemini: GeminiConfig = Field(default_factory=GeminiConfig)
     google_books: GoogleBooksConfig = Field(default_factory=GoogleBooksConfig)
+    langfuse: LangfuseConfig = Field(default_factory=LangfuseConfig)
 
     @model_validator(mode="after")
     def _apply_app_env_defaults(self) -> Settings:

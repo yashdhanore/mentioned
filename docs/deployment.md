@@ -61,7 +61,13 @@ WORKER_DATABASE_URL=postgresql://mentioned_worker.../postgres
 MIGRATION_DATABASE_URL=postgresql://postgres.../postgres
 GEMINI_API_KEY=<Gemini API key>
 GOOGLE_BOOKS_API_KEY=<optional Google Books API key>
+LANGFUSE_PUBLIC_KEY=<optional Langfuse project public key>
+LANGFUSE_SECRET_KEY=<optional Langfuse project secret key>
 ```
+
+With both Langfuse keys set, the worker sends one trace per extraction attempt to Langfuse Cloud EU (`LANGFUSE_BASE_URL`, set in the blueprint): download, relevance gate, extraction, and each book lookup, with token usage and cost, under environment `production` and the deployed commit as release.
+Without them the worker runs the same and sends nothing.
+The API calls no model, so it has no Langfuse keys.
 
 `CORS_ALLOWED_ORIGINS` (both services) and `WEB_BASE_URL` (API only) are set in the blueprint to `https://mentioned-web.onrender.com`; change them there if the web app moves.
 With `WEB_BASE_URL` set, `GET /privacy` and `GET /support` on the API 301-redirect to the web app, so `web/src/pages/privacy.astro` and `support.astro` own that copy.

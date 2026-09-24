@@ -12,7 +12,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 from src.books.schemas import GoogleBook
 from src.books.titles import (
@@ -23,6 +23,7 @@ from src.books.titles import (
     normalize_title,
 )
 from src.extraction.google_books import BooksSearchResult, book_search_query, search_volumes
+from src.observability import observe_step
 
 ResolutionStatus = Literal["resolved", "ambiguous", "not_found", "error"]
 ResolutionMethod = Literal["catalog", "agent"]
@@ -114,7 +115,50 @@ def score_candidate(book: GoogleBook, title: str, author: str | None) -> ScoredC
 
 
 def resolve_book(title: str, author: str | None, *, search: BookSearch) -> Resolution:
-    """Check the catalog's top results for `title` and attach the best one that passes."""
+    """Check the catalog's top results for `title` and attach the best one that passes.
+
+    Traced as the `resolve-book` retriever, with every query and why each candidate was
+    rejected, so a book left without a cover can be explained from the trace alone."""
+    with observe_step(
+        "resolve-book", as_type="retriever", input={"title": title, "author": author}
+    ) as step:
+        resolution = _check_catalog(title, author, search=search)
+        step.update(output=resolution_view(resolution), metadata=resolution_details(resolution))
+        return resolution
+
+
+def resolution_view(resolution: Resolution) -> dict[str, Any]:
+    book = resolution.book
+    return {
+        "status": resolution.status,
+        "method": resolution.method,
+        "book": _book_view(book) if book else None,
+        "reason": resolution.reason,
+    }
+
+
+def resolution_details(resolution: Resolution) -> dict[str, Any]:
+    return {
+        "queries": list(resolution.queries),
+        "searches": resolution.searches,
+        "candidates": [
+            {
+                **_book_view(candidate.book),
+                "title_similarity": candidate.title_similarity,
+                "author_match": candidate.author_match,
+                "rejected_because": candidate.rejected_because,
+                "score": candidate.score,
+            }
+            for candidate in resolution.candidates
+        ],
+    }
+
+
+def _book_view(book: GoogleBook) -> dict[str, Any]:
+    return {"volume_id": book.provider_volume_id, "title": book.title, "authors": book.authors}
+
+
+def _check_catalog(title: str, author: str | None, *, search: BookSearch) -> Resolution:
     queries = [book_search_query(title, author)]
     result = search(queries[0])
     if result.status == "not_found" and author:

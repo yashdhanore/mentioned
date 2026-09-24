@@ -724,6 +724,45 @@ The work splits along two independent axes:
   local dev never runs Alembic against SQLite in practice (`AUTO_CREATE_TABLES` uses
   `SQLModel.metadata.create_all` instead); the squash is no worse than the chain it replaces.
 
+### 2026-09-24 - Langfuse Tracing For The Worker Pipeline And Evals
+
+- Status: Accepted and implemented. `src/observability.py` owns the Langfuse client (Python SDK
+  v4, OpenTelemetry based, Langfuse Cloud EU); the worker and the eval scripts trace, the API does
+  not.
+- Product constraint: The save -> extract -> revisit loop in production, cost control, and
+  privacy. This is the "track provider cost, latency, and confidence per extraction" step of the
+  Ingestion And Cost Control track and the cost/latency instrumentation in Axis A, planned since
+  June and never built: before it, only the evals recorded tokens and cost, and production had
+  logs.
+- Shape: one `extract-source` trace per extraction attempt, with `download-media`,
+  `assess-relevance` and `extract-mentions` generations, and one `resolve-book` retriever per book;
+  session = source id, so retries of a Reel group together; no user id, because a source is a
+  cache shared by everyone who saved it; an `extraction-outcome` score (done, skipped, failed).
+  Evals trace under environment `eval`, one session per comparison run, and the resolution agent
+  traces as agent -> one generation per turn -> `search-books` / `submit-resolution` tools.
+- Cost: sent explicitly from `src/extraction/pricing.py`, the table the evals already used, so a
+  production trace and `evals/README.md` price a call the same way; Langfuse's own Gemini prices
+  would not split audio from video input.
+- Privacy: media bytes are never sent, only name, type and size; prompts, captions, replies and
+  catalog results are. Keys are optional: without both, tracing is off and nothing is exported.
+  The web and API privacy pages name Langfuse as a processor.
+- Rejected: the documented OpenInference `google-genai` auto-instrumentation. It redacts inline
+  images only; inline video is base64-encoded into span attributes, which the Langfuse exporter
+  then uploads, so every Reel's video would reach a third party. Rejected Langfuse prompt
+  management for now: prompts stay in git so every prompt change passes the labeled eval; a
+  runtime-edited prompt would skip it. Rejected LLM-as-a-judge on extraction: hand labels exist,
+  and a judge only makes sense on unlabeled production traffic after calibration against them.
+- Verified: the E2E suite `tests/e2e/test_extraction_tracing.py` decodes the SDK's real OTLP
+  exports and checks nesting, cost against `pricing.py`, error and fail-open levels, that no media
+  bytes or provider keys leave, and that an unreachable or failing Langfuse never fails or slows a
+  save. A live run against Langfuse Cloud on 2026-09-24 returned the same shape.
+- Findings: `gemini-3.1-flash-lite` reports no AUDIO prompt tokens, only VIDEO and TEXT, so its
+  audio is priced at the video rate in both traces and evals; `gemini-2.5-flash` reports AUDIO
+  separately. The SDK keeps one client per public key per process and stamps the environment on
+  every span, not only on the process-wide tracer provider.
+- Next: repeated eval runs (N per configuration, spread and flip rate), each run a Langfuse
+  session, so a Reel whose titles flip between runs can be opened trace by trace.
+
 ### Book Catalog And Reading List Support
 
 > Product intent lives in `docs/strategy/product.md`. Technical work here should support the

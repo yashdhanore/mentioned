@@ -12,6 +12,7 @@ from src.config import Settings, get_settings
 from src.database import check_worker_database_role, create_sql_engine, engine
 from src.ingestion.queue_worker import process_source_extraction_message
 from src.ingestion.source_processor import default_source_ingestion
+from src.observability import configure_tracing, shutdown_tracing
 from src.push.queue import read_push_notification_messages
 from src.push.worker import process_push_notification_message
 from src.sources.models import Source
@@ -150,7 +151,12 @@ def main() -> None:
     settings = get_settings()
     level = logging.INFO if settings.is_production else logging.DEBUG
     logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    run_worker()
+    configure_tracing(settings)
+    try:
+        run_worker()
+    finally:
+        # Send queued traces before exit; SIGTERM ends run_worker() normally, SIGKILL skips it.
+        shutdown_tracing()
 
 
 if __name__ == "__main__":

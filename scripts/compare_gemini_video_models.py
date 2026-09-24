@@ -8,55 +8,25 @@ import sys
 import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from google.genai.types import GenerateContentConfig
+from langfuse import propagate_attributes
 
 from src.config import get_settings
 from src.extraction.download import DownloadedAssets, download_assets_with_metadata
-from src.extraction.gemini import (
-    EXTRACTION_PROMPT,
-    MENTION_SCHEMA,
-    generate_with_retry,
-    parse_mentions_response,
-    upload_to_gemini,
+from src.extraction.gemini import request_mentions
+from src.extraction.pricing import (
+    PRICE_TABLE,
+    PRICING_SOURCE,
+    gemini_cost_details,
+    gemini_usage_details,
+    prompt_tokens_by_modality,
 )
-from src.extraction.gemini_client import get_gemini_client
+from src.observability import configure_tracing, langfuse, shutdown_tracing
 
 DEFAULT_MODELS = ("gemini-2.5-flash", "gemini-3.1-flash-lite")
-PRICING_SOURCE = "Gemini Developer API paid tier, standard mode, checked 2026-09-22"
-
-# USD per 1M tokens. Gemini pricing separates audio input from text/image/video input.
-DEFAULT_PRICE_TABLE: dict[str, dict[str, float]] = {
-    "gemini-2.5-flash": {
-        "input_text_image_video": 0.30,
-        "input_audio": 1.00,
-        "output": 2.50,
-    },
-    "gemini-3.1-flash-lite": {
-        "input_text_image_video": 0.25,
-        "input_audio": 0.50,
-        "output": 1.50,
-    },
-    "gemini-3.5-flash-lite": {
-        "input_text_image_video": 0.30,
-        "input_audio": 0.30,
-        "output": 2.50,
-    },
-    "gemini-3.5-flash": {
-        "input_text_image_video": 1.50,
-        "input_audio": 1.50,
-        "output": 9.00,
-    },
-    # Launch pricing through 2026-12-31; doubles to 1.50 input / 7.50 output after.
-    "gemini-3.8-flash": {
-        "input_text_image_video": 0.75,
-        "input_audio": 0.75,
-        "output": 3.75,
-    },
-}
-
 SOURCE_URL_RE = re.compile(r"https?://[^\s)\]>\"]+")
 MEDIA_MANIFEST_NAME = "media-manifest.json"
 
@@ -127,112 +97,75 @@ def _media_summary(path: Path) -> dict[str, Any]:
     }
 
 
-def _int_value(value: Any) -> int:
-    return value if isinstance(value, int) else 0
-
-
-def _modality_name(value: Any) -> str:
-    if value is None:
-        return "UNKNOWN"
-    name = getattr(value, "name", None)
-    if isinstance(name, str):
-        return name.upper()
-    return str(value).split(".")[-1].upper()
-
-
-def _details_by_modality(details: Any) -> dict[str, int]:
-    totals: dict[str, int] = {}
-    if not isinstance(details, list):
-        return totals
-    for item in details:
-        if not isinstance(item, dict):
-            continue
-        modality = _modality_name(item.get("modality"))
-        token_count = _int_value(item.get("token_count"))
-        if token_count:
-            totals[modality] = totals.get(modality, 0) + token_count
-    return totals
-
-
 def _usage_token_summary(usage: dict[str, Any] | None) -> dict[str, Any] | None:
     if not usage:
         return None
-    prompt_by_modality = _details_by_modality(usage.get("prompt_tokens_details"))
-    output_tokens = _int_value(usage.get("candidates_token_count")) + _int_value(
-        usage.get("thoughts_token_count")
-    )
+    details = gemini_usage_details(usage)
+    assert details is not None
     return {
-        "prompt_tokens": _int_value(usage.get("prompt_token_count")),
-        "prompt_tokens_by_modality": prompt_by_modality,
-        "candidate_tokens": _int_value(usage.get("candidates_token_count")),
-        "thoughts_tokens": _int_value(usage.get("thoughts_token_count")),
-        "output_billable_tokens": output_tokens,
-        "total_tokens": _int_value(usage.get("total_token_count")),
+        "prompt_tokens": details["input"] + details["input_audio"],
+        "prompt_tokens_by_modality": prompt_tokens_by_modality(usage.get("prompt_tokens_details")),
+        "candidate_tokens": details["output"],
+        "thoughts_tokens": details["output_reasoning"],
+        "output_billable_tokens": details["output"] + details["output_reasoning"],
+        "total_tokens": usage.get("total_token_count") or 0,
     }
 
 
 def _estimate_cost(model: str, usage: dict[str, Any] | None) -> dict[str, Any] | None:
-    rates = DEFAULT_PRICE_TABLE.get(model)
-    token_summary = _usage_token_summary(usage)
-    if not rates or not token_summary:
+    rates = PRICE_TABLE.get(model)
+    details = gemini_usage_details(usage)
+    costs = gemini_cost_details(model, details)
+    if not rates or details is None or costs is None:
         return None
-
-    prompt_by_modality = token_summary["prompt_tokens_by_modality"]
-    audio_input_tokens = prompt_by_modality.get("AUDIO", 0)
-    prompt_tokens = token_summary["prompt_tokens"]
-    non_audio_input_tokens = max(prompt_tokens - audio_input_tokens, 0)
-    output_tokens = token_summary["output_billable_tokens"]
-
-    input_text_image_video_usd = (
-        non_audio_input_tokens * rates["input_text_image_video"] / 1_000_000
-    )
-    input_audio_usd = audio_input_tokens * rates["input_audio"] / 1_000_000
-    output_usd = output_tokens * rates["output"] / 1_000_000
-    total_usd = input_text_image_video_usd + input_audio_usd + output_usd
-
     return {
         "currency": "USD",
         "pricing_source": PRICING_SOURCE,
         "rates_per_million_tokens": rates,
-        "input_text_image_video_tokens": non_audio_input_tokens,
-        "input_audio_tokens": audio_input_tokens,
-        "output_tokens": output_tokens,
-        "input_text_image_video_usd": _round_usd(input_text_image_video_usd),
-        "input_audio_usd": _round_usd(input_audio_usd),
-        "output_usd": _round_usd(output_usd),
-        "total_usd": _round_usd(total_usd),
+        "input_text_image_video_tokens": details["input"],
+        "input_audio_tokens": details["input_audio"],
+        "output_tokens": details["output"] + details["output_reasoning"],
+        "input_text_image_video_usd": _round_usd(costs["input"]),
+        "input_audio_usd": _round_usd(costs["input_audio"]),
+        "output_usd": _round_usd(costs["output"] + costs["output_reasoning"]),
+        "total_usd": _round_usd(sum(costs.values())),
     }
 
 
 def _extract_mentions_for_model(paths: list[Path], *, model: str) -> dict[str, Any]:
-    settings = get_settings()
-    client = get_gemini_client(settings)
-    file_parts = [
-        upload_to_gemini(client, media_path, use_vertexai=settings.gemini.use_vertexai)
-        for media_path in paths
-    ]
-    response = generate_with_retry(
-        client,
-        model=model,
-        contents=[*file_parts, EXTRACTION_PROMPT],
-        config=GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=MENTION_SCHEMA,
-            temperature=0.1,
-        ),
-        total_attempts=settings.gemini.gemini_total_attempts,
-    )
     # An unusable reply raises, so _run_model records it as a failed extraction instead of
     # scoring it as a Reel with no mentions.
-    raw = parse_mentions_response(response)
-    usage = response.usage_metadata
-    return {
-        "raw": raw,
-        "usage": usage.model_dump(mode="json", exclude_none=True) if usage else None,
-    }
+    reply = request_mentions(paths, model=model)
+    return {"raw": reply.payload, "usage": reply.usage}
 
 
-def _run_model(paths: list[Path], model: str) -> dict[str, Any]:
+def _run_model(
+    paths: list[Path], model: str, source_url: str = "", run_id: str = ""
+) -> dict[str, Any]:
+    # One `evaluate-extraction` trace per model per Reel; the whole comparison run is one
+    # Langfuse session, so a Reel whose result differs between models or runs can be opened
+    # side by side.
+    with (
+        langfuse().start_as_current_observation(
+            name="evaluate-extraction", input={"source_url": source_url, "model": model}
+        ) as trace_root,
+        propagate_attributes(
+            session_id=run_id or None,
+            trace_name="evaluate-extraction",
+            tags=["eval"],
+            metadata={"model": model},
+        ),
+    ):
+        result = _run_model_untraced(paths, model)
+        output = {key: result.get(key) for key in ("ok", "error", "mention_count", "raw")}
+        if result["ok"]:
+            trace_root.update(output=output)
+        else:
+            trace_root.update(output=output, level="ERROR", status_message=result["error"])
+        return result
+
+
+def _run_model_untraced(paths: list[Path], model: str) -> dict[str, Any]:
     started = time.monotonic()
     try:
         response = _extract_mentions_for_model(paths, model=model)
@@ -294,6 +227,7 @@ def _compare_in_dir(
     *,
     keep_media: bool,
     reuse_media: bool = False,
+    run_id: str = "",
 ) -> dict[str, Any]:
     download_started = time.monotonic()
     assets = _reusable_media(media_dir, source_url) if reuse_media else None
@@ -326,7 +260,9 @@ def _compare_in_dir(
         return payload
 
     with ThreadPoolExecutor(max_workers=len(models)) as executor:
-        futures = {executor.submit(_run_model, paths, model): model for model in models}
+        futures = {
+            executor.submit(_run_model, paths, model, source_url, run_id): model for model in models
+        }
         results_by_model = {futures[future]: future.result() for future in as_completed(futures)}
 
     payload["results"] = [results_by_model[model] for model in models]
@@ -421,6 +357,7 @@ def compare_sources(
 ) -> dict[str, Any]:
     model_names = _normalize_models(models)
     started = time.monotonic()
+    run_id = f"eval-{datetime.now(UTC):%Y%m%dT%H%M%SZ}"
     sources: list[dict[str, Any]] = []
 
     if media_dir:
@@ -436,6 +373,7 @@ def compare_sources(
                         source_media_dir,
                         keep_media=True,
                         reuse_media=reuse_media,
+                        run_id=run_id,
                     )
                 )
             except Exception as exc:
@@ -445,13 +383,16 @@ def compare_sources(
             with tempfile.TemporaryDirectory() as tmp:
                 try:
                     sources.append(
-                        _compare_in_dir(source_url, model_names, Path(tmp), keep_media=False)
+                        _compare_in_dir(
+                            source_url, model_names, Path(tmp), keep_media=False, run_id=run_id
+                        )
                     )
                 except Exception as exc:
                     sources.append(_failed_source(source_url, exc))
 
     return {
         "models": model_names,
+        "langfuse_session_id": run_id,
         "total_duration_seconds": _round_seconds(time.monotonic() - started),
         "summary": _summarize_batch(sources, model_names),
         "sources": sources,
@@ -514,6 +455,14 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    configure_tracing(get_settings(), environment="eval")
+    try:
+        return _main(args)
+    finally:
+        shutdown_tracing()
+
+
+def _main(args: argparse.Namespace) -> int:
     try:
         source_urls = _normalize_source_urls(args)
         payload = compare_sources(

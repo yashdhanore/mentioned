@@ -61,6 +61,8 @@ uv run python scripts/score_extraction_eval.py \
   --output outputs/gemini-compare-20/score.json
 ```
 
+With `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` set, every model run on every Reel is also a Langfuse trace (environment `eval`, one session per comparison run, id in `result.json` as `langfuse_session_id`), so a wrong or missing title can be opened with the exact prompt, reply, tokens, and cost.
+
 `--media-dir` keeps the downloaded media next to a `media-manifest.json` per source.
 When iterating on the prompt, add `--reuse-media` to rerun the models on that media instead of downloading from Instagram again; a folder is only reused for the exact source URL its manifest names.
 
